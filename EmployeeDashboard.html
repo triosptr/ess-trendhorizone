@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <title><?= appName ?></title>
+    <?!= include('Styles'); ?>
+  </head>
+  <body>
+    <div class="layout">
+      <div class="sidebar">
+        <h2>ESS Karyawan</h2>
+        <button onclick="loadEmployeeHome()">Dashboard</button>
+        <button onclick="loadNotificationCenter()">Notifikasi</button>
+        <button onclick="loadMyProfile()">Profil Saya</button>
+        <button onclick="loadAttendancePage()">Absensi Hari Ini</button>
+        <button onclick="loadMyAttendanceHistory()">Riwayat Absensi</button>
+        <button onclick="loadLeaveForm()">Ajukan Cuti</button>
+        <button onclick="loadMyLeaveHistory()">Riwayat Cuti</button>
+        <button onclick="loadMyPayrollDocs()">Slip Gaji</button>
+        <button onclick="loadAnnouncements()">Pengumuman</button>
+      </div>
+
+      <div class="main">
+        <div class="card">
+          <h1 class="page-title">Halo, <?= user.nama ?></h1>
+          <div class="muted"><?= user.email ?> • <?= user.divisi ?> • <?= user.jabatan ?></div>
+        </div>
+
+        <div id="content"></div>
+      </div>
+    </div>
+
+    <?!= include('Scripts'); ?>
+
+    <script>
+      let leaveTypesCache = [];
+      let attendanceClientConfig = null;
+
+      async function loadEmployeeHome() {
+        try {
+          setLoading('Memuat dashboard karyawan...');
+
+          const results = await Promise.all([
+            runServer('getMyDashboardSummary'),
+            runServer('getMyAttendanceToday'),
+            runServer('getMyNotificationSummary'),
+            runServer('getMyNotifications')
+          ]);
+
+          const data = results[0];
+          const todayAttendance = results[1];
+          const notifSummary = results[2];
+          const notifications = Array.isArray(results[3]) ? results[3] : [];
+          const latestNotifications = notifications.slice(0, 5);
+
+          let notifHtml = '';
+          if (latestNotifications.length === 0) {
+            notifHtml = '<div class="muted">Belum ada notifikasi.</div>';
+          } else {
+            notifHtml = latestNotifications.map(function(n) {
+              const unreadBadge = String(safe(n.is_unread)).trim().toUpperCase() === 'TRUE'
+                ? '<span class="badge badge-warning">Baru</span>'
+                : '<span class="badge badge-neutral">Dilihat</span>';
+
+              let actionBtn = '';
+              if (String(safe(n.notification_type)) === 'payroll') {
+                actionBtn = '<a class="btn btn-primary" href="' + escapeHtml(safe(n.file_url)) + '" target="_blank">Buka Slip</a>';
+              } else {
+                actionBtn = '<button class="btn btn-secondary" onclick="loadAnnouncements()">Buka Pengumuman</button>';
+              }
+
+              return ''
+                + '<div class="card" style="margin-bottom:12px;">'
+                +   '<div class="section-title">'
+                +     '<h3 class="mb-0">' + escapeHtml(safe(n.title)) + '</h3>'
+                +     '<div>' + unreadBadge + '</div>'
+                +   '</div>'
+                +   '<div class="muted" style="margin-bottom:8px;">' + escapeHtml(formatDateTimeDisplay(n.date_value)) + '</div>'
+                +   '<div style="margin-bottom:12px;">' + escapeHtml(safe(n.message)) + '</div>'
+                +   '<div class="actions">' + actionBtn + '</div>'
+                + '</div>';
+            }).join('');
+          }
+
+          setContent(''
+            + '<div class="cards">'
+            +   '<div class="card"><div>Jatah Cuti</div><div class="stat">' + escapeHtml(safe(data.jatah_cuti)) + '</div></div>'
+            +   '<div class="card"><div>Sisa Cuti</div><div class="stat">' + escapeHtml(safe(data.sisa_cuti)) + '</div></div>'
+            +   '<div class="card"><div>Pengajuan Pending</div><div class="stat">' + escapeHtml(safe(data.pendingLeaves)) + '</div></div>'
+            +   '<div class="card"><div>Absensi Hari Ini</div><div class="stat">' + escapeHtml(safe(todayAttendance.status)) + '</div></div>'
+            + '</div>'
+
+            + '<div class="cards">'
+            +   '<div class="card"><div>Pengumuman Baru</div><div class="stat">' + escapeHtml(safe(notifSummary.unread_announcements)) + '</div></div>'
+            +   '<div class="card"><div>Payroll Baru</div><div class="stat">' + escapeHtml(safe(notifSummary.unread_payroll_docs)) + '</div></div>'
+            +   '<div class="card"><div>Total Notifikasi Baru</div><div class="stat">' + escapeHtml(safe(notifSummary.total_unread)) + '</div></div>'
+            + '</div>'
+
+            + '<div class="card">'
+            +   '<div class="section-title">'
+            +     '<h3 class="mb-0">Ringkasan Karyawan</h3>'
+            +     '<div class="actions"><button class="btn btn-secondary" onclick="loadNotificationCenter()">Buka Notifikasi</button></div>'
+            +   '</div>'
+            +   '<p><b>Nama:</b> ' + escapeHtml(safe(data.nama)) + '</p>'
+            +   '<p><b>ID Karyawan:</b> ' + escapeHtml(safe(data.employee_id)) + '</p>'
+            +   '<p><b>Divisi:</b> ' + escapeHtml(safe(data.divisi)) + '</p>'
+            +   '<p><b>Jabatan:</b> ' + escapeHtml(safe(data.jabatan)) + '</p>'
+            + '</div>'
+
+            + '<div class="card">'
+            +   '<h3>Status Absensi Hari Ini</h3>'
+            +   '<p><b>Tanggal:</b> ' + escapeHtml(safe(todayAttendance.tanggal)) + '</p>'
+            +   '<p><b>Jam Masuk:</b> ' + escapeHtml(safe(todayAttendance.jam_masuk || '-')) + '</p>'
+            +   '<p><b>Jam Keluar:</b> ' + escapeHtml(safe(todayAttendance.jam_keluar || '-')) + '</p>'
+            +   '<p><b>Status:</b> ' + normalizeStatusBadge(todayAttendance.status) + '</p>'
+            + '</div>'
+
+            + '<div class="card">'
+            +   '<div class="section-title">'
+            +     '<h3 class="mb-0">Notifikasi Terbaru</h3>'
+            +     '<div class="actions"><button class="btn btn-primary" onclick="markAllNotificationsSeenAndReload()">Tandai Semua Dilihat</button></div>'
+            +   '</div>'
+            +   notifHtml
+            + '</div>'
+          );
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function loadNotificationCenter() {
+        try {
+          setLoading('Memuat notifikasi...');
+
+          const results = await Promise.all([
+            runServer('getMyNotificationSummary'),
+            runServer('getMyNotifications')
+          ]);
+
+          const notifSummary = results[0];
+          const notifications = Array.isArray(results[1]) ? results[1] : [];
+
+          let html = ''
+            + '<div class="cards">'
+            +   '<div class="card"><div>Pengumuman Baru</div><div class="stat">' + escapeHtml(safe(notifSummary.unread_announcements)) + '</div></div>'
+            +   '<div class="card"><div>Payroll Baru</div><div class="stat">' + escapeHtml(safe(notifSummary.unread_payroll_docs)) + '</div></div>'
+            +   '<div class="card"><div>Total Notifikasi Baru</div><div class="stat">' + escapeHtml(safe(notifSummary.total_unread)) + '</div></div>'
+            + '</div>'
+
+            + '<div class="card">'
+            +   '<div class="section-title">'
+            +     '<h3 class="mb-0">Pusat Notifikasi</h3>'
+            +     '<div class="actions">'
+            +       '<button class="btn btn-primary" onclick="markAllNotificationsSeenAndReload()">Tandai Semua Dilihat</button>'
+            +       '<button class="btn btn-secondary" onclick="loadEmployeeHome()">Kembali ke Dashboard</button>'
+            +     '</div>'
+            +   '</div>';
+
+          if (notifications.length === 0) {
+            html += '<div class="muted">Belum ada notifikasi.</div>';
+          } else {
+            notifications.forEach(function(n) {
+              const isUnread = String(safe(n.is_unread)).trim().toUpperCase() === 'TRUE';
+              const badge = isUnread
+                ? '<span class="badge badge-warning">Baru</span>'
+                : '<span class="badge badge-neutral">Dilihat</span>';
+
+              let actionBtn = '';
+              if (String(safe(n.notification_type)) === 'payroll') {
+                actionBtn = '<a class="btn btn-primary" href="' + escapeHtml(safe(n.file_url)) + '" target="_blank">Buka Slip Gaji</a>';
+              } else {
+                actionBtn = '<button class="btn btn-secondary" onclick="openAnnouncementNotifications()">Buka Pengumuman</button>';
+              }
+
+              html += ''
+                + '<div class="card" style="margin-top:12px; border:1px solid #e2e8f0;">'
+                +   '<div class="section-title">'
+                +     '<h3 class="mb-0">' + escapeHtml(safe(n.title)) + '</h3>'
+                +     '<div>' + badge + '</div>'
+                +   '</div>'
+                +   '<div class="muted" style="margin-bottom:8px;">' + escapeHtml(formatDateTimeDisplay(n.date_value)) + '</div>'
+                +   '<div style="margin-bottom:12px;">' + escapeHtml(safe(n.message)) + '</div>'
+                +   '<div class="actions">' + actionBtn + '</div>'
+                + '</div>';
+            });
+          }
+
+          html += '</div>';
+          setContent(html);
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function markAllNotificationsSeenAndReload() {
+        try {
+          setLoading('Memperbarui notifikasi...');
+          await runServer('markMyNotificationsSeen');
+          await loadNotificationCenter();
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function openAnnouncementNotifications() {
+        try {
+          await runServer('markAnnouncementNotificationsSeen');
+          await loadAnnouncements();
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function openPayrollNotifications() {
+        try {
+          await runServer('markPayrollNotificationsSeen');
+          await loadMyPayrollDocs();
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function loadMyProfile() {
+        try {
+          setLoading('Memuat profil...');
+          const data = await runServer('getMyProfile');
+
+          setContent(''
+            + '<div class="card">'
+            +   '<h3>Profil Saya</h3>'
+            +   '<div class="grid-2">'
+            +     '<div>'
+            +       '<p><b>ID Karyawan:</b><br>' + escapeHtml(safe(data.employee_id)) + '</p>'
+            +       '<p><b>Nama:</b><br>' + escapeHtml(safe(data.nama)) + '</p>'
+            +       '<p><b>Email:</b><br>' + escapeHtml(safe(data.email)) + '</p>'
+            +       '<p><b>NIK:</b><br>' + escapeHtml(safe(data.nik)) + '</p>'
+            +       '<p><b>Divisi:</b><br>' + escapeHtml(safe(data.divisi)) + '</p>'
+            +       '<p><b>Jabatan:</b><br>' + escapeHtml(safe(data.jabatan)) + '</p>'
+            +     '</div>'
+            +     '<div>'
+            +       '<p><b>Atasan:</b><br>' + escapeHtml(safe(data.atasan_email)) + '</p>'
+            +       '<p><b>Status Karyawan:</b><br>' + escapeHtml(safe(data.status_karyawan)) + '</p>'
+            +       '<p><b>Tanggal Masuk:</b><br>' + escapeHtml(formatDateDisplay(data.tanggal_masuk)) + '</p>'
+            +       '<p><b>Jatah Cuti:</b><br>' + escapeHtml(safe(data.jatah_cuti)) + '</p>'
+            +       '<p><b>Sisa Cuti:</b><br>' + escapeHtml(safe(data.sisa_cuti)) + '</p>'
+            +       '<p><b>No HP:</b><br>' + escapeHtml(safe(data.no_hp)) + '</p>'
+            +       '<p><b>Alamat:</b><br>' + escapeHtml(safe(data.alamat)) + '</p>'
+            +     '</div>'
+            +   '</div>'
+            + '</div>'
+          );
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function loadAttendancePage() {
+        try {
+          setLoading('Memuat data absensi...');
+
+          const results = await Promise.all([
+            runServer('getMyAttendanceToday'),
+            runServer('getAttendanceConfigForClient')
+          ]);
+
+          const data = results[0];
+          attendanceClientConfig = results[1] || {};
+
+          const fotoMasuk = data.foto_masuk_url
+            ? '<a class="btn btn-secondary" href="' + escapeHtml(safe(data.foto_masuk_url)) + '" target="_blank">Lihat Foto Masuk</a>'
+            : '<span class="muted">Belum ada foto masuk</span>';
+
+          const fotoKeluar = data.foto_keluar_url
+            ? '<a class="btn btn-secondary" href="' + escapeHtml(safe(data.foto_keluar_url)) + '" target="_blank">Lihat Foto Keluar</a>'
+            : '<span class="muted">Belum ada foto keluar</span>';
+
+          setContent(''
+            + '<div class="card">'
+            +   '<h3>Absensi Hari Ini</h3>'
+            +   '<p><b>Tanggal:</b> ' + escapeHtml(safe(data.tanggal)) + '</p>'
+            +   '<p><b>Jam Masuk:</b> ' + escapeHtml(safe(data.jam_masuk || '-')) + '</p>'
+            +   '<p><b>Jam Keluar:</b> ' + escapeHtml(safe(data.jam_keluar || '-')) + '</p>'
+            +   '<p><b>Status:</b> ' + normalizeStatusBadge(data.status) + '</p>'
+            +   '<p><b>Lokasi:</b> ' + escapeHtml(safe(data.lokasi || '-')) + '</p>'
+            +   '<p><b>Mode Kerja:</b> ' + escapeHtml(safe(data.work_mode || '-')) + '</p>'
+
+            +   '<div class="grid-2">'
+            +     '<div class="form-group">'
+            +       '<label for="attendance_work_mode">Mode Kerja</label>'
+            +       '<select id="attendance_work_mode">'
+            +         '<option value="office">Office</option>'
+            +         '<option value="wfh">WFH</option>'
+            +       '</select>'
+            +     '</div>'
+            +     '<div class="form-group">'
+            +       '<label for="lokasi_absen">Lokasi / Keterangan Lokasi</label>'
+            +       '<input type="text" id="lokasi_absen" placeholder="Contoh: Office / WFH Rumah / Client Site">'
+            +     '</div>'
+            +   '</div>'
+
+            +   '<div class="form-group">'
+            +     '<label for="catatan_absen">Catatan</label>'
+            +     '<input type="text" id="catatan_absen" placeholder="Opsional">'
+            +   '</div>'
+
+            +   '<input type="file" id="attendance_upload_checkin" accept="image/*" style="display:none;" onchange="submitCheckInAfterUpload(this)">'
+            +   '<input type="file" id="attendance_upload_checkout" accept="image/*" style="display:none;" onchange="submitCheckOutAfterUpload(this)">'
+
+            +   '<div class="grid-2">'
+            +     '<div class="form-group">'
+            +       '<label>Foto Masuk Tersimpan</label>'
+            +       '<div>' + fotoMasuk + '</div>'
+            +     '</div>'
+            +     '<div class="form-group">'
+            +       '<label>Foto Keluar Tersimpan</label>'
+            +       '<div>' + fotoKeluar + '</div>'
+            +     '</div>'
+            +   '</div>'
+
+            +   '<div class="card" style="margin-top:12px; background:#f8fafc;">'
+            +     '<h3 style="margin-top:0;">Validasi Absensi</h3>'
+            +     '<p><b>Jam Masuk Normal:</b> ' + escapeHtml(safe(attendanceClientConfig.work_start_time || '-')) + '</p>'
+            +     '<p><b>Batas Telat:</b> ' + escapeHtml(safe(attendanceClientConfig.late_after_time || '-')) + '</p>'
+            +     '<p><b>Upload Foto:</b> ' + (String(safe(attendanceClientConfig.photo_folder_enabled)).toUpperCase() === 'TRUE' ? 'Aktif' : 'Tidak Aktif') + '</p>'
+            +     '<p class="muted">Pilih foto dari perangkat saat check-in/check-out.</p>'
+            +   '</div>'
+
+            +   '<div class="actions">'
+            +     '<button class="btn btn-primary" onclick="triggerCheckInUpload()">Check In + Upload Foto</button>'
+            +     '<button class="btn btn-secondary" onclick="triggerCheckOutUpload()">Check Out + Upload Foto</button>'
+            +   '</div>'
+            + '</div>'
+          );
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      function triggerCheckInUpload() {
+        const input = document.getElementById('attendance_upload_checkin');
+        if (!input) return;
+        input.value = '';
+        input.click();
+      }
+
+      function triggerCheckOutUpload() {
+        const input = document.getElementById('attendance_upload_checkout');
+        if (!input) return;
+        input.value = '';
+        input.click();
+      }
+
+      async function submitCheckInAfterUpload(input) {
+        try {
+          const file = input && input.files && input.files[0] ? input.files[0] : null;
+          if (!file) throw new Error('Silakan pilih foto untuk check-in.');
+
+          setLoading('Memproses check-in dan upload foto...');
+
+          const payload = {
+            work_mode: String((document.getElementById('attendance_work_mode') || {}).value || 'office').trim().toLowerCase(),
+            lokasi: document.getElementById('lokasi_absen') ? document.getElementById('lokasi_absen').value : '',
+            catatan: document.getElementById('catatan_absen') ? document.getElementById('catatan_absen').value : '',
+            photo: await readAttendanceFileAsBase64_(file)
+          };
+
+          const res = await runServer('checkInAttendance', payload);
+          setContent(renderSuccess(res && res.message ? res.message : 'Check-in berhasil.'));
+          await loadAttendancePage();
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function submitCheckOutAfterUpload(input) {
+        try {
+          const file = input && input.files && input.files[0] ? input.files[0] : null;
+          if (!file) throw new Error('Silakan pilih foto untuk check-out.');
+
+          setLoading('Memproses check-out dan upload foto...');
+
+          const payload = {
+            lokasi: document.getElementById('lokasi_absen') ? document.getElementById('lokasi_absen').value : '',
+            catatan: document.getElementById('catatan_absen') ? document.getElementById('catatan_absen').value : '',
+            photo: await readAttendanceFileAsBase64_(file)
+          };
+
+          const res = await runServer('checkOutAttendance', payload);
+          setContent(renderSuccess(res && res.message ? res.message : 'Check-out berhasil.'));
+          await loadAttendancePage();
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      function readAttendanceFileAsBase64_(file) {
+        return new Promise(function(resolve, reject) {
+          const reader = new FileReader();
+
+          reader.onload = function(e) {
+            const result = String(e.target.result || '');
+            const base64Data = result.split(',')[1] || '';
+
+            resolve({
+              fileName: file.name,
+              mimeType: file.type || 'application/octet-stream',
+              base64Data: base64Data
+            });
+          };
+
+          reader.onerror = function() {
+            reject(new Error('Gagal membaca file foto.'));
+          };
+
+          reader.readAsDataURL(file);
+        });
+      }
+
+      async function loadMyAttendanceHistory() {
+        try {
+          setLoading('Memuat riwayat absensi...');
+          const rows = await runServer('getMyAttendanceHistory');
+
+          if (!Array.isArray(rows)) return setContent(renderError('Riwayat absensi tidak valid.'));
+          if (rows.length === 0) return setContent(renderEmpty('Riwayat Absensi', 'Belum ada riwayat absensi.'));
+
+          let html = ''
+            + '<div class="card">'
+            +   '<div class="section-title">'
+            +     '<h3 class="mb-0">Riwayat Absensi</h3>'
+            +     '<div class="muted">Total: ' + escapeHtml(String(rows.length)) + ' data</div>'
+            +   '</div>'
+            +   '<div class="table-wrap">'
+            +     '<table>'
+            +       '<thead>'
+            +         '<tr>'
+            +           '<th>Tanggal</th>'
+            +           '<th>Jam Masuk</th>'
+            +           '<th>Jam Keluar</th>'
+            +           '<th>Status</th>'
+            +           '<th>Lokasi</th>'
+            +           '<th>Mode</th>'
+            +           '<th>Foto Masuk</th>'
+            +           '<th>Foto Keluar</th>'
+            +           '<th>Catatan</th>'
+            +         '</tr>'
+            +       '</thead>'
+            +       '<tbody>';
+
+          rows.forEach(function(r) {
+            const fotoMasuk = r.foto_masuk_url
+              ? '<a class="btn btn-secondary" href="' + escapeHtml(safe(r.foto_masuk_url)) + '" target="_blank">Lihat</a>'
+              : '-';
+
+            const fotoKeluar = r.foto_keluar_url
+              ? '<a class="btn btn-secondary" href="' + escapeHtml(safe(r.foto_keluar_url)) + '" target="_blank">Lihat</a>'
+              : '-';
+
+            html += ''
+              + '<tr>'
+              +   '<td>' + escapeHtml(safe(r.tanggal)) + '</td>'
+              +   '<td>' + escapeHtml(safe(r.jam_masuk || '-')) + '</td>'
+              +   '<td>' + escapeHtml(safe(r.jam_keluar || '-')) + '</td>'
+              +   '<td>' + normalizeStatusBadge(r.status) + '</td>'
+              +   '<td>' + escapeHtml(safe(r.lokasi || '-')) + '</td>'
+              +   '<td>' + escapeHtml(safe(r.work_mode || '-')) + '</td>'
+              +   '<td>' + fotoMasuk + '</td>'
+              +   '<td>' + fotoKeluar + '</td>'
+              +   '<td>' + escapeHtml(safe(r.catatan || '-')) + '</td>'
+              + '</tr>';
+          });
+
+          html += '</tbody></table></div></div>';
+          setContent(html);
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function loadLeaveForm() {
+        try {
+          setLoading('Memuat form pengajuan cuti...');
+          const leaveTypes = await runServer('getActiveLeaveTypes');
+          leaveTypesCache = Array.isArray(leaveTypes) ? leaveTypes : [];
+
+          let options = '<option value="">-- Pilih jenis cuti --</option>';
+          leaveTypesCache.forEach(function(item) {
+            options += '<option value="' + escapeHtml(safe(item.nama_jenis_cuti)) + '">' + escapeHtml(safe(item.nama_jenis_cuti)) + '</option>';
+          });
+
+          setContent(''
+            + '<div class="card">'
+            +   '<h3>Ajukan Cuti</h3>'
+            +   '<div class="form-group">'
+            +     '<label for="jenis_cuti">Jenis Cuti</label>'
+            +     '<select id="jenis_cuti" onchange="toggleLeaveAttachmentField()">' + options + '</select>'
+            +   '</div>'
+
+            +   '<div class="grid-2">'
+            +     '<div class="form-group">'
+            +       '<label for="tanggal_mulai">Tanggal Mulai</label>'
+            +       '<input type="date" id="tanggal_mulai">'
+            +     '</div>'
+            +     '<div class="form-group">'
+            +       '<label for="tanggal_selesai">Tanggal Selesai</label>'
+            +       '<input type="date" id="tanggal_selesai">'
+            +     '</div>'
+            +   '</div>'
+
+            +   '<div class="form-group">'
+            +     '<label for="alasan">Alasan</label>'
+            +     '<textarea id="alasan" placeholder="Tulis alasan pengajuan cuti..."></textarea>'
+            +   '</div>'
+
+            +   '<div id="attachment_wrapper" class="hidden">'
+            +     '<div class="form-group">'
+            +       '<label for="leave_attachment">Lampiran Dokumen</label>'
+            +       '<input type="file" id="leave_attachment">'
+            +       '<p class="muted">Jenis cuti ini wajib melampirkan dokumen pendukung.</p>'
+            +     '</div>'
+            +   '</div>'
+
+            +   '<div class="actions">'
+            +     '<button class="btn btn-primary" onclick="submitLeaveForm()">Kirim Pengajuan</button>'
+            +     '<button class="btn btn-secondary" onclick="loadEmployeeHome()">Kembali</button>'
+            +   '</div>'
+            + '</div>'
+          );
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      function toggleLeaveAttachmentField() {
+        const select = document.getElementById('jenis_cuti');
+        const wrapper = document.getElementById('attachment_wrapper');
+        if (!select || !wrapper) return;
+
+        const selected = String(select.value || '').trim().toLowerCase();
+
+        const leaveType = leaveTypesCache.find(function(item) {
+          return String(item.nama_jenis_cuti || '').trim().toLowerCase() === selected;
+        });
+
+        const requiresAttachment = leaveType &&
+          String(leaveType.requires_attachment || '').trim().toLowerCase() === 'true';
+
+        if (requiresAttachment) {
+          wrapper.classList.remove('hidden');
+        } else {
+          wrapper.classList.add('hidden');
+          const input = document.getElementById('leave_attachment');
+          if (input) input.value = '';
+        }
+      }
+
+      function readFileAsBase64(file) {
+        return new Promise(function(resolve, reject) {
+          const reader = new FileReader();
+
+          reader.onload = function(e) {
+            const result = String(e.target.result || '');
+            const base64Data = result.split(',')[1] || '';
+            resolve({
+              fileName: file.name,
+              mimeType: file.type || 'application/octet-stream',
+              base64Data: base64Data
+            });
+          };
+
+          reader.onerror = function() {
+            reject(new Error('Gagal membaca file lampiran.'));
+          };
+
+          reader.readAsDataURL(file);
+        });
+      }
+
+      async function submitLeaveForm() {
+        try {
+          const jenisCuti = document.getElementById('jenis_cuti').value;
+          const tanggalMulai = document.getElementById('tanggal_mulai').value;
+          const tanggalSelesai = document.getElementById('tanggal_selesai').value;
+          const alasan = document.getElementById('alasan').value;
+
+          const payload = {
+            jenis_cuti: jenisCuti,
+            tanggal_mulai: tanggalMulai,
+            tanggal_selesai: tanggalSelesai,
+            alasan: alasan
+          };
+
+          const selected = String(jenisCuti || '').trim().toLowerCase();
+          const leaveType = leaveTypesCache.find(function(item) {
+            return String(item.nama_jenis_cuti || '').trim().toLowerCase() === selected;
+          });
+
+          const requiresAttachment = leaveType &&
+            String(leaveType.requires_attachment || '').trim().toLowerCase() === 'true';
+
+          const fileInput = document.getElementById('leave_attachment');
+          const file = fileInput && fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+
+          if (requiresAttachment && !file) {
+            throw new Error('Jenis cuti ini wajib melampirkan dokumen.');
+          }
+
+          if (file) {
+            payload.attachment = await readFileAsBase64(file);
+          }
+
+          setLoading('Mengirim pengajuan cuti...');
+          const res = await runServer('submitLeaveRequest', payload);
+          setContent(renderSuccess(res && res.message ? res.message : 'Pengajuan cuti berhasil dikirim.'));
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function loadMyLeaveHistory() {
+        try {
+          setLoading('Memuat riwayat cuti...');
+          const rows = await runServer('getMyLeaveHistory');
+
+          if (!Array.isArray(rows)) return setContent(renderError('Riwayat cuti tidak valid.'));
+          if (rows.length === 0) return setContent(renderEmpty('Riwayat Cuti', 'Belum ada riwayat pengajuan cuti.'));
+
+          let html = ''
+            + '<div class="card">'
+            +   '<div class="section-title">'
+            +     '<h3 class="mb-0">Riwayat Cuti</h3>'
+            +     '<div class="muted">Total: ' + escapeHtml(String(rows.length)) + ' data</div>'
+            +   '</div>'
+            +   '<div class="table-wrap">'
+            +     '<table>'
+            +       '<thead>'
+            +         '<tr>'
+            +           '<th>Leave ID</th>'
+            +           '<th>Jenis Cuti</th>'
+            +           '<th>Tanggal Mulai</th>'
+            +           '<th>Tanggal Selesai</th>'
+            +           '<th>Jumlah Hari</th>'
+            +           '<th>Alasan</th>'
+            +           '<th>Lampiran</th>'
+            +           '<th>Status</th>'
+            +           '<th>Catatan Approver</th>'
+            +         '</tr>'
+            +       '</thead>'
+            +       '<tbody>';
+
+          rows.forEach(function(r) {
+            const lampiranCell = r.lampiran_url
+              ? '<a class="btn btn-primary" href="' + escapeHtml(safe(r.lampiran_url)) + '" target="_blank">Buka Lampiran</a>'
+              : '-';
+
+            html += ''
+              + '<tr>'
+              +   '<td>' + escapeHtml(safe(r.leave_id)) + '</td>'
+              +   '<td>' + escapeHtml(safe(r.jenis_cuti)) + '</td>'
+              +   '<td>' + escapeHtml(formatDateDisplay(r.tanggal_mulai)) + '</td>'
+              +   '<td>' + escapeHtml(formatDateDisplay(r.tanggal_selesai)) + '</td>'
+              +   '<td>' + escapeHtml(safe(r.jumlah_hari)) + '</td>'
+              +   '<td>' + escapeHtml(safe(r.alasan)) + '</td>'
+              +   '<td>' + lampiranCell + '</td>'
+              +   '<td>' + normalizeStatusBadge(r.status) + '</td>'
+              +   '<td>' + escapeHtml(safe(r.catatan_approver)) + '</td>'
+              + '</tr>';
+          });
+
+          html += '</tbody></table></div></div>';
+          setContent(html);
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function loadMyPayrollDocs() {
+        try {
+          setLoading('Memuat slip gaji...');
+          await runServer('markPayrollNotificationsSeen');
+          const rows = await runServer('getMyPayrollDocs');
+
+          if (!Array.isArray(rows)) return setContent(renderError('Data slip gaji tidak valid.'));
+          if (rows.length === 0) return setContent(renderEmpty('Slip Gaji', 'Belum ada dokumen slip gaji.'));
+
+          let html = ''
+            + '<div class="card">'
+            +   '<div class="section-title">'
+            +     '<h3 class="mb-0">Slip Gaji</h3>'
+            +     '<div class="muted">Total: ' + escapeHtml(String(rows.length)) + ' dokumen</div>'
+            +   '</div>'
+            +   '<div class="table-wrap">'
+            +     '<table>'
+            +       '<thead>'
+            +         '<tr>'
+            +           '<th>Bulan</th>'
+            +           '<th>Tahun</th>'
+            +           '<th>Nama File</th>'
+            +           '<th>Keterangan</th>'
+            +           '<th>Uploaded At</th>'
+            +           '<th>Aksi</th>'
+            +         '</tr>'
+            +       '</thead>'
+            +       '<tbody>';
+
+          rows.forEach(function(r) {
+            html += ''
+              + '<tr>'
+              +   '<td>' + escapeHtml(safe(r.bulan)) + '</td>'
+              +   '<td>' + escapeHtml(safe(r.tahun)) + '</td>'
+              +   '<td>' + escapeHtml(safe(r.nama_file)) + '</td>'
+              +   '<td>' + escapeHtml(safe(r.keterangan)) + '</td>'
+              +   '<td>' + escapeHtml(formatDateTimeDisplay(r.uploaded_at)) + '</td>'
+              +   '<td><a class="btn btn-primary" href="' + escapeHtml(safe(r.file_url)) + '" target="_blank">Buka</a></td>'
+              + '</tr>';
+          });
+
+          html += '</tbody></table></div></div>';
+          setContent(html);
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function loadAnnouncements() {
+        try {
+          setLoading('Memuat pengumuman...');
+          await runServer('markAnnouncementNotificationsSeen');
+          const rows = await runServer('getMyAnnouncements');
+
+          if (!Array.isArray(rows)) return setContent(renderError('Data pengumuman tidak valid.'));
+          if (rows.length === 0) return setContent(renderEmpty('Pengumuman', 'Belum ada pengumuman.'));
+
+          let html = '';
+          rows.forEach(function(r) {
+            html += ''
+              + '<div class="card">'
+              +   '<h3>' + escapeHtml(safe(r.judul)) + '</h3>'
+              +   '<p class="muted">Dipublikasikan: ' + escapeHtml(formatDateTimeDisplay(r.published_at)) + '</p>'
+              +   '<p>' + escapeHtml(safe(r.isi)) + '</p>'
+              + '</div>';
+          });
+
+          setContent(html);
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      loadEmployeeHome();
+    </script>
+  </body>
+</html>

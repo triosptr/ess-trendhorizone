@@ -1,0 +1,260 @@
+<style>
+  * { box-sizing: border-box; }
+
+  :root {
+    --bg: #f3f6fb;
+    --panel: #ffffff;
+    --panel-2: #f8fafc;
+    --text: #0f172a;
+    --muted: #64748b;
+    --line: #e2e8f0;
+    --accent: #2563eb;
+    --success: #15803d;
+    --danger: #b91c1c;
+    --warning: #b45309;
+    --shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    --radius: 18px;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  .layout {
+    display: flex;
+    min-height: 100vh;
+  }
+
+  .sidebar {
+    width: 270px;
+    background: linear-gradient(180deg, #081223 0%, #0b1b34 100%);
+    color: #fff;
+    padding: 20px 16px;
+    min-height: 100vh;
+  }
+
+  .sidebar h2 {
+    font-size: 22px;
+    margin-bottom: 24px;
+    padding: 0 6px;
+  }
+
+  .sidebar button {
+    width: 100%;
+    margin-bottom: 12px;
+    padding: 14px 16px;
+    border: 0;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    cursor: pointer;
+    text-align: left;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .sidebar button:hover {
+    background: rgba(255,255,255,0.16);
+  }
+
+  .main {
+    flex: 1;
+    padding: 28px;
+  }
+
+  .page-title {
+    margin-bottom: 16px;
+  }
+
+  .card {
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 22px 24px;
+    box-shadow: var(--shadow);
+    margin-bottom: 18px;
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .stat {
+    font-size: 30px;
+    font-weight: 700;
+    margin-top: 10px;
+  }
+
+  .muted {
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .error {
+    color: var(--danger);
+    font-weight: 700;
+  }
+
+  .success {
+    color: var(--success);
+    font-weight: 700;
+  }
+
+  .warning {
+    color: var(--warning);
+    font-weight: 700;
+  }
+
+  .table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+  }
+
+  table {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: collapse;
+    background: #fff;
+  }
+
+  th, td {
+    border-bottom: 1px solid var(--line);
+    padding: 12px 14px;
+    text-align: left;
+    font-size: 14px;
+    vertical-align: top;
+  }
+
+  th {
+    background: var(--panel-2);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .badge-success {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  .badge-danger {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  .badge-warning {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .badge-neutral {
+    background: #e2e8f0;
+    color: #334155;
+  }
+
+  .section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: inline-block;
+    border: 0;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .btn-secondary {
+    background: #e2e8f0;
+    color: #0f172a;
+  }
+
+  .btn-danger {
+    background: #dc2626;
+    color: #fff;
+  }
+
+  .form-group {
+    margin-bottom: 14px;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  input, select, textarea {
+    width: 100%;
+    padding: 11px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    font-size: 14px;
+    background: #fff;
+    color: var(--text);
+    outline: none;
+  }
+
+  textarea {
+    min-height: 110px;
+    resize: vertical;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .mb-0 { margin-bottom: 0; }
+  .hidden { display: none !important; }
+
+  @media (max-width: 960px) {
+    .layout { flex-direction: column; }
+    .sidebar { width: 100%; min-height: auto; }
+    .main { padding: 16px; }
+    .grid-2, .grid-3, .cards { grid-template-columns: 1fr; }
+  }
+</style>

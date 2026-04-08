@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <title><?= appName ?></title>
+    <?!= include('Styles'); ?>
+  </head>
+  <body>
+    <div class="layout">
+      <div class="sidebar">
+        <h2>ESS Superadmin</h2>
+        <button onclick="loadSummary()">Dashboard</button>
+        <button onclick="loadEmployees()">Data Karyawan</button>
+        <button onclick="loadPendingLeaves()">Pending Cuti</button>
+        <button onclick="loadTodayAttendance()">Rekap Absensi Hari Ini</button>
+        <button onclick="loadPayrollDocs()">Payroll Docs</button>
+        <button onclick="loadPayrollForm()">Tambah Payroll Doc</button>
+        <button onclick="loadAnnouncements()">Pemberitahuan</button>
+        <button onclick="loadAnnouncementForm()">Tambah Pemberitahuan</button>
+        <button onclick="loadDivisions()">Divisions</button>
+        <button onclick="loadDivisionForm()">Tambah Division</button>
+        <button onclick="loadPositions()">Positions</button>
+        <button onclick="loadPositionForm()">Tambah Position</button>
+        <button onclick="loadLeaveTypes()">Leave Types</button>
+        <button onclick="loadLeaveTypeForm()">Tambah Leave Type</button>
+      </div>
+
+      <div class="main">
+        <div class="card">
+          <h1 class="page-title">Halo, <?= user.nama ?></h1>
+          <div class="muted"><?= user.email ?> • role: <?= user.role ?></div>
+        </div>
+
+        <div id="content"></div>
+      </div>
+    </div>
+
+    <?!= include('Scripts'); ?>
+
+    <script>
+      async function loadSummary() {
+        try {
+          setLoading('Memuat ringkasan dashboard...');
+          const data = await runServer('getAdminSummary');
+
+          setContent(`
+            <div class="cards">
+              <div class="card"><div>Total Karyawan Aktif</div><div class="stat">${escapeHtml(safe(data.totalEmployees))}</div></div>
+              <div class="card"><div>Total Superadmin</div><div class="stat">${escapeHtml(safe(data.totalSuperadmin))}</div></div>
+              <div class="card"><div>Pending Cuti</div><div class="stat">${escapeHtml(safe(data.pendingLeaves))}</div></div>
+              <div class="card"><div>Absensi Hari Ini</div><div class="stat">${escapeHtml(safe(data.todayAttendance))}</div></div>
+            </div>
+          `);
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function loadEmployees() {
+        try {
+          setLoading('Memuat data karyawan...');
+          const rows = await runServer('getAllEmployeesForAdmin');
+
+          if (!Array.isArray(rows)) return setContent(renderError('Data karyawan tidak valid.'));
+          if (rows.length === 0) return setContent(renderEmpty('Data Karyawan', 'Belum ada data karyawan.'));
+
+          let html = `
+            <div class="card">
+              <div class="section-title">
+                <h3 class="mb-0">Data Karyawan</h3>
+                <div class="muted">Total: ${escapeHtml(String(rows.length))} data</div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Nama</th>
+                      <th>Email</th>
+                      <th>Divisi</th>
+                      <th>Jabatan</th>
+                      <th>Role</th>
+                      <th>Status Aktif</th>
+                      <th>Sisa Cuti</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+          `;
+
+          rows.forEach(function(r) {
+            html += `
+              <tr>
+                <td>${escapeHtml(safe(r.employee_id))}</td>
+                <td>${escapeHtml(safe(r.nama))}</td>
+                <td>${escapeHtml(safe(r.email))}</td>
+                <td>${escapeHtml(safe(r.divisi))}</td>
+                <td>${escapeHtml(safe(r.jabatan))}</td>
+                <td>${escapeHtml(safe(r.role))}</td>
+                <td>${normalizeStatusBadge(r.is_active)}</td>
+                <td>${escapeHtml(safe(r.sisa_cuti))}</td>
+              </tr>
+            `;
+          });
+
+          html += `</tbody></table></div></div>`;
+          setContent(html);
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function loadPendingLeaves() {
+        try {
+          setLoading('Memuat data cuti pending...');
+          const rows = await runServer('getPendingLeaveRequests');
+
+          if (!Array.isArray(rows)) return setContent(renderError('Data pending cuti tidak valid.'));
+          if (rows.length === 0) return setContent(renderEmpty('Pending Cuti', 'Tidak ada pengajuan cuti yang pending.'));
+
+          let html = `
+            <div class="card">
+              <div class="section-title">
+                <h3 class="mb-0">Pending Leave Requests</h3>
+                <div class="muted">Total: ${escapeHtml(String(rows.length))} data</div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Leave ID</th>
+                      <th>Email</th>
+                      <th>Jenis Cuti</th>
+                      <th>Tanggal Mulai</th>
+                      <th>Tanggal Selesai</th>
+                      <th>Jumlah Hari</th>
+                      <th>Alasan</th>
+                      <th>Status</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+          `;
+
+          rows.forEach(function(r) {
+            html += `
+              <tr>
+                <td>${escapeHtml(safe(r.leave_id))}</td>
+                <td>${escapeHtml(safe(r.email))}</td>
+                <td>${escapeHtml(safe(r.jenis_cuti))}</td>
+                <td>${escapeHtml(formatDateDisplay(r.tanggal_mulai))}</td>
+                <td>${escapeHtml(formatDateDisplay(r.tanggal_selesai))}</td>
+                <td>${escapeHtml(safe(r.jumlah_hari))}</td>
+                <td>${escapeHtml(safe(r.alasan))}</td>
+                <td>${normalizeStatusBadge(r.status)}</td>
+                <td>
+                  <div class="actions">
+                    <button class="btn btn-primary" onclick="approveLeave('${safe(r.leave_id)}')">Approve</button>
+                    <button class="btn btn-danger" onclick="rejectLeave('${safe(r.leave_id)}')">Reject</button>
+                  </div>
+                </td>
+              </tr>
+            `;
+          });
+
+          html += `</tbody></table></div></div>`;
+          setContent(html);
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function loadTodayAttendance() {
+        try {
+          setLoading('Memuat rekap absensi hari ini...');
+          const rows = await runServer('getTodayAttendanceForAdmin');
+
+          if (!Array.isArray(rows)) return setContent(renderError('Data absensi tidak valid.'));
+          if (rows.length === 0) return setContent(renderEmpty('Rekap Absensi Hari Ini', 'Belum ada absensi hari ini.'));
+
+          let html = `
+            <div class="card">
+              <div class="section-title">
+                <h3 class="mb-0">Rekap Absensi Hari Ini</h3>
+                <div class="muted">Total: ${escapeHtml(String(rows.length))} data</div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Tanggal</th>
+                      <th>Email</th>
+                      <th>Jam Masuk</th>
+                      <th>Jam Keluar</th>
+                      <th>Status</th>
+                      <th>Lokasi</th>
+                      <th>Catatan</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+          `;
+
+          rows.forEach(function(r) {
+            html += `
+              <tr>
+                <td>${escapeHtml(safe(r.tanggal))}</td>
+                <td>${escapeHtml(safe(r.email))}</td>
+                <td>${escapeHtml(safe(r.jam_masuk || '-'))}</td>
+                <td>${escapeHtml(safe(r.jam_keluar || '-'))}</td>
+                <td>${normalizeStatusBadge(r.status)}</td>
+                <td>${escapeHtml(safe(r.lokasi || '-'))}</td>
+                <td>${escapeHtml(safe(r.catatan || '-'))}</td>
+              </tr>
+            `;
+          });
+
+          html += `</tbody></table></div></div>`;
+          setContent(html);
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function loadPayrollDocs() {
+        try {
+          setLoading('Memuat payroll docs...');
+          const rows = await runServer('getAllPayrollDocsForAdmin');
+
+          if (!Array.isArray(rows)) return setContent(renderError('Data payroll docs tidak valid.'));
+          if (rows.length === 0) return setContent(renderEmpty('Payroll Docs', 'Belum ada payroll docs.'));
+
+          let html = `
+            <div class="card">
+              <div class="section-title">
+                <h3 class="mb-0">Payroll Docs</h3>
+                <div class="muted">Total: ${escapeHtml(String(rows.length))} dokumen</div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Employee ID</th>
+                      <th>Email</th>
+                      <th>Bulan</th>
+                      <th>Tahun</th>
+                      <th>Nama File</th>
+                      <th>Keterangan</th>
+                      <th>Uploaded At</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+          `;
+
+          rows.forEach(function(r) {
+            html += `
+              <tr>
+                <td>${escapeHtml(safe(r.employee_id))}</td>
+                <td>${escapeHtml(safe(r.email))}</td>
+                <td>${escapeHtml(safe(r.bulan))}</td>
+                <td>${escapeHtml(safe(r.tahun))}</td>
+                <td>${escapeHtml(safe(r.nama_file))}</td>
+                <td>${escapeHtml(safe(r.keterangan))}</td>
+                <td>${escapeHtml(formatDateTimeDisplay(r.uploaded_at))}</td>
+                <td><a class="btn btn-primary" href="${escapeHtml(safe(r.file_url))}" target="_blank">Buka</a></td>
+              </tr>
+            `;
+          });
+
+          html += `</tbody></table></div></div>`;
+          setContent(html);
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function loadPayrollForm() {
+        try {
+          setLoading('Memuat form payroll doc...');
+          const employees = await runServer('getEmployeeOptionsForPayroll');
+
+          let employeeOptions = '<option value="">-- Pilih karyawan --</option>';
+          if (Array.isArray(employees)) {
+            employees.forEach(function(emp) {
+              employeeOptions += `
+                <option value="${safe(emp.employee_id)}">
+                  ${escapeHtml(safe(emp.nama))} - ${escapeHtml(safe(emp.employee_id))} - ${escapeHtml(safe(emp.email))}
+                </option>
+              `;
+            });
+          }
+
+          const monthOptions = [
+            'Januari','Februari','Maret','April','Mei','Juni',
+            'Juli','Agustus','September','Oktober','November','Desember'
+          ].map(function(m) {
+            return `<option value="${m}">${m}</option>`;
+          }).join('');
+
+          setContent(`
+            <div class="card">
+              <h3>Tambah Payroll Doc</h3>
+
+              <div class="form-group">
+                <label for="payroll_employee_id">Karyawan</label>
+                <select id="payroll_employee_id">${employeeOptions}</select>
+              </div>
+
+              <div class="grid-2">
+                <div class="form-group">
+                  <label for="payroll_bulan">Bulan</label>
+                  <select id="payroll_bulan">${monthOptions}</select>
+                </div>
+                <div class="form-group">
+                  <label for="payroll_tahun">Tahun</label>
+                  <input type="number" id="payroll_tahun" value="2026">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="payroll_nama_file">Nama File</label>
+                <input type="text" id="payroll_nama_file" placeholder="Contoh: slip_gaji_april_2026.pdf">
+              </div>
+
+              <div class="form-group">
+                <label for="payroll_file_url">File URL</label>
+                <input type="text" id="payroll_file_url" placeholder="https://drive.google.com/...">
+              </div>
+
+              <div class="form-group">
+                <label for="payroll_keterangan">Keterangan</label>
+                <textarea id="payroll_keterangan" placeholder="Opsional"></textarea>
+              </div>
+
+              <div class="actions">
+                <button class="btn btn-primary" onclick="submitPayrollForm()">Simpan Payroll Doc</button>
+                <button class="btn btn-secondary" onclick="loadPayrollDocs()">Lihat Payroll Docs</button>
+              </div>
+            </div>
+          `);
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function submitPayrollForm() {
+        try {
+          const payload = {
+            employee_id: document.getElementById('payroll_employee_id').value,
+            bulan: document.getElementById('payroll_bulan').value,
+            tahun: document.getElementById('payroll_tahun').value,
+            nama_file: document.getElementById('payroll_nama_file').value,
+            file_url: document.getElementById('payroll_file_url').value,
+            keterangan: document.getElementById('payroll_keterangan').value
+          };
+
+          setLoading('Menyimpan payroll doc...');
+          const res = await runServer('createPayrollDoc', payload);
+          setContent(renderSuccess(res && res.message ? res.message : 'Payroll doc berhasil ditambahkan.'));
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function loadAnnouncements() {
+        try {
+          setLoading('Memuat pemberitahuan...');
+          const rows = await runServer('getAllAnnouncementsForAdmin');
+
+          if (!Array.isArray(rows)) return setContent(renderError('Data pemberitahuan tidak valid.'));
+          if (rows.length === 0) return setContent(renderEmpty('Pemberitahuan', 'Belum ada pemberitahuan.'));
+
+          let html = `
+            <div class="card">
+              <div class="section-title">
+                <h3 class="mb-0">Daftar Pemberitahuan</h3>
+                <div class="muted">Total: ${escapeHtml(String(rows.length))} data</div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Judul</th>
+                      <th>Target</th>
+                      <th>Published At</th>
+                      <th>Expired At</th>
+                      <th>Status</th>
+                      <th>Dibuat Oleh</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+          `;
+
+          rows.forEach(function(r) {
+            const nextValue = String(safe(r.is_active)).trim().toUpperCase() === 'TRUE' ? 'FALSE' : 'TRUE';
+            const buttonLabel = String(safe(r.is_active)).trim().toUpperCase() === 'TRUE' ? 'Nonaktifkan' : 'Aktifkan';
+
+            html += `
+              <tr>
+                <td>${escapeHtml(safe(r.announcement_id))}</td>
+                <td>
+                  <div><b>${escapeHtml(safe(r.judul))}</b></div>
+                  <div class="muted">${escapeHtml(safe(r.isi))}</div>
+                </td>
+                <td>${escapeHtml(safe(r.target_role))}</td>
+                <td>${escapeHtml(formatDateTimeDisplay(r.published_at))}</td>
+                <td>${escapeHtml(safe(r.expired_at || '-'))}</td>
+                <td>${normalizeStatusBadge(r.is_active)}</td>
+                <td>${escapeHtml(safe(r.created_by))}</td>
+                <td><button class="btn btn-secondary" onclick="toggleAnnouncement('${safe(r.announcement_id)}','${nextValue}')">${buttonLabel}</button></td>
+              </tr>
+            `;
+          });
+
+          html += `</tbody></table></div></div>`;
+          setContent(html);
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function loadAnnouncementForm() {
+        setContent(`
+          <div class="card">
+            <h3>Tambah Pemberitahuan</h3>
+
+            <div class="form-group">
+              <label for="announcement_judul">Judul</label>
+              <input type="text" id="announcement_judul">
+            </div>
+
+            <div class="form-group">
+              <label for="announcement_isi">Isi</label>
+              <textarea id="announcement_isi"></textarea>
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label for="announcement_target_role">Target Role</label>
+                <select id="announcement_target_role">
+                  <option value="all">all</option>
+                  <option value="employee">employee</option>
+                  <option value="superadmin">superadmin</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="announcement_expired_at">Expired At</label>
+                <input type="date" id="announcement_expired_at">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="announcement_is_active">Status Aktif</label>
+              <select id="announcement_is_active">
+                <option value="TRUE">TRUE</option>
+                <option value="FALSE">FALSE</option>
+              </select>
+            </div>
+
+            <div class="actions">
+              <button class="btn btn-primary" onclick="submitAnnouncementForm()">Simpan Pemberitahuan</button>
+              <button class="btn btn-secondary" onclick="loadAnnouncements()">Lihat Pemberitahuan</button>
+            </div>
+          </div>
+        `);
+      }
+
+      async function submitAnnouncementForm() {
+        try {
+          const payload = {
+            judul: document.getElementById('announcement_judul').value,
+            isi: document.getElementById('announcement_isi').value,
+            target_role: document.getElementById('announcement_target_role').value,
+            expired_at: document.getElementById('announcement_expired_at').value,
+            is_active: document.getElementById('announcement_is_active').value
+          };
+
+          setLoading('Menyimpan pemberitahuan...');
+          const res = await runServer('createAnnouncement', payload);
+          setContent(renderSuccess(res && res.message ? res.message : 'Pemberitahuan berhasil ditambahkan.'));
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function toggleAnnouncement(announcementId, nextActiveValue) {
+        try {
+          const ok = confirmAction('Ubah status pemberitahuan ini?');
+          if (!ok) return;
+
+          setLoading('Memperbarui status pemberitahuan...');
+          const res = await runServer('toggleAnnouncementActive', announcementId, nextActiveValue);
+          setContent(renderSuccess(res && res.message ? res.message : 'Status pemberitahuan berhasil diperbarui.'));
+          await loadAnnouncements();
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function loadDivisions() {
+        try {
+          setLoading('Memuat data divisions...');
+          const rows = await runServer('getAllDivisionsForAdmin');
+
+          if (!Array.isArray(rows)) return setContent(renderError('Data division tidak valid.'));
+          if (rows.length === 0) return setContent(renderEmpty('Divisions', 'Belum ada division.'));
+
+          let html = `
+            <div class="card">
+              <div class="section-title">
+                <h3 class="mb-0">Divisions</h3>
+                <div class="muted">Total: ${escapeHtml(String(rows.length))} data</div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Nama Divisi</th>
+                      <th>Kepala Divisi</th>
+                      <th>Status</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+          `;
+
+          rows.forEach(function(r) {
+            const nextValue = String(safe(r.is_active)).trim().toUpperCase() === 'TRUE' ? 'FALSE' : 'TRUE';
+            const buttonLabel = String(safe(r.is_active)).trim().toUpperCase() === 'TRUE' ? 'Nonaktifkan' : 'Aktifkan';
+
+            html += `
+              <tr>
+                <td>${escapeHtml(safe(r.division_id))}</td>
+                <td>${escapeHtml(safe(r.nama_divisi))}</td>
+                <td>${escapeHtml(safe(r.kepala_divisi_email))}</td>
+                <td>${normalizeStatusBadge(r.is_active)}</td>
+                <td><button class="btn btn-secondary" onclick="toggleDivision('${safe(r.division_id)}','${nextValue}')">${buttonLabel}</button></td>
+              </tr>
+            `;
+          });
+
+          html += `</tbody></table></div></div>`;
+          setContent(html);
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function loadDivisionForm() {
+        setContent(`
+          <div class="card">
+            <h3>Tambah Division</h3>
+
+            <div class="form-group">
+              <label for="division_nama">Nama Divisi</label>
+              <input type="text" id="division_nama">
+            </div>
+
+            <div class="form-group">
+              <label for="division_kepala_email">Kepala Divisi Email</label>
+              <input type="text" id="division_kepala_email">
+            </div>
+
+            <div class="form-group">
+              <label for="division_is_active">Status Aktif</label>
+              <select id="division_is_active">
+                <option value="TRUE">TRUE</option>
+                <option value="FALSE">FALSE</option>
+              </select>
+            </div>
+
+            <div class="actions">
+              <button class="btn btn-primary" onclick="submitDivisionForm()">Simpan Division</button>
+              <button class="btn btn-secondary" onclick="loadDivisions()">Lihat Divisions</button>
+            </div>
+          </div>
+        `);
+      }
+
+      async function submitDivisionForm() {
+        try {
+          const payload = {
+            nama_divisi: document.getElementById('division_nama').value,
+            kepala_divisi_email: document.getElementById('division_kepala_email').value,
+            is_active: document.getElementById('division_is_active').value
+          };
+
+          setLoading('Menyimpan division...');
+          const res = await runServer('createDivision', payload);
+          setContent(renderSuccess(res && res.message ? res.message : 'Division berhasil ditambahkan.'));
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function toggleDivision(divisionId, nextActiveValue) {
+        try {
+          const ok = confirmAction('Ubah status division ini?');
+          if (!ok) return;
+
+          setLoading('Memperbarui status division...');
+          const res = await runServer('toggleDivisionActive', divisionId, nextActiveValue);
+          setContent(renderSuccess(res && res.message ? res.message : 'Status division berhasil diperbarui.'));
+          await loadDivisions();
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function loadPositions() {
+        try {
+          setLoading('Memuat data positions...');
+          const rows = await runServer('getAllPositionsForAdmin');
+
+          if (!Array.isArray(rows)) return setContent(renderError('Data position tidak valid.'));
+          if (rows.length === 0) return setContent(renderEmpty('Positions', 'Belum ada position.'));
+
+          let html = `
+            <div class="card">
+              <div class="section-title">
+                <h3 class="mb-0">Positions</h3>
+                <div class="muted">Total: ${escapeHtml(String(rows.length))} data</div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Nama Jabatan</th>
+                      <th>Division ID</th>
+                      <th>Status</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+          `;
+
+          rows.forEach(function(r) {
+            const nextValue = String(safe(r.is_active)).trim().toUpperCase() === 'TRUE' ? 'FALSE' : 'TRUE';
+            const buttonLabel = String(safe(r.is_active)).trim().toUpperCase() === 'TRUE' ? 'Nonaktifkan' : 'Aktifkan';
+
+            html += `
+              <tr>
+                <td>${escapeHtml(safe(r.position_id))}</td>
+                <td>${escapeHtml(safe(r.nama_jabatan))}</td>
+                <td>${escapeHtml(safe(r.division_id))}</td>
+                <td>${normalizeStatusBadge(r.is_active)}</td>
+                <td><button class="btn btn-secondary" onclick="togglePosition('${safe(r.position_id)}','${nextValue}')">${buttonLabel}</button></td>
+              </tr>
+            `;
+          });
+
+          html += `</tbody></table></div></div>`;
+          setContent(html);
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function loadPositionForm() {
+        try {
+          setLoading('Memuat form position...');
+          const divisions = await runServer('getDivisionOptionsForAdmin');
+
+          let divisionOptions = '<option value="">-- Pilih division --</option>';
+          if (Array.isArray(divisions)) {
+            divisions.forEach(function(item) {
+              divisionOptions += `<option value="${safe(item.division_id)}">${escapeHtml(safe(item.nama_divisi))}</option>`;
+            });
+          }
+
+          setContent(`
+            <div class="card">
+              <h3>Tambah Position</h3>
+
+              <div class="form-group">
+                <label for="position_nama">Nama Jabatan</label>
+                <input type="text" id="position_nama">
+              </div>
+
+              <div class="form-group">
+                <label for="position_division_id">Division</label>
+                <select id="position_division_id">${divisionOptions}</select>
+              </div>
+
+              <div class="form-group">
+                <label for="position_is_active">Status Aktif</label>
+                <select id="position_is_active">
+                  <option value="TRUE">TRUE</option>
+                  <option value="FALSE">FALSE</option>
+                </select>
+              </div>
+
+              <div class="actions">
+                <button class="btn btn-primary" onclick="submitPositionForm()">Simpan Position</button>
+                <button class="btn btn-secondary" onclick="loadPositions()">Lihat Positions</button>
+              </div>
+            </div>
+          `);
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function submitPositionForm() {
+        try {
+          const payload = {
+            nama_jabatan: document.getElementById('position_nama').value,
+            division_id: document.getElementById('position_division_id').value,
+            is_active: document.getElementById('position_is_active').value
+          };
+
+          setLoading('Menyimpan position...');
+          const res = await runServer('createPosition', payload);
+          setContent(renderSuccess(res && res.message ? res.message : 'Position berhasil ditambahkan.'));
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function togglePosition(positionId, nextActiveValue) {
+        try {
+          const ok = confirmAction('Ubah status position ini?');
+          if (!ok) return;
+
+          setLoading('Memperbarui status position...');
+          const res = await runServer('togglePositionActive', positionId, nextActiveValue);
+          setContent(renderSuccess(res && res.message ? res.message : 'Status position berhasil diperbarui.'));
+          await loadPositions();
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function loadLeaveTypes() {
+        try {
+          setLoading('Memuat data leave types...');
+          const rows = await runServer('getAllLeaveTypesForAdmin');
+
+          if (!Array.isArray(rows)) return setContent(renderError('Data leave type tidak valid.'));
+          if (rows.length === 0) return setContent(renderEmpty('Leave Types', 'Belum ada leave type.'));
+
+          let html = `
+            <div class="card">
+              <div class="section-title">
+                <h3 class="mb-0">Leave Types</h3>
+                <div class="muted">Total: ${escapeHtml(String(rows.length))} data</div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Nama Jenis Cuti</th>
+                      <th>Maks Hari</th>
+                      <th>Paid</th>
+                      <th>Butuh Lampiran</th>
+                      <th>Status</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+          `;
+
+          rows.forEach(function(r) {
+            const nextValue = String(safe(r.is_active)).trim().toUpperCase() === 'TRUE' ? 'FALSE' : 'TRUE';
+            const buttonLabel = String(safe(r.is_active)).trim().toUpperCase() === 'TRUE' ? 'Nonaktifkan' : 'Aktifkan';
+
+            html += `
+              <tr>
+                <td>${escapeHtml(safe(r.leave_type_id))}</td>
+                <td>${escapeHtml(safe(r.nama_jenis_cuti))}</td>
+                <td>${escapeHtml(safe(r.maks_hari))}</td>
+                <td>${normalizeStatusBadge(r.is_paid)}</td>
+                <td>${normalizeStatusBadge(r.requires_attachment)}</td>
+                <td>${normalizeStatusBadge(r.is_active)}</td>
+                <td><button class="btn btn-secondary" onclick="toggleLeaveType('${safe(r.leave_type_id)}','${nextValue}')">${buttonLabel}</button></td>
+              </tr>
+            `;
+          });
+
+          html += `</tbody></table></div></div>`;
+          setContent(html);
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function loadLeaveTypeForm() {
+        setContent(`
+          <div class="card">
+            <h3>Tambah Leave Type</h3>
+
+            <div class="form-group">
+              <label for="leave_type_nama">Nama Jenis Cuti</label>
+              <input type="text" id="leave_type_nama">
+            </div>
+
+            <div class="form-group">
+              <label for="leave_type_maks_hari">Maks Hari</label>
+              <input type="number" id="leave_type_maks_hari" value="1">
+            </div>
+
+            <div class="grid-3">
+              <div class="form-group">
+                <label for="leave_type_is_paid">Paid</label>
+                <select id="leave_type_is_paid">
+                  <option value="TRUE">TRUE</option>
+                  <option value="FALSE">FALSE</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="leave_type_requires_attachment">Butuh Lampiran</label>
+                <select id="leave_type_requires_attachment">
+                  <option value="FALSE">FALSE</option>
+                  <option value="TRUE">TRUE</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="leave_type_is_active">Status Aktif</label>
+                <select id="leave_type_is_active">
+                  <option value="TRUE">TRUE</option>
+                  <option value="FALSE">FALSE</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button class="btn btn-primary" onclick="submitLeaveTypeForm()">Simpan Leave Type</button>
+              <button class="btn btn-secondary" onclick="loadLeaveTypes()">Lihat Leave Types</button>
+            </div>
+          </div>
+        `);
+      }
+
+      async function submitLeaveTypeForm() {
+        try {
+          const payload = {
+            nama_jenis_cuti: document.getElementById('leave_type_nama').value,
+            maks_hari: document.getElementById('leave_type_maks_hari').value,
+            is_paid: document.getElementById('leave_type_is_paid').value,
+            requires_attachment: document.getElementById('leave_type_requires_attachment').value,
+            is_active: document.getElementById('leave_type_is_active').value
+          };
+
+          setLoading('Menyimpan leave type...');
+          const res = await runServer('createLeaveType', payload);
+          setContent(renderSuccess(res && res.message ? res.message : 'Leave type berhasil ditambahkan.'));
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function toggleLeaveType(leaveTypeId, nextActiveValue) {
+        try {
+          const ok = confirmAction('Ubah status leave type ini?');
+          if (!ok) return;
+
+          setLoading('Memperbarui status leave type...');
+          const res = await runServer('toggleLeaveTypeActive', leaveTypeId, nextActiveValue);
+          setContent(renderSuccess(res && res.message ? res.message : 'Status leave type berhasil diperbarui.'));
+          await loadLeaveTypes();
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function approveLeave(leaveId) {
+        try {
+          const ok = confirmAction('Setujui pengajuan cuti ini?');
+          if (!ok) return;
+
+          const note = prompt('Catatan approval (opsional):', 'Disetujui') || 'Disetujui';
+          setLoading('Menyetujui pengajuan cuti...');
+          const res = await runServer('approveLeaveRequest', leaveId, note);
+          setContent(renderSuccess(res && res.message ? res.message : 'Pengajuan cuti berhasil disetujui.'));
+          await loadPendingLeaves();
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      async function rejectLeave(leaveId) {
+        try {
+          const ok = confirmAction('Tolak pengajuan cuti ini?');
+          if (!ok) return;
+
+          const note = prompt('Catatan penolakan:', 'Ditolak') || 'Ditolak';
+          setLoading('Menolak pengajuan cuti...');
+          const res = await runServer('rejectLeaveRequest', leaveId, note);
+          setContent(renderSuccess(res && res.message ? res.message : 'Pengajuan cuti berhasil ditolak.'));
+          await loadPendingLeaves();
+        } catch (err) {
+          notifyError(err);
+        }
+      }
+
+      loadSummary();
+    </script>
+  </body>
+</html>
