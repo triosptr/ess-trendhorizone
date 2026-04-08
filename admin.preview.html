@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ESS Karyawan 2026 (Admin Preview)</title>
+    <style>
+      * { box-sizing: border-box; }
+      :root {
+        --bg: #f7f7f7;
+        --panel: #ffffff;
+        --text: #101010;
+        --muted: #6b7280;
+        --line: #e5e7eb;
+      }
+      body {
+        margin: 0;
+        font-family: Inter, Arial, sans-serif;
+        color: var(--text);
+        background: var(--bg);
+      }
+      .app {
+        max-width: 980px;
+        margin: 0 auto;
+        min-height: 100vh;
+        padding: 14px 12px 98px;
+      }
+      .hero {
+        background: #111;
+        color: #fff;
+        border-radius: 20px;
+        padding: 16px;
+        box-shadow: 0 14px 34px rgba(0, 0, 0, .22);
+        animation: fadeUp .35s ease;
+      }
+      .hero-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .hero h1 { margin: 0; font-size: 20px; letter-spacing: -.01em; }
+      .hero .meta { margin-top: 6px; font-size: 12px; color: #cfd4dc; }
+      .chip {
+        border: 1px solid rgba(255,255,255,.35);
+        border-radius: 999px;
+        padding: 7px 11px;
+        font-size: 11px;
+        font-weight: 700;
+      }
+      .content {
+        margin-top: 12px;
+        animation: fadeUp .32s ease;
+      }
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,.05);
+      }
+      .card h3 { margin: 0 0 8px; font-size: 15px; }
+      .metric-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+      .metric-value { font-size: 26px; font-weight: 800; margin-top: 7px; letter-spacing: -.02em; }
+      .muted { color: var(--muted); font-size: 12px; }
+      .table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+      table { width: 100%; min-width: 680px; border-collapse: collapse; }
+      th, td { border-bottom: 1px solid #eceff2; text-align: left; padding: 10px; font-size: 12px; }
+      th { font-size: 11px; color: #4b5563; text-transform: uppercase; background: #fafafa; }
+      .badge { display: inline-block; border-radius: 999px; padding: 4px 8px; font-size: 11px; font-weight: 800; }
+      .badge-success { color: #111; background: #e5e7eb; }
+      .badge-warning { color: #111; background: #f3f4f6; }
+      .badge-danger { color: #111; background: #d1d5db; }
+      .btn {
+        border: 0;
+        border-radius: 8px;
+        padding: 6px 10px;
+        text-decoration: none;
+        background: #111;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 700;
+      }
+      .empty { text-align: center; color: var(--muted); padding: 16px 8px; }
+      .bottom-nav {
+        position: fixed;
+        left: 50%;
+        bottom: 10px;
+        transform: translateX(-50%);
+        width: min(760px, calc(100% - 16px));
+        background: #fff;
+        border: 1px solid #d1d5db;
+        border-radius: 16px;
+        padding: 7px;
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0,1fr));
+        gap: 6px;
+        box-shadow: 0 10px 26px rgba(0,0,0,.14);
+      }
+      .bottom-item {
+        border: 0;
+        background: transparent;
+        border-radius: 10px;
+        padding: 8px 4px;
+        color: #111;
+        display: grid;
+        gap: 2px;
+        justify-items: center;
+        cursor: pointer;
+        transition: all .2s ease;
+        font-size: 10px;
+        font-weight: 700;
+      }
+      .bottom-item svg {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .bottom-item.active {
+        background: #111;
+        color: #fff;
+        transform: translateY(-2px);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="hero">
+        <div class="hero-top">
+          <h1>ESS Superadmin</h1>
+          <div class="chip" id="todayLabel"></div>
+        </div>
+        <div class="meta">superadmin.local@perusahaan.com • role: superadmin</div>
+      </div>
+      <div id="content" class="content"></div>
+    </div>
+
+    <div class="bottom-nav">
+      <button class="bottom-item active" data-view="summary" onclick="loadSummary()"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"></path><path d="M5 10v10h14V10"></path></svg><span>Home</span></button>
+      <button class="bottom-item" data-view="employees" onclick="loadEmployees()"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"></circle><circle cx="17" cy="9" r="2.5"></circle><path d="M3.5 20a5.5 5.5 0 0 1 11 0"></path><path d="M13.5 20a4.2 4.2 0 0 1 7 0"></path></svg><span>Karyawan</span></button>
+      <button class="bottom-item" data-view="leaves" onclick="loadPendingLeaves()"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M8 3v4M16 3v4M3 10h18"></path></svg><span>Cuti</span></button>
+      <button class="bottom-item" data-view="attendance" onclick="loadTodayAttendance()"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg><span>Absensi</span></button>
+      <button class="bottom-item" data-view="payroll" onclick="loadPayrollDocs()"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M7 8h10M7 12h6M7 16h4"></path></svg><span>Payroll</span></button>
+    </div>
+
+    <script src="./mock-server.js"></script>
+    <script>
+      function safe(v) { return v === null || v === undefined ? '' : v; }
+      function setContent(html) {
+        const el = document.getElementById('content');
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(6px)';
+        setTimeout(function () {
+          el.innerHTML = html;
+          el.style.transition = 'all .22s ease';
+          el.style.opacity = '1';
+          el.style.transform = 'translateY(0)';
+        }, 70);
+      }
+      function setLoading(t) { setContent('<div class="card"><h3>' + t + '</h3><p class="muted">Mohon tunggu sebentar.</p></div>'); }
+      function runServer(fnName) { return window.__mockServerCall(fnName, Array.prototype.slice.call(arguments, 1)); }
+      function setActiveNav(key) {
+        document.querySelectorAll('.bottom-item').forEach(function (el) {
+          el.classList.toggle('active', el.getAttribute('data-view') === key);
+        });
+      }
+      function statusBadge(status) {
+        const s = String(safe(status)).toUpperCase();
+        if (s === 'APPROVED' || s === 'HADIR' || s === 'TRUE' || s === 'ACTIVE') return '<span class="badge badge-success">' + s + '</span>';
+        if (s === 'PENDING' || s === 'TERLAMBAT') return '<span class="badge badge-warning">' + s + '</span>';
+        return '<span class="badge badge-danger">' + s + '</span>';
+      }
+      function setTodayLabel() {
+        const d = new Date();
+        const text = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+        document.getElementById('todayLabel').textContent = text;
+      }
+
+      async function loadSummary() {
+        setActiveNav('summary');
+        setLoading('Memuat ringkasan dashboard...');
+        const d = await runServer('getAdminSummary');
+        setContent(
+          '<div class="cards">' +
+            '<div class="card"><div class="metric-title">Total Karyawan Aktif</div><div class="metric-value">' + safe(d.totalEmployees) + '</div></div>' +
+            '<div class="card"><div class="metric-title">Total Superadmin</div><div class="metric-value">' + safe(d.totalSuperadmin) + '</div></div>' +
+            '<div class="card"><div class="metric-title">Pending Cuti</div><div class="metric-value">' + safe(d.pendingLeaves) + '</div></div>' +
+            '<div class="card"><div class="metric-title">Absensi Hari Ini</div><div class="metric-value">' + safe(d.todayAttendance) + '</div></div>' +
+          '</div>'
+        );
+      }
+
+      async function loadEmployees() {
+        setActiveNav('employees');
+        setLoading('Memuat data karyawan...');
+        const rows = await runServer('getAllEmployeesForAdmin');
+        if (!rows.length) {
+          setContent('<div class="card"><div class="empty">Belum ada data karyawan.</div></div>');
+          return;
+        }
+        let html = '<div class="card"><h3>Data Karyawan</h3><div class="muted">Total: ' + rows.length + ' data</div><br><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Email</th><th>Divisi</th><th>Jabatan</th><th>Role</th><th>Status</th></tr></thead><tbody>';
+        rows.forEach(function (r) { html += '<tr><td>' + safe(r.employee_id) + '</td><td>' + safe(r.nama) + '</td><td>' + safe(r.email) + '</td><td>' + safe(r.divisi) + '</td><td>' + safe(r.jabatan) + '</td><td>' + safe(r.role) + '</td><td>' + statusBadge(r.is_active) + '</td></tr>'; });
+        html += '</tbody></table></div></div>';
+        setContent(html);
+      }
+
+      async function loadPendingLeaves() {
+        setActiveNav('leaves');
+        setLoading('Memuat pending cuti...');
+        const rows = await runServer('getPendingLeaveRequests');
+        if (!rows.length) {
+          setContent('<div class="card"><div class="empty">Tidak ada cuti pending.</div></div>');
+          return;
+        }
+        let html = '<div class="card"><h3>Pending Cuti</h3><div class="table-wrap"><table><thead><tr><th>Leave ID</th><th>Email</th><th>Jenis</th><th>Tanggal</th><th>Status</th></tr></thead><tbody>';
+        rows.forEach(function (r) { html += '<tr><td>' + safe(r.leave_id) + '</td><td>' + safe(r.email) + '</td><td>' + safe(r.jenis_cuti) + '</td><td>' + safe(r.tanggal_mulai) + ' s/d ' + safe(r.tanggal_selesai) + '</td><td>' + statusBadge(r.status) + '</td></tr>'; });
+        html += '</tbody></table></div></div>';
+        setContent(html);
+      }
+
+      async function loadTodayAttendance() {
+        setActiveNav('attendance');
+        setLoading('Memuat absensi hari ini...');
+        const rows = await runServer('getTodayAttendanceForAdmin');
+        if (!rows.length) {
+          setContent('<div class="card"><div class="empty">Belum ada data absensi hari ini.</div></div>');
+          return;
+        }
+        let html = '<div class="card"><h3>Absensi Hari Ini</h3><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Email</th><th>Jam Masuk</th><th>Status</th><th>Lokasi</th></tr></thead><tbody>';
+        rows.forEach(function (r) { html += '<tr><td>' + safe(r.tanggal) + '</td><td>' + safe(r.email) + '</td><td>' + safe(r.jam_masuk) + '</td><td>' + statusBadge(r.status) + '</td><td>' + safe(r.lokasi) + '</td></tr>'; });
+        html += '</tbody></table></div></div>';
+        setContent(html);
+      }
+
+      async function loadPayrollDocs() {
+        setActiveNav('payroll');
+        setLoading('Memuat payroll docs...');
+        const rows = await runServer('getAllPayrollDocsForAdmin');
+        if (!rows.length) {
+          setContent('<div class="card"><div class="empty">Belum ada payroll docs.</div></div>');
+          return;
+        }
+        let html = '<div class="card"><h3>Payroll Docs</h3><div class="table-wrap"><table><thead><tr><th>Email</th><th>Bulan</th><th>Tahun</th><th>Nama File</th><th>Aksi</th></tr></thead><tbody>';
+        rows.forEach(function (r) { html += '<tr><td>' + safe(r.email) + '</td><td>' + safe(r.bulan) + '</td><td>' + safe(r.tahun) + '</td><td>' + safe(r.nama_file) + '</td><td><a class="btn" href="' + safe(r.file_url) + '" target="_blank">Buka</a></td></tr>'; });
+        html += '</tbody></table></div></div>';
+        setContent(html);
+      }
+
+      setTodayLabel();
+      loadSummary();
+    </script>
+  </body>
+</html>
