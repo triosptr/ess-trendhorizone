@@ -3,144 +3,143 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Employee API Preview</title>
+    <title>ESS Karyawan</title>
     <style>
-      body { font-family: Arial, sans-serif; background: #f3f6fb; margin: 0; padding: 20px; color: #0f172a; }
-      .wrap { max-width: 1080px; margin: 0 auto; }
-      .card { background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 6px 18px rgba(15,23,42,.08); margin-bottom: 14px; }
+      body { margin: 0; font-family: Arial, sans-serif; background: #eef2ff; color: #0f172a; }
+      .app { max-width: 1180px; margin: 0 auto; padding: 18px; }
+      .card { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 8px 20px rgba(15, 23, 42, .08); margin-bottom: 14px; }
       h1,h2,h3 { margin: 0 0 10px; }
-      .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(260px,1fr)); gap: 12px; }
+      .sub { color: #64748b; margin-top: 4px; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap: 10px; }
       label { display: block; font-size: 12px; color: #475569; margin-bottom: 4px; }
       input, select, textarea { width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; font-size: 14px; }
-      textarea { min-height: 80px; resize: vertical; }
-      .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-      button { border: 0; border-radius: 8px; padding: 9px 12px; background: #2563eb; color: #fff; cursor: pointer; font-weight: 700; }
+      textarea { min-height: 86px; resize: vertical; }
+      button { border: 0; border-radius: 8px; padding: 9px 12px; background: #2563eb; color: #fff; font-weight: 700; cursor: pointer; }
       button.alt { background: #334155; }
-      pre { margin: 0; white-space: pre-wrap; word-break: break-word; background: #0b1020; color: #dbeafe; padding: 12px; border-radius: 8px; max-height: 320px; overflow: auto; }
-      .muted { color: #64748b; font-size: 13px; }
+      .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+      .stats { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 10px; }
+      .stat { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; }
+      .stat .k { font-size: 12px; color: #64748b; }
+      .stat .v { font-size: 20px; font-weight: 700; margin-top: 4px; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border-bottom: 1px solid #e2e8f0; padding: 8px; text-align: left; font-size: 13px; }
+      th { color: #334155; background: #f8fafc; }
+      .mono { white-space: pre-wrap; word-break: break-word; background: #0b1020; color: #dbeafe; border-radius: 10px; padding: 12px; max-height: 240px; overflow: auto; margin: 0; }
+      .topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .small { font-size: 12px; color: #64748b; }
       a { color: #1d4ed8; text-decoration: none; }
     </style>
   </head>
   <body>
-    <div class="wrap">
+    <div class="app">
       <div class="card">
-        <h1>Employee Preview (Vercel API + Supabase)</h1>
-        <p class="muted">Gunakan halaman ini untuk menguji endpoint karyawan tanpa Apps Script.</p>
+        <div class="topbar">
+          <div>
+            <h1>ESS Dashboard Karyawan</h1>
+            <p class="sub">Mode produksi Vercel + Supabase</p>
+          </div>
+          <a href="./index.html">Kembali</a>
+        </div>
         <div class="grid">
-          <div>
-            <label>Base URL API</label>
-            <input id="baseUrl" value="https://ess-2026-trendhorizone-id.vercel.app">
-          </div>
-          <div>
-            <label>x-user-email</label>
-            <input id="userEmail" value="demo@contoh.com">
-          </div>
-          <div>
-            <label>x-employee-id</label>
-            <input id="employeeId" value="EMP_DEMO_001">
-          </div>
-          <div>
-            <label>x-user-role</label>
-            <select id="userRole">
-              <option value="employee" selected>employee</option>
-              <option value="admin">admin</option>
-              <option value="superadmin">superadmin</option>
-            </select>
-          </div>
+          <div><label>Base URL API</label><input id="baseUrl" value="https://ess-2026-trendhorizone-id.vercel.app"></div>
+          <div><label>Email</label><input id="userEmail" value="demo@contoh.com"></div>
+          <div><label>Employee ID</label><input id="employeeId" value="EMP_DEMO_001"></div>
+          <div><label>Role</label><select id="userRole"><option value="employee" selected>employee</option><option value="admin">admin</option><option value="superadmin">superadmin</option></select></div>
         </div>
         <div class="actions">
-          <button onclick="callGet('/api/health', false)">Health</button>
-          <button onclick="callGet('/api/me/profile')">My Profile</button>
-          <button onclick="callGet('/api/me/dashboard-summary')">Dashboard Summary</button>
-          <button onclick="callGet('/api/me/attendance/config')">Attendance Config</button>
-          <button onclick="callGet('/api/me/attendance/today')">Attendance Today</button>
-          <button onclick="callGet('/api/me/attendance/history?limit=20')">Attendance History</button>
-          <button onclick="callGet('/api/leave-types/active', false)">Leave Types</button>
-          <button onclick="callGet('/api/me/leaves')">My Leaves</button>
-          <button onclick="callGet('/api/me/announcements')">Announcements</button>
-          <button onclick="callGet('/api/me/payroll-docs')">Payroll Docs</button>
-          <button onclick="callGet('/api/me/notifications/summary')">Notif Summary</button>
-          <button onclick="callGet('/api/me/notifications')">Notif List</button>
+          <button onclick="boot()">Refresh Dashboard</button>
+          <button class="alt" onclick="callGet('/api/health', false)">Health</button>
+          <button class="alt" onclick="callGet('/api/me/profile')">Raw Profile</button>
         </div>
       </div>
 
       <div class="card">
-        <h3>Check In / Check Out</h3>
+        <h3>Ringkasan</h3>
+        <div class="stats">
+          <div class="stat"><div class="k">Nama</div><div class="v" id="sName">-</div></div>
+          <div class="stat"><div class="k">Divisi</div><div class="v" id="sDiv">-</div></div>
+          <div class="stat"><div class="k">Jabatan</div><div class="v" id="sPos">-</div></div>
+          <div class="stat"><div class="k">Sisa Cuti</div><div class="v" id="sLeave">0</div></div>
+          <div class="stat"><div class="k">Pending Cuti</div><div class="v" id="sPending">0</div></div>
+          <div class="stat"><div class="k">Status Hari Ini</div><div class="v" id="sToday">-</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Absensi</h3>
         <div class="grid">
-          <div>
-            <label>Lokasi</label>
-            <input id="attLokasi" value="Office">
-          </div>
-          <div>
-            <label>Work Mode</label>
-            <select id="attWorkMode">
-              <option value="office" selected>office</option>
-              <option value="wfh">wfh</option>
-            </select>
-          </div>
-          <div>
-            <label>Status</label>
-            <input id="attStatus" value="Hadir">
-          </div>
-          <div>
-            <label>Catatan</label>
-            <input id="attCatatan" value="">
-          </div>
+          <div><label>Lokasi</label><input id="attLokasi" value="Office"></div>
+          <div><label>Work Mode</label><select id="attWorkMode"><option value="office" selected>office</option><option value="wfh">wfh</option></select></div>
+          <div><label>Status</label><input id="attStatus" value="Hadir"></div>
+          <div><label>Catatan</label><input id="attCatatan" value=""></div>
         </div>
         <div class="actions">
-          <button onclick="doCheckIn()">POST Check In</button>
-          <button class="alt" onclick="doCheckOut()">POST Check Out</button>
+          <button onclick="doCheckIn()">Check In</button>
+          <button class="alt" onclick="doCheckOut()">Check Out</button>
+          <button class="alt" onclick="loadToday()">Refresh Hari Ini</button>
+          <button class="alt" onclick="loadHistory()">Refresh History</button>
         </div>
+        <div class="small" id="todayInfo">-</div>
       </div>
 
       <div class="card">
         <h3>Ajukan Cuti</h3>
         <div class="grid">
-          <div>
-            <label>Jenis Cuti</label>
-            <input id="leaveType" value="Cuti Tahunan">
-          </div>
-          <div>
-            <label>Tanggal Mulai</label>
-            <input id="leaveStart" type="date">
-          </div>
-          <div>
-            <label>Tanggal Selesai</label>
-            <input id="leaveEnd" type="date">
-          </div>
-          <div>
-            <label>Jumlah Hari</label>
-            <input id="leaveDays" type="number" value="1">
-          </div>
+          <div><label>Jenis Cuti</label><select id="leaveType"></select></div>
+          <div><label>Tanggal Mulai</label><input id="leaveStart" type="date"></div>
+          <div><label>Tanggal Selesai</label><input id="leaveEnd" type="date"></div>
+          <div><label>Jumlah Hari</label><input id="leaveDays" type="number" value="1"></div>
         </div>
-        <div>
-          <label>Alasan</label>
-          <textarea id="leaveReason">Keperluan keluarga</textarea>
-        </div>
+        <div><label>Alasan</label><textarea id="leaveReason">Keperluan keluarga</textarea></div>
         <div class="actions">
-          <button onclick="submitLeave()">POST Leave Request</button>
-          <button class="alt" onclick="markNotif('all')">Mark Notif Seen (all)</button>
+          <button onclick="submitLeave()">Kirim Pengajuan Cuti</button>
+          <button class="alt" onclick="loadLeaves()">Refresh Riwayat Cuti</button>
         </div>
       </div>
 
       <div class="card">
-        <h3>Response</h3>
-        <pre id="output">Siap. Klik tombol endpoint untuk uji API.</pre>
-        <p class="muted"><a href="./index.html">Kembali ke index</a></p>
+        <h3>Riwayat Absensi</h3>
+        <table>
+          <thead><tr><th>Tanggal</th><th>Masuk</th><th>Keluar</th><th>Status</th><th>Lokasi</th></tr></thead>
+          <tbody id="tbAttendance"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Riwayat Cuti</h3>
+        <table>
+          <thead><tr><th>Jenis</th><th>Mulai</th><th>Selesai</th><th>Hari</th><th>Status</th></tr></thead>
+          <tbody id="tbLeave"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Notifikasi</h3>
+        <div class="actions">
+          <button class="alt" onclick="loadNotifications()">Refresh Notifikasi</button>
+          <button class="alt" onclick="markNotif('all')">Tandai Semua Dibaca</button>
+        </div>
+        <table>
+          <thead><tr><th>Tipe</th><th>Judul</th><th>Pesan</th><th>Tanggal</th><th>Unread</th></tr></thead>
+          <tbody id="tbNotif"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Response Debug</h3>
+        <pre class="mono" id="output">Siap.</pre>
       </div>
     </div>
+
     <script>
-      function todayYmd() {
+      function ymd() {
         const d = new Date();
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return y + '-' + m + '-' + day;
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
       }
+      document.getElementById('leaveStart').value = ymd();
+      document.getElementById('leaveEnd').value = ymd();
 
-      document.getElementById('leaveStart').value = todayYmd();
-      document.getElementById('leaveEnd').value = todayYmd();
-
+      function base() { return document.getElementById('baseUrl').value.trim().replace(/\/+$/, ''); }
       function headers(withUser) {
         const h = { 'Content-Type': 'application/json' };
         if (withUser !== false) {
@@ -150,66 +149,118 @@
         }
         return h;
       }
-
-      function base() {
-        return document.getElementById('baseUrl').value.trim().replace(/\/+$/, '');
+      function setOut(v) {
+        document.getElementById('output').textContent = JSON.stringify(v, null, 2);
       }
-
-      async function showResponse(resp) {
-        const text = await resp.text();
-        let body = text;
-        try { body = JSON.parse(text); } catch (err) {}
-        document.getElementById('output').textContent = JSON.stringify({
-          status: resp.status,
-          ok: resp.ok,
-          body: body
-        }, null, 2);
-      }
-
-      async function callGet(path, withUser) {
-        const resp = await fetch(base() + path, { method: 'GET', headers: headers(withUser) });
-        await showResponse(resp);
-      }
-
-      async function callPost(path, payload, withUser) {
+      async function req(path, method, body, withUser) {
         const resp = await fetch(base() + path, {
-          method: 'POST',
+          method: method || 'GET',
           headers: headers(withUser),
-          body: JSON.stringify(payload || {})
+          body: body === undefined ? undefined : JSON.stringify(body)
         });
-        await showResponse(resp);
+        const text = await resp.text();
+        let data = text;
+        try { data = JSON.parse(text); } catch (err) {}
+        setOut({ path: path, status: resp.status, ok: resp.ok, body: data });
+        if (!resp.ok) throw new Error((data && data.message) || 'Request gagal');
+        return data;
       }
-
+      async function callGet(path, withUser) {
+        try { await req(path, 'GET', undefined, withUser); } catch (err) {}
+      }
+      function rowsHtml(arr, keys) {
+        if (!arr || arr.length === 0) return '<tr><td colspan="' + keys.length + '">Tidak ada data</td></tr>';
+        return arr.map(function(r) {
+          return '<tr>' + keys.map(function(k) { return '<td>' + String(r[k] || '') + '</td>'; }).join('') + '</tr>';
+        }).join('');
+      }
+      async function loadSummary() {
+        const p = await req('/api/me/profile');
+        const s = await req('/api/me/dashboard-summary');
+        document.getElementById('sName').textContent = p.nama || '-';
+        document.getElementById('sDiv').textContent = p.divisi || '-';
+        document.getElementById('sPos').textContent = p.jabatan || '-';
+        document.getElementById('sLeave').textContent = String(s.sisa_cuti || 0);
+        document.getElementById('sPending').textContent = String(s.pendingLeaves || 0);
+      }
+      async function loadToday() {
+        const t = await req('/api/me/attendance/today');
+        document.getElementById('sToday').textContent = t.status || '-';
+        document.getElementById('todayInfo').textContent = 'Tanggal: ' + (t.tanggal || '-') + ' | Masuk: ' + (t.jam_masuk || '-') + ' | Keluar: ' + (t.jam_keluar || '-') + ' | Lokasi: ' + (t.lokasi || '-');
+      }
+      async function loadHistory() {
+        const list = await req('/api/me/attendance/history?limit=30');
+        document.getElementById('tbAttendance').innerHTML = rowsHtml(list, ['tanggal', 'jam_masuk', 'jam_keluar', 'status', 'lokasi']);
+      }
+      async function loadLeaveTypes() {
+        const types = await req('/api/leave-types/active', 'GET', undefined, false);
+        const select = document.getElementById('leaveType');
+        select.innerHTML = (types || []).map(function(t) {
+          return '<option value="' + (t.nama_jenis_cuti || '') + '">' + (t.nama_jenis_cuti || '') + '</option>';
+        }).join('');
+      }
+      async function loadLeaves() {
+        const list = await req('/api/me/leaves');
+        document.getElementById('tbLeave').innerHTML = rowsHtml(list, ['jenis_cuti', 'tanggal_mulai', 'tanggal_selesai', 'jumlah_hari', 'status']);
+      }
+      async function loadNotifications() {
+        const list = await req('/api/me/notifications');
+        document.getElementById('tbNotif').innerHTML = rowsHtml(list, ['notification_type', 'title', 'message', 'date_value', 'is_unread']);
+      }
       async function doCheckIn() {
-        await callPost('/api/me/attendance/check-in', {
-          lokasi: document.getElementById('attLokasi').value.trim(),
-          work_mode: document.getElementById('attWorkMode').value.trim(),
-          status: document.getElementById('attStatus').value.trim(),
-          catatan: document.getElementById('attCatatan').value.trim()
-        });
+        try {
+          await req('/api/me/attendance/check-in', 'POST', {
+            lokasi: document.getElementById('attLokasi').value.trim(),
+            work_mode: document.getElementById('attWorkMode').value.trim(),
+            status: document.getElementById('attStatus').value.trim(),
+            catatan: document.getElementById('attCatatan').value.trim()
+          });
+          await loadToday();
+          await loadHistory();
+        } catch (err) {}
       }
-
       async function doCheckOut() {
-        await callPost('/api/me/attendance/check-out', {
-          lokasi: document.getElementById('attLokasi').value.trim(),
-          status: document.getElementById('attStatus').value.trim(),
-          catatan: document.getElementById('attCatatan').value.trim()
-        });
+        try {
+          await req('/api/me/attendance/check-out', 'POST', {
+            lokasi: document.getElementById('attLokasi').value.trim(),
+            status: document.getElementById('attStatus').value.trim(),
+            catatan: document.getElementById('attCatatan').value.trim()
+          });
+          await loadToday();
+          await loadHistory();
+        } catch (err) {}
       }
-
       async function submitLeave() {
-        await callPost('/api/me/leaves', {
-          jenis_cuti: document.getElementById('leaveType').value.trim(),
-          tanggal_mulai: document.getElementById('leaveStart').value.trim(),
-          tanggal_selesai: document.getElementById('leaveEnd').value.trim(),
-          jumlah_hari: Number(document.getElementById('leaveDays').value || 0),
-          alasan: document.getElementById('leaveReason').value.trim()
-        });
+        try {
+          await req('/api/me/leaves', 'POST', {
+            jenis_cuti: document.getElementById('leaveType').value.trim(),
+            tanggal_mulai: document.getElementById('leaveStart').value.trim(),
+            tanggal_selesai: document.getElementById('leaveEnd').value.trim(),
+            jumlah_hari: Number(document.getElementById('leaveDays').value || 0),
+            alasan: document.getElementById('leaveReason').value.trim()
+          });
+          await loadLeaves();
+        } catch (err) {}
       }
-
       async function markNotif(type) {
-        await callPost('/api/me/notifications/mark-seen', { type: type || 'all' });
+        try {
+          await req('/api/me/notifications/mark-seen', 'POST', { type: type || 'all' });
+          await loadNotifications();
+        } catch (err) {}
       }
+      async function boot() {
+        try {
+          await loadSummary();
+          await loadToday();
+          await loadHistory();
+          await loadLeaveTypes();
+          await loadLeaves();
+          await loadNotifications();
+        } catch (err) {
+          setOut({ message: err.message || 'Gagal load dashboard' });
+        }
+      }
+      boot();
     </script>
   </body>
 </html>

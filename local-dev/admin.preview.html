@@ -3,121 +3,148 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Admin API Preview</title>
+    <title>ESS Admin</title>
     <style>
-      body { font-family: Arial, sans-serif; background: #eef2ff; margin: 0; padding: 20px; color: #0f172a; }
-      .wrap { max-width: 1120px; margin: 0 auto; }
-      .card { background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 6px 18px rgba(15,23,42,.08); margin-bottom: 14px; }
+      body { margin: 0; font-family: Arial, sans-serif; background: #eaf1ff; color: #0f172a; }
+      .app { max-width: 1200px; margin: 0 auto; padding: 18px; }
+      .card { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 8px 20px rgba(15, 23, 42, .08); margin-bottom: 14px; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap: 10px; }
       h1,h2,h3 { margin: 0 0 10px; }
-      .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(260px,1fr)); gap: 12px; }
+      .sub { color: #64748b; margin-top: 4px; }
       label { display: block; font-size: 12px; color: #475569; margin-bottom: 4px; }
       input, select, textarea { width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; font-size: 14px; }
       textarea { min-height: 80px; resize: vertical; }
       .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
       button { border: 0; border-radius: 8px; padding: 9px 12px; background: #1d4ed8; color: #fff; cursor: pointer; font-weight: 700; }
       button.alt { background: #334155; }
-      pre { margin: 0; white-space: pre-wrap; word-break: break-word; background: #0b1020; color: #dbeafe; padding: 12px; border-radius: 8px; max-height: 320px; overflow: auto; }
-      .muted { color: #64748b; font-size: 13px; }
+      .stats { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 10px; }
+      .stat { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; }
+      .stat .k { font-size: 12px; color: #64748b; }
+      .stat .v { font-size: 20px; font-weight: 700; margin-top: 4px; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border-bottom: 1px solid #e2e8f0; padding: 8px; text-align: left; font-size: 13px; }
+      th { color: #334155; background: #f8fafc; }
+      .mono { white-space: pre-wrap; word-break: break-word; background: #0b1020; color: #dbeafe; border-radius: 10px; padding: 12px; max-height: 240px; overflow: auto; margin: 0; }
+      .topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .small { font-size: 12px; color: #64748b; }
       a { color: #1d4ed8; text-decoration: none; }
     </style>
   </head>
   <body>
-    <div class="wrap">
+    <div class="app">
       <div class="card">
-        <h1>Admin Preview (Vercel API + Supabase)</h1>
-        <p class="muted">Halaman pengujian endpoint admin untuk migrasi Apps Script.</p>
+        <div class="topbar">
+          <div>
+            <h1>ESS Dashboard Admin</h1>
+            <p class="sub">Mode produksi Vercel + Supabase</p>
+          </div>
+          <a href="./index.html">Kembali</a>
+        </div>
         <div class="grid">
-          <div>
-            <label>Base URL API</label>
-            <input id="baseUrl" value="https://ess-2026-trendhorizone-id.vercel.app">
-          </div>
-          <div>
-            <label>x-user-email</label>
-            <input id="adminEmail" value="admin@perusahaan.com">
-          </div>
-          <div>
-            <label>x-user-role</label>
-            <select id="adminRole">
-              <option value="superadmin" selected>superadmin</option>
-              <option value="admin">admin</option>
-            </select>
-          </div>
-          <div>
-            <label>Test Employee ID</label>
-            <input id="testEmployeeId" value="EMP_DEMO_001">
-          </div>
+          <div><label>Base URL API</label><input id="baseUrl" value="https://ess-2026-trendhorizone-id.vercel.app"></div>
+          <div><label>Email Admin</label><input id="adminEmail" value="admin@perusahaan.com"></div>
+          <div><label>Role</label><select id="adminRole"><option value="superadmin" selected>superadmin</option><option value="admin">admin</option></select></div>
+          <div><label>Tanggal Attendance</label><input id="attDate" type="date"></div>
         </div>
         <div class="actions">
-          <button onclick="callGet('/api/health', false)">Health</button>
-          <button onclick="callGet('/api/admin/employees?limit=50')">List Employees</button>
-          <button onclick="callGet('/api/admin/attendance/today')">Attendance Today</button>
-          <button onclick="callGet('/api/admin/leaves/pending')">Pending Leaves</button>
-          <button onclick="callGet('/api/admin/leaves?status=approved')">Approved Leaves</button>
-          <button onclick="callGet('/api/admin/announcements')">Announcements</button>
-          <button onclick="callGet('/api/admin/payroll-docs')">Payroll Docs</button>
-          <button onclick="callGet('/api/admin/master/divisions')">Master Divisions</button>
-          <button onclick="callGet('/api/admin/master/positions')">Master Positions</button>
-          <button onclick="callGet('/api/admin/master/leave-types')">Master Leave Types</button>
-          <button onclick="callGet('/api/admin/notifications/leave/summary')">Notif Leave Summary</button>
-          <button onclick="callGet('/api/admin/notifications/leave')">Notif Leave List</button>
-          <button onclick="callGet('/api/admin/reports/employees?limit=100')">Report Employees</button>
+          <button onclick="boot()">Refresh Dashboard</button>
+          <button class="alt" onclick="callGet('/api/health', false)">Health</button>
+          <button class="alt" onclick="callGet('/api/admin/reports/employees?limit=200')">Report Karyawan</button>
         </div>
       </div>
 
       <div class="card">
-        <h3>Buat Employee</h3>
+        <h3>Ringkasan Admin</h3>
+        <div class="stats">
+          <div class="stat"><div class="k">Total Karyawan</div><div class="v" id="sEmp">0</div></div>
+          <div class="stat"><div class="k">Pending Leave</div><div class="v" id="sPending">0</div></div>
+          <div class="stat"><div class="k">Announcements Aktif</div><div class="v" id="sAnn">0</div></div>
+          <div class="stat"><div class="k">Payroll Docs</div><div class="v" id="sPay">0</div></div>
+          <div class="stat"><div class="k">Attendance Hari Ini</div><div class="v" id="sAtt">0</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Manajemen Karyawan</h3>
         <div class="grid">
           <div><label>Employee ID</label><input id="newEmpId" value=""></div>
           <div><label>Email</label><input id="newEmpEmail" value=""></div>
           <div><label>Nama</label><input id="newEmpName" value=""></div>
           <div><label>Role</label><select id="newEmpRole"><option value="employee">employee</option><option value="admin">admin</option><option value="superadmin">superadmin</option></select></div>
         </div>
-        <div class="actions"><button onclick="createEmployee()">POST Create Employee</button></div>
+        <div class="actions">
+          <button onclick="createEmployee()">Tambah Karyawan</button>
+          <button class="alt" onclick="loadEmployees()">Refresh Karyawan</button>
+        </div>
       </div>
 
       <div class="card">
         <h3>Approval Cuti</h3>
         <div class="grid">
           <div><label>Leave ID</label><input id="leaveIdAction" value=""></div>
-          <div><label>Catatan</label><input id="leaveNote" value="Disetujui oleh admin"></div>
+          <div><label>Catatan Approver</label><input id="leaveNote" value="Disetujui oleh admin"></div>
         </div>
         <div class="actions">
-          <button onclick="approveLeave()">POST Approve</button>
-          <button class="alt" onclick="rejectLeave()">POST Reject</button>
+          <button onclick="approveLeave()">Approve</button>
+          <button class="alt" onclick="rejectLeave()">Reject</button>
+          <button class="alt" onclick="loadPendingLeaves()">Refresh Pending</button>
         </div>
       </div>
 
       <div class="card">
-        <h3>Buat Pengumuman</h3>
+        <h3>Pengumuman & Payroll</h3>
         <div class="grid">
-          <div><label>Judul</label><input id="annTitle" value="Info Operasional"></div>
+          <div><label>Judul Pengumuman</label><input id="annTitle" value="Info Operasional"></div>
           <div><label>Target Role</label><select id="annRole"><option value="all">all</option><option value="employee">employee</option><option value="admin">admin</option></select></div>
         </div>
         <div><label>Isi</label><textarea id="annBody">Silakan update data absensi hari ini.</textarea></div>
-        <div class="actions"><button onclick="createAnnouncement()">POST Announcement</button></div>
-      </div>
-
-      <div class="card">
-        <h3>Upload Payroll Doc</h3>
+        <div class="actions">
+          <button onclick="createAnnouncement()">Buat Pengumuman</button>
+          <button class="alt" onclick="loadAnnouncements()">Refresh Pengumuman</button>
+        </div>
+        <hr>
         <div class="grid">
-          <div><label>Employee ID</label><input id="payEmpId" value="EMP_DEMO_001"></div>
-          <div><label>Email</label><input id="payEmail" value="demo@contoh.com"></div>
+          <div><label>Payroll Employee ID</label><input id="payEmpId" value="EMP_DEMO_001"></div>
+          <div><label>Payroll Email</label><input id="payEmail" value="demo@contoh.com"></div>
           <div><label>Bulan</label><input id="payMonth" value="April"></div>
           <div><label>Tahun</label><input id="payYear" value="2026"></div>
           <div><label>Nama File</label><input id="payFileName" value="slip-gaji-april-2026.pdf"></div>
           <div><label>File URL</label><input id="payUrl" value="https://example.com/slip-gaji-april-2026.pdf"></div>
         </div>
-        <div class="actions"><button onclick="createPayrollDoc()">POST Payroll Doc</button></div>
+        <div class="actions">
+          <button onclick="createPayrollDoc()">Upload Payroll Doc</button>
+          <button class="alt" onclick="loadPayrollDocs()">Refresh Payroll</button>
+        </div>
       </div>
 
       <div class="card">
-        <h3>Response</h3>
-        <pre id="output">Siap. Pilih aksi admin untuk uji API.</pre>
-        <p class="muted"><a href="./index.html">Kembali ke index</a></p>
+        <h3>Data Tabel</h3>
+        <div class="grid">
+          <div>
+            <h4>Karyawan</h4>
+            <table><thead><tr><th>ID</th><th>Email</th><th>Nama</th><th>Role</th></tr></thead><tbody id="tbEmp"></tbody></table>
+          </div>
+          <div>
+            <h4>Pending Leave</h4>
+            <table><thead><tr><th>Leave ID</th><th>Email</th><th>Jenis</th><th>Status</th></tr></thead><tbody id="tbLeave"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Response Debug</h3>
+        <pre class="mono" id="output">Siap.</pre>
       </div>
     </div>
 
     <script>
+      function ymd() {
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      }
+      document.getElementById('attDate').value = ymd();
+
+      function base() { return document.getElementById('baseUrl').value.trim().replace(/\/+$/, ''); }
       function headers(withAdmin) {
         const h = { 'Content-Type': 'application/json' };
         if (withAdmin !== false) {
@@ -126,58 +153,118 @@
         }
         return h;
       }
-      function base() { return document.getElementById('baseUrl').value.trim().replace(/\/+$/, ''); }
-      async function showResponse(resp) {
+      function setOut(v) {
+        document.getElementById('output').textContent = JSON.stringify(v, null, 2);
+      }
+      async function req(path, method, body, withAdmin) {
+        const resp = await fetch(base() + path, {
+          method: method || 'GET',
+          headers: headers(withAdmin),
+          body: body === undefined ? undefined : JSON.stringify(body)
+        });
         const text = await resp.text();
-        let body = text;
-        try { body = JSON.parse(text); } catch (err) {}
-        document.getElementById('output').textContent = JSON.stringify({ status: resp.status, ok: resp.ok, body: body }, null, 2);
+        let data = text;
+        try { data = JSON.parse(text); } catch (err) {}
+        setOut({ path: path, status: resp.status, ok: resp.ok, body: data });
+        if (!resp.ok) throw new Error((data && data.message) || 'Request gagal');
+        return data;
       }
       async function callGet(path, withAdmin) {
-        const resp = await fetch(base() + path, { method: 'GET', headers: headers(withAdmin) });
-        await showResponse(resp);
+        try { await req(path, 'GET', undefined, withAdmin); } catch (err) {}
       }
-      async function callPost(path, payload, withAdmin) {
-        const resp = await fetch(base() + path, { method: 'POST', headers: headers(withAdmin), body: JSON.stringify(payload || {}) });
-        await showResponse(resp);
+      function rowsHtml(arr, keys) {
+        if (!arr || arr.length === 0) return '<tr><td colspan="' + keys.length + '">Tidak ada data</td></tr>';
+        return arr.map(function(r) {
+          return '<tr>' + keys.map(function(k) { return '<td>' + String(r[k] || '') + '</td>'; }).join('') + '</tr>';
+        }).join('');
+      }
+      async function loadEmployees() {
+        const emps = await req('/api/admin/employees?limit=50');
+        document.getElementById('tbEmp').innerHTML = rowsHtml(emps, ['employee_id', 'email', 'nama', 'role']);
+        document.getElementById('sEmp').textContent = String((emps || []).length);
+      }
+      async function loadPendingLeaves() {
+        const leaves = await req('/api/admin/leaves/pending');
+        document.getElementById('tbLeave').innerHTML = rowsHtml(leaves, ['leave_id', 'email', 'jenis_cuti', 'status']);
+        document.getElementById('sPending').textContent = String((leaves || []).length);
+      }
+      async function loadAnnouncements() {
+        const list = await req('/api/admin/announcements');
+        document.getElementById('sAnn').textContent = String((list || []).length);
+      }
+      async function loadPayrollDocs() {
+        const list = await req('/api/admin/payroll-docs');
+        document.getElementById('sPay').textContent = String((list || []).length);
+      }
+      async function loadAttendanceToday() {
+        const date = document.getElementById('attDate').value.trim();
+        const list = await req('/api/admin/attendance/today?tanggal=' + encodeURIComponent(date));
+        document.getElementById('sAtt').textContent = String((list || []).length);
       }
       async function createEmployee() {
-        await callPost('/api/admin/employees', {
-          employee_id: document.getElementById('newEmpId').value.trim(),
-          email: document.getElementById('newEmpEmail').value.trim().toLowerCase(),
-          nama: document.getElementById('newEmpName').value.trim(),
-          role: document.getElementById('newEmpRole').value.trim().toLowerCase()
-        });
+        try {
+          await req('/api/admin/employees', 'POST', {
+            employee_id: document.getElementById('newEmpId').value.trim(),
+            email: document.getElementById('newEmpEmail').value.trim().toLowerCase(),
+            nama: document.getElementById('newEmpName').value.trim(),
+            role: document.getElementById('newEmpRole').value.trim().toLowerCase()
+          });
+          await loadEmployees();
+        } catch (err) {}
       }
       async function approveLeave() {
-        await callPost('/api/admin/leaves/approve', {
-          leave_id: document.getElementById('leaveIdAction').value.trim(),
-          catatan_approver: document.getElementById('leaveNote').value.trim()
-        });
+        try {
+          await req('/api/admin/leaves/approve', 'POST', {
+            leave_id: document.getElementById('leaveIdAction').value.trim(),
+            catatan_approver: document.getElementById('leaveNote').value.trim()
+          });
+          await loadPendingLeaves();
+        } catch (err) {}
       }
       async function rejectLeave() {
-        await callPost('/api/admin/leaves/reject', {
-          leave_id: document.getElementById('leaveIdAction').value.trim(),
-          catatan_approver: document.getElementById('leaveNote').value.trim()
-        });
+        try {
+          await req('/api/admin/leaves/reject', 'POST', {
+            leave_id: document.getElementById('leaveIdAction').value.trim(),
+            catatan_approver: document.getElementById('leaveNote').value.trim()
+          });
+          await loadPendingLeaves();
+        } catch (err) {}
       }
       async function createAnnouncement() {
-        await callPost('/api/admin/announcements', {
-          judul: document.getElementById('annTitle').value.trim(),
-          isi: document.getElementById('annBody').value.trim(),
-          target_role: document.getElementById('annRole').value.trim()
-        });
+        try {
+          await req('/api/admin/announcements', 'POST', {
+            judul: document.getElementById('annTitle').value.trim(),
+            isi: document.getElementById('annBody').value.trim(),
+            target_role: document.getElementById('annRole').value.trim()
+          });
+          await loadAnnouncements();
+        } catch (err) {}
       }
       async function createPayrollDoc() {
-        await callPost('/api/admin/payroll-docs', {
-          employee_id: document.getElementById('payEmpId').value.trim(),
-          email: document.getElementById('payEmail').value.trim().toLowerCase(),
-          bulan: document.getElementById('payMonth').value.trim(),
-          tahun: document.getElementById('payYear').value.trim(),
-          nama_file: document.getElementById('payFileName').value.trim(),
-          file_url: document.getElementById('payUrl').value.trim()
-        });
+        try {
+          await req('/api/admin/payroll-docs', 'POST', {
+            employee_id: document.getElementById('payEmpId').value.trim(),
+            email: document.getElementById('payEmail').value.trim().toLowerCase(),
+            bulan: document.getElementById('payMonth').value.trim(),
+            tahun: document.getElementById('payYear').value.trim(),
+            nama_file: document.getElementById('payFileName').value.trim(),
+            file_url: document.getElementById('payUrl').value.trim()
+          });
+          await loadPayrollDocs();
+        } catch (err) {}
       }
+      async function boot() {
+        try {
+          await loadEmployees();
+          await loadPendingLeaves();
+          await loadAnnouncements();
+          await loadPayrollDocs();
+          await loadAttendanceToday();
+        } catch (err) {
+          setOut({ message: err.message || 'Gagal load admin dashboard' });
+        }
+      }
+      boot();
     </script>
   </body>
 </html>
