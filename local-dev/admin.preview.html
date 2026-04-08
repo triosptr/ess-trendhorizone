@@ -1,270 +1,127 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>ESS Admin</title>
-    <style>
-      body { margin: 0; font-family: Arial, sans-serif; background: #eaf1ff; color: #0f172a; }
-      .app { max-width: 1200px; margin: 0 auto; padding: 18px; }
-      .card { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 8px 20px rgba(15, 23, 42, .08); margin-bottom: 14px; }
-      .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap: 10px; }
-      h1,h2,h3 { margin: 0 0 10px; }
-      .sub { color: #64748b; margin-top: 4px; }
-      label { display: block; font-size: 12px; color: #475569; margin-bottom: 4px; }
-      input, select, textarea { width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; font-size: 14px; }
-      textarea { min-height: 80px; resize: vertical; }
-      .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-      button { border: 0; border-radius: 8px; padding: 9px 12px; background: #1d4ed8; color: #fff; cursor: pointer; font-weight: 700; }
-      button.alt { background: #334155; }
-      .stats { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 10px; }
-      .stat { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; }
-      .stat .k { font-size: 12px; color: #64748b; }
-      .stat .v { font-size: 20px; font-weight: 700; margin-top: 4px; }
-      table { width: 100%; border-collapse: collapse; }
-      th, td { border-bottom: 1px solid #e2e8f0; padding: 8px; text-align: left; font-size: 13px; }
-      th { color: #334155; background: #f8fafc; }
-      .mono { white-space: pre-wrap; word-break: break-word; background: #0b1020; color: #dbeafe; border-radius: 10px; padding: 12px; max-height: 240px; overflow: auto; margin: 0; }
-      .topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-      .small { font-size: 12px; color: #64748b; }
-      a { color: #1d4ed8; text-decoration: none; }
-    </style>
-  </head>
-  <body>
-    <div class="app">
-      <div class="card">
-        <div class="topbar">
-          <div>
-            <h1>ESS Dashboard Admin</h1>
-            <p class="sub">Mode produksi Vercel + Supabase</p>
-          </div>
-          <a href="./index.html">Kembali</a>
-        </div>
-        <div class="grid">
-          <div><label>Base URL API</label><input id="baseUrl" value="https://ess-2026-trendhorizone-id.vercel.app"></div>
-          <div><label>Email Admin</label><input id="adminEmail" value="admin@perusahaan.com"></div>
-          <div><label>Role</label><select id="adminRole"><option value="superadmin" selected>superadmin</option><option value="admin">admin</option></select></div>
-          <div><label>Tanggal Attendance</label><input id="attDate" type="date"></div>
-        </div>
-        <div class="actions">
-          <button onclick="boot()">Refresh Dashboard</button>
-          <button class="alt" onclick="callGet('/api/health', false)">Health</button>
-          <button class="alt" onclick="callGet('/api/admin/reports/employees?limit=200')">Report Karyawan</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>Ringkasan Admin</h3>
-        <div class="stats">
-          <div class="stat"><div class="k">Total Karyawan</div><div class="v" id="sEmp">0</div></div>
-          <div class="stat"><div class="k">Pending Leave</div><div class="v" id="sPending">0</div></div>
-          <div class="stat"><div class="k">Announcements Aktif</div><div class="v" id="sAnn">0</div></div>
-          <div class="stat"><div class="k">Payroll Docs</div><div class="v" id="sPay">0</div></div>
-          <div class="stat"><div class="k">Attendance Hari Ini</div><div class="v" id="sAtt">0</div></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>Manajemen Karyawan</h3>
-        <div class="grid">
-          <div><label>Employee ID</label><input id="newEmpId" value=""></div>
-          <div><label>Email</label><input id="newEmpEmail" value=""></div>
-          <div><label>Nama</label><input id="newEmpName" value=""></div>
-          <div><label>Role</label><select id="newEmpRole"><option value="employee">employee</option><option value="admin">admin</option><option value="superadmin">superadmin</option></select></div>
-        </div>
-        <div class="actions">
-          <button onclick="createEmployee()">Tambah Karyawan</button>
-          <button class="alt" onclick="loadEmployees()">Refresh Karyawan</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>Approval Cuti</h3>
-        <div class="grid">
-          <div><label>Leave ID</label><input id="leaveIdAction" value=""></div>
-          <div><label>Catatan Approver</label><input id="leaveNote" value="Disetujui oleh admin"></div>
-        </div>
-        <div class="actions">
-          <button onclick="approveLeave()">Approve</button>
-          <button class="alt" onclick="rejectLeave()">Reject</button>
-          <button class="alt" onclick="loadPendingLeaves()">Refresh Pending</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>Pengumuman & Payroll</h3>
-        <div class="grid">
-          <div><label>Judul Pengumuman</label><input id="annTitle" value="Info Operasional"></div>
-          <div><label>Target Role</label><select id="annRole"><option value="all">all</option><option value="employee">employee</option><option value="admin">admin</option></select></div>
-        </div>
-        <div><label>Isi</label><textarea id="annBody">Silakan update data absensi hari ini.</textarea></div>
-        <div class="actions">
-          <button onclick="createAnnouncement()">Buat Pengumuman</button>
-          <button class="alt" onclick="loadAnnouncements()">Refresh Pengumuman</button>
-        </div>
-        <hr>
-        <div class="grid">
-          <div><label>Payroll Employee ID</label><input id="payEmpId" value="EMP_DEMO_001"></div>
-          <div><label>Payroll Email</label><input id="payEmail" value="demo@contoh.com"></div>
-          <div><label>Bulan</label><input id="payMonth" value="April"></div>
-          <div><label>Tahun</label><input id="payYear" value="2026"></div>
-          <div><label>Nama File</label><input id="payFileName" value="slip-gaji-april-2026.pdf"></div>
-          <div><label>File URL</label><input id="payUrl" value="https://example.com/slip-gaji-april-2026.pdf"></div>
-        </div>
-        <div class="actions">
-          <button onclick="createPayrollDoc()">Upload Payroll Doc</button>
-          <button class="alt" onclick="loadPayrollDocs()">Refresh Payroll</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>Data Tabel</h3>
-        <div class="grid">
-          <div>
-            <h4>Karyawan</h4>
-            <table><thead><tr><th>ID</th><th>Email</th><th>Nama</th><th>Role</th></tr></thead><tbody id="tbEmp"></tbody></table>
-          </div>
-          <div>
-            <h4>Pending Leave</h4>
-            <table><thead><tr><th>Leave ID</th><th>Email</th><th>Jenis</th><th>Status</th></tr></thead><tbody id="tbLeave"></tbody></table>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>Response Debug</h3>
-        <pre class="mono" id="output">Siap.</pre>
-      </div>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ESS Admin</title>
+  <style>
+    * { box-sizing: border-box; }
+    :root { --bg:#f3f6fb; --panel:#fff; --panel-2:#f8fafc; --text:#0f172a; --muted:#64748b; --line:#e2e8f0; --accent:#2563eb; --success:#15803d; --danger:#b91c1c; --warning:#b45309; --shadow:0 8px 24px rgba(15,23,42,.08); --radius:18px; }
+    html,body { margin:0; padding:0; font-family:Arial,sans-serif; background:var(--bg); color:var(--text); }
+    .layout { display:flex; min-height:100vh; }
+    .sidebar { width:300px; background:linear-gradient(180deg,#081223 0%,#0b1b34 100%); color:#fff; padding:20px 16px; min-height:100vh; }
+    .sidebar h2 { font-size:22px; margin-bottom:24px; padding:0 6px; }
+    .sidebar button { width:100%; margin-bottom:12px; padding:14px 16px; border:0; border-radius:14px; background:rgba(255,255,255,.08); color:#fff; cursor:pointer; text-align:left; font-size:14px; font-weight:600; }
+    .sidebar button:hover { background:rgba(255,255,255,.16); }
+    .main { flex:1; padding:28px; }
+    .card { background:var(--panel); border-radius:var(--radius); padding:22px 24px; box-shadow:var(--shadow); margin-bottom:18px; }
+    .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:16px; margin-bottom:20px; }
+    .stat { font-size:30px; font-weight:700; margin-top:10px; }
+    .muted { color:var(--muted); font-size:14px; }
+    .error { color:#b91c1c; font-weight:700; }
+    .table-wrap { width:100%; overflow-x:auto; border-radius:14px; border:1px solid #e2e8f0; }
+    table { width:100%; min-width:760px; border-collapse:collapse; background:#fff; }
+    th,td { border-bottom:1px solid #e2e8f0; padding:12px 14px; text-align:left; font-size:14px; vertical-align:top; }
+    th { background:#f8fafc; font-weight:700; white-space:nowrap; }
+    .badge { display:inline-block; padding:6px 10px; border-radius:999px; font-size:12px; font-weight:700; line-height:1; }
+    .badge-success { background:#dcfce7; color:#166534; }
+    .badge-danger { background:#fee2e2; color:#991b1b; }
+    .badge-warning { background:#fef3c7; color:#92400e; }
+    .badge-neutral { background:#e2e8f0; color:#334155; }
+    .section-title { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
+    .actions { display:flex; gap:10px; flex-wrap:wrap; }
+    .btn { display:inline-block; border:0; border-radius:12px; padding:10px 14px; font-size:14px; font-weight:700; cursor:pointer; text-decoration:none; }
+    .btn-primary { background:#2563eb; color:#fff; }
+    .btn-secondary { background:#e2e8f0; color:#0f172a; }
+    .btn-danger { background:#dc2626; color:#fff; }
+    .form-group { margin-bottom:14px; }
+    label { display:block; margin-bottom:6px; font-size:14px; font-weight:700; }
+    input,select,textarea { width:100%; padding:11px 12px; border:1px solid #cbd5e1; border-radius:12px; font-size:14px; background:#fff; color:#0f172a; outline:none; }
+    textarea { min-height:110px; resize:vertical; }
+    .grid-2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+    @media (max-width:960px){ .layout{flex-direction:column;} .sidebar{width:100%;min-height:auto;} .main{padding:16px;} .grid-2,.cards{grid-template-columns:1fr;} }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div class="sidebar">
+      <h2>ESS Admin</h2>
+      <button onclick="loadSummary()">Dashboard</button>
+      <button onclick="loadAllEmployees()">Data Karyawan</button>
+      <button onclick="loadAddEmployeeForm()">Tambah Karyawan</button>
+      <button onclick="loadLeaveManagement()">Manajemen Cuti</button>
+      <button onclick="loadTodayAttendance()">Rekap Absensi Hari Ini</button>
+      <button onclick="loadPayrollDocs()">Payroll Docs</button>
+      <button onclick="loadAddPayrollForm()">Tambah Payroll Doc</button>
+      <button onclick="loadAnnouncements()">Pemberitahuan</button>
+      <button onclick="loadAddAnnouncementForm()">Tambah Pemberitahuan</button>
+      <button onclick="loadDivisions()">Divisions</button>
+      <button onclick="loadAddDivisionForm()">Tambah Division</button>
+      <button onclick="loadPositions()">Positions</button>
+      <button onclick="loadAddPositionForm()">Tambah Position</button>
+      <button onclick="loadLeaveTypes()">Leave Types</button>
+      <button onclick="loadAddLeaveTypeForm()">Tambah Leave Type</button>
+      <button onclick="loadAdminNotifications()">Notifikasi</button>
     </div>
+    <div class="main">
+      <div class="card">
+        <h1>Dashboard Admin</h1>
+        <div class="muted" id="admin_meta">admin@perusahaan.com • superadmin</div>
+      </div>
+      <div id="content"></div>
+    </div>
+  </div>
 
-    <script>
-      function ymd() {
-        const d = new Date();
-        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-      }
-      document.getElementById('attDate').value = ymd();
+  <script>
+    function safe(v){ return v===null||v===undefined?'':v; }
+    function escapeHtml(v){ return String(safe(v)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
+    function setContent(html){ const el=document.getElementById('content'); if(el) el.innerHTML=html; }
+    function setLoading(t){ setContent('<div class="card"><h3>'+escapeHtml(t||'Memuat data...')+'</h3><p class="muted">Mohon tunggu sebentar.</p></div>'); }
+    function renderError(m){ return '<div class="card"><div class="error">'+escapeHtml(m||'Terjadi kesalahan.')+'</div></div>'; }
+    function normalizeStatusBadge(status){ const s=String(safe(status)).trim().toLowerCase(); if(s==='approved'||s==='active'||s==='true'||s==='hadir') return '<span class="badge badge-success">'+escapeHtml(status)+'</span>'; if(s==='rejected'||s==='inactive'||s==='false') return '<span class="badge badge-danger">'+escapeHtml(status)+'</span>'; if(s==='pending'||s==='terlambat') return '<span class="badge badge-warning">'+escapeHtml(status)+'</span>'; return '<span class="badge badge-neutral">'+escapeHtml(status||'-')+'</span>'; }
+    function hdr(){ return {'Content-Type':'application/json','x-user-email':localStorage.getItem('ess_admin_email')||'admin@perusahaan.com','x-user-role':localStorage.getItem('ess_admin_role')||'superadmin'}; }
+    function base(){ return localStorage.getItem('ess_api_base') || 'https://ess-2026-trendhorizone-id.vercel.app'; }
+    async function api(path,method,body){ const r=await fetch(base()+path,{method:method||'GET',headers:hdr(),body:body?JSON.stringify(body):undefined}); const tx=await r.text(); let d=tx; try{d=JSON.parse(tx);}catch(e){} if(!r.ok) throw new Error((d&&d.message)||'Request gagal'); return d; }
 
-      function base() { return document.getElementById('baseUrl').value.trim().replace(/\/+$/, ''); }
-      function headers(withAdmin) {
-        const h = { 'Content-Type': 'application/json' };
-        if (withAdmin !== false) {
-          h['x-user-email'] = document.getElementById('adminEmail').value.trim().toLowerCase();
-          h['x-user-role'] = document.getElementById('adminRole').value.trim().toLowerCase();
-        }
-        return h;
-      }
-      function setOut(v) {
-        document.getElementById('output').textContent = JSON.stringify(v, null, 2);
-      }
-      async function req(path, method, body, withAdmin) {
-        const resp = await fetch(base() + path, {
-          method: method || 'GET',
-          headers: headers(withAdmin),
-          body: body === undefined ? undefined : JSON.stringify(body)
-        });
-        const text = await resp.text();
-        let data = text;
-        try { data = JSON.parse(text); } catch (err) {}
-        setOut({ path: path, status: resp.status, ok: resp.ok, body: data });
-        if (!resp.ok) throw new Error((data && data.message) || 'Request gagal');
-        return data;
-      }
-      async function callGet(path, withAdmin) {
-        try { await req(path, 'GET', undefined, withAdmin); } catch (err) {}
-      }
-      function rowsHtml(arr, keys) {
-        if (!arr || arr.length === 0) return '<tr><td colspan="' + keys.length + '">Tidak ada data</td></tr>';
-        return arr.map(function(r) {
-          return '<tr>' + keys.map(function(k) { return '<td>' + String(r[k] || '') + '</td>'; }).join('') + '</tr>';
-        }).join('');
-      }
-      async function loadEmployees() {
-        const emps = await req('/api/admin/employees?limit=50');
-        document.getElementById('tbEmp').innerHTML = rowsHtml(emps, ['employee_id', 'email', 'nama', 'role']);
-        document.getElementById('sEmp').textContent = String((emps || []).length);
-      }
-      async function loadPendingLeaves() {
-        const leaves = await req('/api/admin/leaves/pending');
-        document.getElementById('tbLeave').innerHTML = rowsHtml(leaves, ['leave_id', 'email', 'jenis_cuti', 'status']);
-        document.getElementById('sPending').textContent = String((leaves || []).length);
-      }
-      async function loadAnnouncements() {
-        const list = await req('/api/admin/announcements');
-        document.getElementById('sAnn').textContent = String((list || []).length);
-      }
-      async function loadPayrollDocs() {
-        const list = await req('/api/admin/payroll-docs');
-        document.getElementById('sPay').textContent = String((list || []).length);
-      }
-      async function loadAttendanceToday() {
-        const date = document.getElementById('attDate').value.trim();
-        const list = await req('/api/admin/attendance/today?tanggal=' + encodeURIComponent(date));
-        document.getElementById('sAtt').textContent = String((list || []).length);
-      }
-      async function createEmployee() {
-        try {
-          await req('/api/admin/employees', 'POST', {
-            employee_id: document.getElementById('newEmpId').value.trim(),
-            email: document.getElementById('newEmpEmail').value.trim().toLowerCase(),
-            nama: document.getElementById('newEmpName').value.trim(),
-            role: document.getElementById('newEmpRole').value.trim().toLowerCase()
-          });
-          await loadEmployees();
-        } catch (err) {}
-      }
-      async function approveLeave() {
-        try {
-          await req('/api/admin/leaves/approve', 'POST', {
-            leave_id: document.getElementById('leaveIdAction').value.trim(),
-            catatan_approver: document.getElementById('leaveNote').value.trim()
-          });
-          await loadPendingLeaves();
-        } catch (err) {}
-      }
-      async function rejectLeave() {
-        try {
-          await req('/api/admin/leaves/reject', 'POST', {
-            leave_id: document.getElementById('leaveIdAction').value.trim(),
-            catatan_approver: document.getElementById('leaveNote').value.trim()
-          });
-          await loadPendingLeaves();
-        } catch (err) {}
-      }
-      async function createAnnouncement() {
-        try {
-          await req('/api/admin/announcements', 'POST', {
-            judul: document.getElementById('annTitle').value.trim(),
-            isi: document.getElementById('annBody').value.trim(),
-            target_role: document.getElementById('annRole').value.trim()
-          });
-          await loadAnnouncements();
-        } catch (err) {}
-      }
-      async function createPayrollDoc() {
-        try {
-          await req('/api/admin/payroll-docs', 'POST', {
-            employee_id: document.getElementById('payEmpId').value.trim(),
-            email: document.getElementById('payEmail').value.trim().toLowerCase(),
-            bulan: document.getElementById('payMonth').value.trim(),
-            tahun: document.getElementById('payYear').value.trim(),
-            nama_file: document.getElementById('payFileName').value.trim(),
-            file_url: document.getElementById('payUrl').value.trim()
-          });
-          await loadPayrollDocs();
-        } catch (err) {}
-      }
-      async function boot() {
-        try {
-          await loadEmployees();
-          await loadPendingLeaves();
-          await loadAnnouncements();
-          await loadPayrollDocs();
-          await loadAttendanceToday();
-        } catch (err) {
-          setOut({ message: err.message || 'Gagal load admin dashboard' });
-        }
-      }
-      boot();
-    </script>
-  </body>
+    async function loadSummary(){ try{ setLoading('Memuat dashboard admin...'); const emps=await api('/api/admin/employees?limit=500'); const pending=await api('/api/admin/leaves/pending'); const ann=await api('/api/admin/announcements'); const pay=await api('/api/admin/payroll-docs'); const today=await api('/api/admin/attendance/today?tanggal='+(new Date().toISOString().slice(0,10))); setContent(''
+      +'<div class="cards"><div class="card"><div>Total Karyawan</div><div class="stat">'+escapeHtml((emps||[]).length)+'</div></div><div class="card"><div>Pending Cuti</div><div class="stat">'+escapeHtml((pending||[]).length)+'</div></div><div class="card"><div>Pengumuman</div><div class="stat">'+escapeHtml((ann||[]).length)+'</div></div><div class="card"><div>Payroll Docs</div><div class="stat">'+escapeHtml((pay||[]).length)+'</div></div><div class="card"><div>Attendance Hari Ini</div><div class="stat">'+escapeHtml((today||[]).length)+'</div></div></div>'
+      +'<div class="card"><h3>Aksi Cepat</h3><div class="actions"><button class="btn btn-secondary" onclick="loadLeaveManagement()">Buka Manajemen Cuti</button><button class="btn btn-secondary" onclick="loadAllEmployees()">Buka Data Karyawan</button><button class="btn btn-secondary" onclick="loadAdminNotifications()">Buka Notifikasi</button></div></div>'
+    ); }catch(err){ setContent(renderError(err.message)); } }
+
+    async function loadAllEmployees(){ try{ setLoading('Memuat data karyawan...'); const rows=await api('/api/admin/employees?limit=500'); setContent('<div class="card"><h3>Data Karyawan</h3><div class="table-wrap"><table><thead><tr><th>ID</th><th>Email</th><th>Nama</th><th>Role</th><th>Divisi</th><th>Jabatan</th><th>Status</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.employee_id)+'</td><td>'+escapeHtml(r.email)+'</td><td>'+escapeHtml(r.nama)+'</td><td>'+escapeHtml(r.role)+'</td><td>'+escapeHtml(r.divisi||'-')+'</td><td>'+escapeHtml(r.jabatan||'-')+'</td><td>'+normalizeStatusBadge(String(r.is_active))+'</td></tr>';}).join('')||'<tr><td colspan="7">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+    function loadAddEmployeeForm(){ setContent('<div class="card"><h3>Tambah Karyawan</h3><div class="grid-2"><div class="form-group"><label>Employee ID</label><input id="emp_id"></div><div class="form-group"><label>Email</label><input id="emp_email"></div><div class="form-group"><label>Nama</label><input id="emp_nama"></div><div class="form-group"><label>Role</label><select id="emp_role"><option value="employee">employee</option><option value="admin">admin</option><option value="superadmin">superadmin</option></select></div></div><div class="actions"><button class="btn btn-primary" onclick="submitAddEmployee()">Simpan</button></div></div>'); }
+    async function submitAddEmployee(){ try{ await api('/api/admin/employees','POST',{employee_id:(document.getElementById('emp_id')||{}).value||'',email:(document.getElementById('emp_email')||{}).value||'',nama:(document.getElementById('emp_nama')||{}).value||'',role:(document.getElementById('emp_role')||{}).value||'employee'}); await loadAllEmployees(); }catch(err){ setContent(renderError(err.message)); } }
+
+    async function loadLeaveManagement(){ try{ setLoading('Memuat manajemen cuti...'); const pending=await api('/api/admin/leaves/pending'); setContent('<div class="card"><h3>Manajemen Cuti (Pending)</h3><div class="table-wrap"><table><thead><tr><th>Leave ID</th><th>Email</th><th>Jenis</th><th>Mulai</th><th>Selesai</th><th>Aksi</th></tr></thead><tbody>'+((pending||[]).map(function(r){return '<tr><td>'+escapeHtml(r.leave_id)+'</td><td>'+escapeHtml(r.email)+'</td><td>'+escapeHtml(r.jenis_cuti)+'</td><td>'+escapeHtml(r.tanggal_mulai)+'</td><td>'+escapeHtml(r.tanggal_selesai)+'</td><td><div class="actions"><button class="btn btn-primary" data-id="'+escapeHtml(r.leave_id)+'" onclick="approveLeave(this.dataset.id)">Approve</button><button class="btn btn-danger" data-id="'+escapeHtml(r.leave_id)+'" onclick="rejectLeave(this.dataset.id)">Reject</button></div></td></tr>';}).join('')||'<tr><td colspan="6">Tidak ada pending leave</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+    async function approveLeave(id){ try{ await api('/api/admin/leaves/approve','POST',{leave_id:id,catatan_approver:'Approved by admin'}); await loadLeaveManagement(); }catch(err){ setContent(renderError(err.message)); } }
+    async function rejectLeave(id){ try{ await api('/api/admin/leaves/reject','POST',{leave_id:id,catatan_approver:'Rejected by admin'}); await loadLeaveManagement(); }catch(err){ setContent(renderError(err.message)); } }
+
+    async function loadTodayAttendance(){ try{ setLoading('Memuat absensi hari ini...'); const rows=await api('/api/admin/attendance/today?tanggal='+(new Date().toISOString().slice(0,10))); setContent('<div class="card"><h3>Rekap Absensi Hari Ini</h3><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>ID</th><th>Email</th><th>Masuk</th><th>Keluar</th><th>Status</th><th>Lokasi</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.tanggal)+'</td><td>'+escapeHtml(r.employee_id)+'</td><td>'+escapeHtml(r.email)+'</td><td>'+escapeHtml(r.jam_masuk||'-')+'</td><td>'+escapeHtml(r.jam_keluar||'-')+'</td><td>'+normalizeStatusBadge(r.status)+'</td><td>'+escapeHtml(r.lokasi||'-')+'</td></tr>';}).join('')||'<tr><td colspan="7">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+
+    async function loadPayrollDocs(){ try{ setLoading('Memuat payroll docs...'); const rows=await api('/api/admin/payroll-docs?limit=200'); setContent('<div class="card"><h3>Payroll Docs</h3><div class="table-wrap"><table><thead><tr><th>Doc ID</th><th>Employee ID</th><th>Bulan</th><th>Tahun</th><th>Nama File</th><th>Aksi</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.doc_id)+'</td><td>'+escapeHtml(r.employee_id)+'</td><td>'+escapeHtml(r.bulan||'-')+'</td><td>'+escapeHtml(r.tahun||'-')+'</td><td>'+escapeHtml(r.nama_file||'-')+'</td><td><a class="btn btn-primary" href="'+escapeHtml(r.file_url||'#')+'" target="_blank">Buka</a></td></tr>';}).join('')||'<tr><td colspan="6">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+    function loadAddPayrollForm(){ setContent('<div class="card"><h3>Tambah Payroll Doc</h3><div class="grid-2"><div class="form-group"><label>Employee ID</label><input id="pay_emp"></div><div class="form-group"><label>Email</label><input id="pay_email"></div><div class="form-group"><label>Bulan</label><input id="pay_bulan"></div><div class="form-group"><label>Tahun</label><input id="pay_tahun"></div><div class="form-group"><label>Nama File</label><input id="pay_nama"></div><div class="form-group"><label>File URL</label><input id="pay_url"></div></div><div class="actions"><button class="btn btn-primary" onclick="submitAddPayroll()">Simpan</button></div></div>'); }
+    async function submitAddPayroll(){ try{ await api('/api/admin/payroll-docs','POST',{employee_id:(document.getElementById('pay_emp')||{}).value||'',email:(document.getElementById('pay_email')||{}).value||'',bulan:(document.getElementById('pay_bulan')||{}).value||'',tahun:(document.getElementById('pay_tahun')||{}).value||'',nama_file:(document.getElementById('pay_nama')||{}).value||'',file_url:(document.getElementById('pay_url')||{}).value||''}); await loadPayrollDocs(); }catch(err){ setContent(renderError(err.message)); } }
+
+    async function loadAnnouncements(){ try{ setLoading('Memuat pengumuman...'); const rows=await api('/api/admin/announcements?limit=200'); setContent('<div class="card"><h3>Pemberitahuan</h3><div class="table-wrap"><table><thead><tr><th>ID</th><th>Judul</th><th>Target</th><th>Published</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.announcement_id)+'</td><td>'+escapeHtml(r.judul)+'</td><td>'+escapeHtml(r.target_role||'all')+'</td><td>'+escapeHtml(r.published_at||'-')+'</td></tr>';}).join('')||'<tr><td colspan="4">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+    function loadAddAnnouncementForm(){ setContent('<div class="card"><h3>Tambah Pemberitahuan</h3><div class="form-group"><label>Judul</label><input id="ann_judul"></div><div class="form-group"><label>Target Role</label><select id="ann_target"><option value="all">all</option><option value="employee">employee</option><option value="admin">admin</option></select></div><div class="form-group"><label>Isi</label><textarea id="ann_isi"></textarea></div><div class="actions"><button class="btn btn-primary" onclick="submitAddAnnouncement()">Simpan</button></div></div>'); }
+    async function submitAddAnnouncement(){ try{ await api('/api/admin/announcements','POST',{judul:(document.getElementById('ann_judul')||{}).value||'',target_role:(document.getElementById('ann_target')||{}).value||'all',isi:(document.getElementById('ann_isi')||{}).value||''}); await loadAnnouncements(); }catch(err){ setContent(renderError(err.message)); } }
+
+    async function loadDivisions(){ try{ setLoading('Memuat divisions...'); const rows=await api('/api/admin/master/divisions'); setContent('<div class="card"><h3>Divisions</h3><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Kepala</th><th>Aktif</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.division_id)+'</td><td>'+escapeHtml(r.nama_divisi)+'</td><td>'+escapeHtml(r.kepala_divisi_email||'-')+'</td><td>'+normalizeStatusBadge(String(r.is_active))+'</td></tr>';}).join('')||'<tr><td colspan="4">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+    function loadAddDivisionForm(){ setContent('<div class="card"><h3>Tambah Division</h3><div class="form-group"><label>Division ID</label><input id="div_id"></div><div class="form-group"><label>Nama Division</label><input id="div_nama"></div><div class="form-group"><label>Kepala Email</label><input id="div_head"></div><div class="actions"><button class="btn btn-primary" onclick="submitAddDivision()">Simpan</button></div></div>'); }
+    async function submitAddDivision(){ try{ await api('/api/admin/master/divisions','POST',{division_id:(document.getElementById('div_id')||{}).value||'',nama_divisi:(document.getElementById('div_nama')||{}).value||'',kepala_divisi_email:(document.getElementById('div_head')||{}).value||'',is_active:true}); await loadDivisions(); }catch(err){ setContent(renderError(err.message)); } }
+
+    async function loadPositions(){ try{ setLoading('Memuat positions...'); const rows=await api('/api/admin/master/positions'); setContent('<div class="card"><h3>Positions</h3><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Division ID</th><th>Aktif</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.position_id)+'</td><td>'+escapeHtml(r.nama_jabatan)+'</td><td>'+escapeHtml(r.division_id||'-')+'</td><td>'+normalizeStatusBadge(String(r.is_active))+'</td></tr>';}).join('')||'<tr><td colspan="4">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+    function loadAddPositionForm(){ setContent('<div class="card"><h3>Tambah Position</h3><div class="form-group"><label>Position ID</label><input id="pos_id"></div><div class="form-group"><label>Nama Jabatan</label><input id="pos_nama"></div><div class="form-group"><label>Division ID</label><input id="pos_division"></div><div class="actions"><button class="btn btn-primary" onclick="submitAddPosition()">Simpan</button></div></div>'); }
+    async function submitAddPosition(){ try{ await api('/api/admin/master/positions','POST',{position_id:(document.getElementById('pos_id')||{}).value||'',nama_jabatan:(document.getElementById('pos_nama')||{}).value||'',division_id:(document.getElementById('pos_division')||{}).value||'',is_active:true}); await loadPositions(); }catch(err){ setContent(renderError(err.message)); } }
+
+    async function loadLeaveTypes(){ try{ setLoading('Memuat leave types...'); const rows=await api('/api/admin/master/leave-types'); setContent('<div class="card"><h3>Leave Types</h3><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Maks Hari</th><th>Paid</th><th>Aktif</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.leave_type_id)+'</td><td>'+escapeHtml(r.nama_jenis_cuti)+'</td><td>'+escapeHtml(r.maks_hari)+'</td><td>'+escapeHtml(String(r.is_paid))+'</td><td>'+normalizeStatusBadge(String(r.is_active))+'</td></tr>';}).join('')||'<tr><td colspan="5">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+    function loadAddLeaveTypeForm(){ setContent('<div class="card"><h3>Tambah Leave Type</h3><div class="grid-2"><div class="form-group"><label>Leave Type ID</label><input id="lt_id"></div><div class="form-group"><label>Nama Jenis Cuti</label><input id="lt_nama"></div><div class="form-group"><label>Maks Hari</label><input id="lt_maks" type="number" value="12"></div><div class="form-group"><label>Paid</label><select id="lt_paid"><option value="true">true</option><option value="false">false</option></select></div></div><div class="actions"><button class="btn btn-primary" onclick="submitAddLeaveType()">Simpan</button></div></div>'); }
+    async function submitAddLeaveType(){ try{ await api('/api/admin/master/leave-types','POST',{leave_type_id:(document.getElementById('lt_id')||{}).value||'',nama_jenis_cuti:(document.getElementById('lt_nama')||{}).value||'',maks_hari:Number((document.getElementById('lt_maks')||{}).value||0),is_paid:String((document.getElementById('lt_paid')||{}).value||'true')==='true',requires_attachment:false,is_active:true}); await loadLeaveTypes(); }catch(err){ setContent(renderError(err.message)); } }
+
+    async function loadAdminNotifications(){ try{ setLoading('Memuat notifikasi admin...'); const summary=await api('/api/admin/notifications/leave/summary'); const rows=await api('/api/admin/notifications/leave'); setContent('<div class="card"><h3>Notifikasi Admin</h3><p><b>Unread Leave Requests:</b> '+escapeHtml(summary.unread_leave_requests)+'</p><div class="table-wrap"><table><thead><tr><th>Tipe</th><th>Judul</th><th>Pesan</th><th>Tanggal</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.notification_type)+'</td><td>'+escapeHtml(r.title)+'</td><td>'+escapeHtml(r.message)+'</td><td>'+escapeHtml(r.date_value||'-')+'</td></tr>';}).join('')||'<tr><td colspan="4">Tidak ada notifikasi</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+
+    loadSummary();
+  </script>
+</body>
 </html>

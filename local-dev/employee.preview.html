@@ -1,266 +1,123 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>ESS Karyawan</title>
-    <style>
-      body { margin: 0; font-family: Arial, sans-serif; background: #eef2ff; color: #0f172a; }
-      .app { max-width: 1180px; margin: 0 auto; padding: 18px; }
-      .card { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 8px 20px rgba(15, 23, 42, .08); margin-bottom: 14px; }
-      h1,h2,h3 { margin: 0 0 10px; }
-      .sub { color: #64748b; margin-top: 4px; }
-      .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap: 10px; }
-      label { display: block; font-size: 12px; color: #475569; margin-bottom: 4px; }
-      input, select, textarea { width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; font-size: 14px; }
-      textarea { min-height: 86px; resize: vertical; }
-      button { border: 0; border-radius: 8px; padding: 9px 12px; background: #2563eb; color: #fff; font-weight: 700; cursor: pointer; }
-      button.alt { background: #334155; }
-      .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-      .stats { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 10px; }
-      .stat { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; }
-      .stat .k { font-size: 12px; color: #64748b; }
-      .stat .v { font-size: 20px; font-weight: 700; margin-top: 4px; }
-      table { width: 100%; border-collapse: collapse; }
-      th, td { border-bottom: 1px solid #e2e8f0; padding: 8px; text-align: left; font-size: 13px; }
-      th { color: #334155; background: #f8fafc; }
-      .mono { white-space: pre-wrap; word-break: break-word; background: #0b1020; color: #dbeafe; border-radius: 10px; padding: 12px; max-height: 240px; overflow: auto; margin: 0; }
-      .topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-      .small { font-size: 12px; color: #64748b; }
-      a { color: #1d4ed8; text-decoration: none; }
-    </style>
-  </head>
-  <body>
-    <div class="app">
-      <div class="card">
-        <div class="topbar">
-          <div>
-            <h1>ESS Dashboard Karyawan</h1>
-            <p class="sub">Mode produksi Vercel + Supabase</p>
-          </div>
-          <a href="./index.html">Kembali</a>
-        </div>
-        <div class="grid">
-          <div><label>Base URL API</label><input id="baseUrl" value="https://ess-2026-trendhorizone-id.vercel.app"></div>
-          <div><label>Email</label><input id="userEmail" value="demo@contoh.com"></div>
-          <div><label>Employee ID</label><input id="employeeId" value="EMP_DEMO_001"></div>
-          <div><label>Role</label><select id="userRole"><option value="employee" selected>employee</option><option value="admin">admin</option><option value="superadmin">superadmin</option></select></div>
-        </div>
-        <div class="actions">
-          <button onclick="boot()">Refresh Dashboard</button>
-          <button class="alt" onclick="callGet('/api/health', false)">Health</button>
-          <button class="alt" onclick="callGet('/api/me/profile')">Raw Profile</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>Ringkasan</h3>
-        <div class="stats">
-          <div class="stat"><div class="k">Nama</div><div class="v" id="sName">-</div></div>
-          <div class="stat"><div class="k">Divisi</div><div class="v" id="sDiv">-</div></div>
-          <div class="stat"><div class="k">Jabatan</div><div class="v" id="sPos">-</div></div>
-          <div class="stat"><div class="k">Sisa Cuti</div><div class="v" id="sLeave">0</div></div>
-          <div class="stat"><div class="k">Pending Cuti</div><div class="v" id="sPending">0</div></div>
-          <div class="stat"><div class="k">Status Hari Ini</div><div class="v" id="sToday">-</div></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>Absensi</h3>
-        <div class="grid">
-          <div><label>Lokasi</label><input id="attLokasi" value="Office"></div>
-          <div><label>Work Mode</label><select id="attWorkMode"><option value="office" selected>office</option><option value="wfh">wfh</option></select></div>
-          <div><label>Status</label><input id="attStatus" value="Hadir"></div>
-          <div><label>Catatan</label><input id="attCatatan" value=""></div>
-        </div>
-        <div class="actions">
-          <button onclick="doCheckIn()">Check In</button>
-          <button class="alt" onclick="doCheckOut()">Check Out</button>
-          <button class="alt" onclick="loadToday()">Refresh Hari Ini</button>
-          <button class="alt" onclick="loadHistory()">Refresh History</button>
-        </div>
-        <div class="small" id="todayInfo">-</div>
-      </div>
-
-      <div class="card">
-        <h3>Ajukan Cuti</h3>
-        <div class="grid">
-          <div><label>Jenis Cuti</label><select id="leaveType"></select></div>
-          <div><label>Tanggal Mulai</label><input id="leaveStart" type="date"></div>
-          <div><label>Tanggal Selesai</label><input id="leaveEnd" type="date"></div>
-          <div><label>Jumlah Hari</label><input id="leaveDays" type="number" value="1"></div>
-        </div>
-        <div><label>Alasan</label><textarea id="leaveReason">Keperluan keluarga</textarea></div>
-        <div class="actions">
-          <button onclick="submitLeave()">Kirim Pengajuan Cuti</button>
-          <button class="alt" onclick="loadLeaves()">Refresh Riwayat Cuti</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>Riwayat Absensi</h3>
-        <table>
-          <thead><tr><th>Tanggal</th><th>Masuk</th><th>Keluar</th><th>Status</th><th>Lokasi</th></tr></thead>
-          <tbody id="tbAttendance"></tbody>
-        </table>
-      </div>
-
-      <div class="card">
-        <h3>Riwayat Cuti</h3>
-        <table>
-          <thead><tr><th>Jenis</th><th>Mulai</th><th>Selesai</th><th>Hari</th><th>Status</th></tr></thead>
-          <tbody id="tbLeave"></tbody>
-        </table>
-      </div>
-
-      <div class="card">
-        <h3>Notifikasi</h3>
-        <div class="actions">
-          <button class="alt" onclick="loadNotifications()">Refresh Notifikasi</button>
-          <button class="alt" onclick="markNotif('all')">Tandai Semua Dibaca</button>
-        </div>
-        <table>
-          <thead><tr><th>Tipe</th><th>Judul</th><th>Pesan</th><th>Tanggal</th><th>Unread</th></tr></thead>
-          <tbody id="tbNotif"></tbody>
-        </table>
-      </div>
-
-      <div class="card">
-        <h3>Response Debug</h3>
-        <pre class="mono" id="output">Siap.</pre>
-      </div>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ESS Karyawan</title>
+  <style>
+    * { box-sizing: border-box; }
+    :root { --bg:#f3f6fb; --panel:#fff; --panel-2:#f8fafc; --text:#0f172a; --muted:#64748b; --line:#e2e8f0; --accent:#2563eb; --success:#15803d; --danger:#b91c1c; --warning:#b45309; --shadow:0 8px 24px rgba(15,23,42,.08); --radius:18px; }
+    html,body { margin:0; padding:0; font-family:Arial,sans-serif; background:var(--bg); color:var(--text); }
+    .layout { display:flex; min-height:100vh; }
+    .sidebar { width:270px; background:linear-gradient(180deg,#081223 0%,#0b1b34 100%); color:#fff; padding:20px 16px; min-height:100vh; }
+    .sidebar h2 { font-size:22px; margin-bottom:24px; padding:0 6px; }
+    .sidebar button { width:100%; margin-bottom:12px; padding:14px 16px; border:0; border-radius:14px; background:rgba(255,255,255,.08); color:#fff; cursor:pointer; text-align:left; font-size:15px; font-weight:600; }
+    .sidebar button:hover { background:rgba(255,255,255,.16); }
+    .main { flex:1; padding:28px; }
+    .page-title { margin-bottom:16px; }
+    .card { background:var(--panel); border-radius:var(--radius); padding:22px 24px; box-shadow:var(--shadow); margin-bottom:18px; }
+    .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:16px; margin-bottom:20px; }
+    .stat { font-size:30px; font-weight:700; margin-top:10px; }
+    .muted { color:var(--muted); font-size:14px; }
+    .error { color:var(--danger); font-weight:700; }
+    .success { color:var(--success); font-weight:700; }
+    .table-wrap { width:100%; overflow-x:auto; border-radius:14px; border:1px solid var(--line); }
+    table { width:100%; min-width:760px; border-collapse:collapse; background:#fff; }
+    th,td { border-bottom:1px solid var(--line); padding:12px 14px; text-align:left; font-size:14px; vertical-align:top; }
+    th { background:var(--panel-2); font-weight:700; white-space:nowrap; }
+    .badge { display:inline-block; padding:6px 10px; border-radius:999px; font-size:12px; font-weight:700; line-height:1; }
+    .badge-success { background:#dcfce7; color:#166534; }
+    .badge-danger { background:#fee2e2; color:#991b1b; }
+    .badge-warning { background:#fef3c7; color:#92400e; }
+    .badge-neutral { background:#e2e8f0; color:#334155; }
+    .section-title { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
+    .actions { display:flex; gap:10px; flex-wrap:wrap; }
+    .btn { display:inline-block; border:0; border-radius:12px; padding:10px 14px; font-size:14px; font-weight:700; cursor:pointer; text-decoration:none; }
+    .btn-primary { background:var(--accent); color:#fff; }
+    .btn-secondary { background:#e2e8f0; color:#0f172a; }
+    .form-group { margin-bottom:14px; }
+    label { display:block; margin-bottom:6px; font-size:14px; font-weight:700; }
+    input,select,textarea { width:100%; padding:11px 12px; border:1px solid #cbd5e1; border-radius:12px; font-size:14px; background:#fff; color:var(--text); outline:none; }
+    textarea { min-height:110px; resize:vertical; }
+    .grid-2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+    .mb-0 { margin-bottom:0; }
+    @media (max-width:960px){ .layout{flex-direction:column;} .sidebar{width:100%;min-height:auto;} .main{padding:16px;} .grid-2,.cards{grid-template-columns:1fr;} }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div class="sidebar">
+      <h2>ESS Karyawan</h2>
+      <button onclick="loadEmployeeHome()">Dashboard</button>
+      <button onclick="loadNotificationCenter()">Notifikasi</button>
+      <button onclick="loadMyProfile()">Profil Saya</button>
+      <button onclick="loadAttendancePage()">Absensi Hari Ini</button>
+      <button onclick="loadMyAttendanceHistory()">Riwayat Absensi</button>
+      <button onclick="loadLeaveForm()">Ajukan Cuti</button>
+      <button onclick="loadMyLeaveHistory()">Riwayat Cuti</button>
+      <button onclick="loadMyPayrollDocs()">Slip Gaji</button>
+      <button onclick="loadAnnouncements()">Pengumuman</button>
     </div>
+    <div class="main">
+      <div class="card">
+        <h1 class="page-title" id="greeting_name">Halo, -</h1>
+        <div class="muted" id="greeting_meta">-</div>
+      </div>
+      <div id="content"></div>
+    </div>
+  </div>
 
-    <script>
-      function ymd() {
-        const d = new Date();
-        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-      }
-      document.getElementById('leaveStart').value = ymd();
-      document.getElementById('leaveEnd').value = ymd();
+  <script>
+    function safe(v){ return v===null||v===undefined?'':v; }
+    function escapeHtml(v){ return String(safe(v)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
+    function setContent(html){ const el=document.getElementById('content'); if(el) el.innerHTML=html; }
+    function setLoading(t){ setContent('<div class="card"><h3>'+escapeHtml(t||'Memuat data...')+'</h3><p class="muted">Mohon tunggu sebentar.</p></div>'); }
+    function renderError(m){ return '<div class="card"><div class="error">'+escapeHtml(m||'Terjadi kesalahan.')+'</div></div>'; }
+    function formatDateTimeDisplay(value){ if(!value) return ''; const d=new Date(value); if(isNaN(d.getTime())) return String(value); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0'); }
+    function normalizeStatusBadge(status){ const s=String(safe(status)).trim().toLowerCase(); if(s==='approved'||s==='active'||s==='true'||s==='hadir') return '<span class="badge badge-success">'+escapeHtml(status)+'</span>'; if(s==='rejected'||s==='inactive'||s==='false') return '<span class="badge badge-danger">'+escapeHtml(status)+'</span>'; if(s==='pending'||s==='terlambat') return '<span class="badge badge-warning">'+escapeHtml(status)+'</span>'; return '<span class="badge badge-neutral">'+escapeHtml(status||'-')+'</span>'; }
+    function hdr(){ return {'Content-Type':'application/json','x-user-email':localStorage.getItem('ess_user_email')||'demo@contoh.com','x-employee-id':localStorage.getItem('ess_employee_id')||'EMP_DEMO_001','x-user-role':localStorage.getItem('ess_user_role')||'employee'}; }
+    function base(){ return localStorage.getItem('ess_api_base') || 'https://ess-2026-trendhorizone-id.vercel.app'; }
+    async function api(path,method,body){ const r=await fetch(base()+path,{method:method||'GET',headers:hdr(),body:body?JSON.stringify(body):undefined}); const tx=await r.text(); let d=tx; try{d=JSON.parse(tx);}catch(e){} if(!r.ok) throw new Error((d&&d.message)||'Request gagal'); return d; }
+    async function bootGreeting(){ const p=await api('/api/me/profile'); document.getElementById('greeting_name').textContent='Halo, '+(p.nama||'-'); document.getElementById('greeting_meta').textContent=(p.email||'-')+' • '+(p.divisi||'-')+' • '+(p.jabatan||'-'); }
 
-      function base() { return document.getElementById('baseUrl').value.trim().replace(/\/+$/, ''); }
-      function headers(withUser) {
-        const h = { 'Content-Type': 'application/json' };
-        if (withUser !== false) {
-          h['x-user-email'] = document.getElementById('userEmail').value.trim().toLowerCase();
-          h['x-employee-id'] = document.getElementById('employeeId').value.trim();
-          h['x-user-role'] = document.getElementById('userRole').value.trim().toLowerCase();
-        }
-        return h;
-      }
-      function setOut(v) {
-        document.getElementById('output').textContent = JSON.stringify(v, null, 2);
-      }
-      async function req(path, method, body, withUser) {
-        const resp = await fetch(base() + path, {
-          method: method || 'GET',
-          headers: headers(withUser),
-          body: body === undefined ? undefined : JSON.stringify(body)
-        });
-        const text = await resp.text();
-        let data = text;
-        try { data = JSON.parse(text); } catch (err) {}
-        setOut({ path: path, status: resp.status, ok: resp.ok, body: data });
-        if (!resp.ok) throw new Error((data && data.message) || 'Request gagal');
-        return data;
-      }
-      async function callGet(path, withUser) {
-        try { await req(path, 'GET', undefined, withUser); } catch (err) {}
-      }
-      function rowsHtml(arr, keys) {
-        if (!arr || arr.length === 0) return '<tr><td colspan="' + keys.length + '">Tidak ada data</td></tr>';
-        return arr.map(function(r) {
-          return '<tr>' + keys.map(function(k) { return '<td>' + String(r[k] || '') + '</td>'; }).join('') + '</tr>';
-        }).join('');
-      }
-      async function loadSummary() {
-        const p = await req('/api/me/profile');
-        const s = await req('/api/me/dashboard-summary');
-        document.getElementById('sName').textContent = p.nama || '-';
-        document.getElementById('sDiv').textContent = p.divisi || '-';
-        document.getElementById('sPos').textContent = p.jabatan || '-';
-        document.getElementById('sLeave').textContent = String(s.sisa_cuti || 0);
-        document.getElementById('sPending').textContent = String(s.pendingLeaves || 0);
-      }
-      async function loadToday() {
-        const t = await req('/api/me/attendance/today');
-        document.getElementById('sToday').textContent = t.status || '-';
-        document.getElementById('todayInfo').textContent = 'Tanggal: ' + (t.tanggal || '-') + ' | Masuk: ' + (t.jam_masuk || '-') + ' | Keluar: ' + (t.jam_keluar || '-') + ' | Lokasi: ' + (t.lokasi || '-');
-      }
-      async function loadHistory() {
-        const list = await req('/api/me/attendance/history?limit=30');
-        document.getElementById('tbAttendance').innerHTML = rowsHtml(list, ['tanggal', 'jam_masuk', 'jam_keluar', 'status', 'lokasi']);
-      }
-      async function loadLeaveTypes() {
-        const types = await req('/api/leave-types/active', 'GET', undefined, false);
-        const select = document.getElementById('leaveType');
-        select.innerHTML = (types || []).map(function(t) {
-          return '<option value="' + (t.nama_jenis_cuti || '') + '">' + (t.nama_jenis_cuti || '') + '</option>';
-        }).join('');
-      }
-      async function loadLeaves() {
-        const list = await req('/api/me/leaves');
-        document.getElementById('tbLeave').innerHTML = rowsHtml(list, ['jenis_cuti', 'tanggal_mulai', 'tanggal_selesai', 'jumlah_hari', 'status']);
-      }
-      async function loadNotifications() {
-        const list = await req('/api/me/notifications');
-        document.getElementById('tbNotif').innerHTML = rowsHtml(list, ['notification_type', 'title', 'message', 'date_value', 'is_unread']);
-      }
-      async function doCheckIn() {
-        try {
-          await req('/api/me/attendance/check-in', 'POST', {
-            lokasi: document.getElementById('attLokasi').value.trim(),
-            work_mode: document.getElementById('attWorkMode').value.trim(),
-            status: document.getElementById('attStatus').value.trim(),
-            catatan: document.getElementById('attCatatan').value.trim()
-          });
-          await loadToday();
-          await loadHistory();
-        } catch (err) {}
-      }
-      async function doCheckOut() {
-        try {
-          await req('/api/me/attendance/check-out', 'POST', {
-            lokasi: document.getElementById('attLokasi').value.trim(),
-            status: document.getElementById('attStatus').value.trim(),
-            catatan: document.getElementById('attCatatan').value.trim()
-          });
-          await loadToday();
-          await loadHistory();
-        } catch (err) {}
-      }
-      async function submitLeave() {
-        try {
-          await req('/api/me/leaves', 'POST', {
-            jenis_cuti: document.getElementById('leaveType').value.trim(),
-            tanggal_mulai: document.getElementById('leaveStart').value.trim(),
-            tanggal_selesai: document.getElementById('leaveEnd').value.trim(),
-            jumlah_hari: Number(document.getElementById('leaveDays').value || 0),
-            alasan: document.getElementById('leaveReason').value.trim()
-          });
-          await loadLeaves();
-        } catch (err) {}
-      }
-      async function markNotif(type) {
-        try {
-          await req('/api/me/notifications/mark-seen', 'POST', { type: type || 'all' });
-          await loadNotifications();
-        } catch (err) {}
-      }
-      async function boot() {
-        try {
-          await loadSummary();
-          await loadToday();
-          await loadHistory();
-          await loadLeaveTypes();
-          await loadLeaves();
-          await loadNotifications();
-        } catch (err) {
-          setOut({ message: err.message || 'Gagal load dashboard' });
-        }
-      }
-      boot();
-    </script>
-  </body>
+    async function loadEmployeeHome(){ try{ setLoading('Memuat dashboard karyawan...'); const data=await api('/api/me/dashboard-summary'); const today=await api('/api/me/attendance/today'); const notif=await api('/api/me/notifications/summary'); setContent(''
+      +'<div class="cards">'
+      +'<div class="card"><div>Jatah Cuti</div><div class="stat">'+escapeHtml(data.jatah_cuti)+'</div></div>'
+      +'<div class="card"><div>Sisa Cuti</div><div class="stat">'+escapeHtml(data.sisa_cuti)+'</div></div>'
+      +'<div class="card"><div>Pengajuan Pending</div><div class="stat">'+escapeHtml(data.pendingLeaves)+'</div></div>'
+      +'<div class="card"><div>Absensi Hari Ini</div><div class="stat">'+escapeHtml(today.status)+'</div></div>'
+      +'</div>'
+      +'<div class="cards">'
+      +'<div class="card"><div>Pengumuman Baru</div><div class="stat">'+escapeHtml(notif.unread_announcements)+'</div></div>'
+      +'<div class="card"><div>Payroll Baru</div><div class="stat">'+escapeHtml(notif.unread_payroll_docs)+'</div></div>'
+      +'<div class="card"><div>Total Notifikasi Baru</div><div class="stat">'+escapeHtml(notif.total_unread)+'</div></div>'
+      +'</div>'
+      +'<div class="card"><h3>Status Absensi Hari Ini</h3><p><b>Tanggal:</b> '+escapeHtml(today.tanggal)+'</p><p><b>Jam Masuk:</b> '+escapeHtml(today.jam_masuk||'-')+'</p><p><b>Jam Keluar:</b> '+escapeHtml(today.jam_keluar||'-')+'</p><p><b>Status:</b> '+normalizeStatusBadge(today.status)+'</p></div>'
+    ); }catch(err){ setContent(renderError(err.message)); } }
+
+    async function loadNotificationCenter(){ try{ setLoading('Memuat notifikasi...'); const rows=await api('/api/me/notifications'); setContent('<div class="card"><div class="section-title"><h3 class="mb-0">Notifikasi</h3><div class="actions"><button class="btn btn-secondary" onclick="markAllNotif()">Tandai Dibaca</button></div></div><div class="table-wrap"><table><thead><tr><th>Tipe</th><th>Judul</th><th>Pesan</th><th>Tanggal</th><th>Status</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.notification_type)+'</td><td>'+escapeHtml(r.title)+'</td><td>'+escapeHtml(r.message)+'</td><td>'+escapeHtml(formatDateTimeDisplay(r.date_value))+'</td><td>'+normalizeStatusBadge(String(r.is_unread)==='TRUE'?'pending':'seen')+'</td></tr>';}).join('')||'<tr><td colspan="5">Tidak ada notifikasi</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+    async function markAllNotif(){ try{ await api('/api/me/notifications/mark-seen','POST',{type:'all'}); await loadNotificationCenter(); }catch(err){ setContent(renderError(err.message)); } }
+
+    async function loadMyProfile(){ try{ setLoading('Memuat profil...'); const p=await api('/api/me/profile'); setContent('<div class="card"><h3>Profil Saya</h3><div class="grid-2"><div><p><b>Nama:</b> '+escapeHtml(p.nama)+'</p><p><b>Email:</b> '+escapeHtml(p.email)+'</p><p><b>ID:</b> '+escapeHtml(p.employee_id)+'</p><p><b>Role:</b> '+escapeHtml(p.role)+'</p></div><div><p><b>Divisi:</b> '+escapeHtml(p.divisi||'-')+'</p><p><b>Jabatan:</b> '+escapeHtml(p.jabatan||'-')+'</p><p><b>No HP:</b> '+escapeHtml(p.no_hp||'-')+'</p><p><b>Alamat:</b> '+escapeHtml(p.alamat||'-')+'</p></div></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+
+    async function loadAttendancePage(){ try{ setLoading('Memuat absensi...'); const data=await api('/api/me/attendance/today'); setContent('<div class="card"><h3>Absensi Hari Ini</h3><p><b>Tanggal:</b> '+escapeHtml(data.tanggal||'-')+'</p><p><b>Jam Masuk:</b> '+escapeHtml(data.jam_masuk||'-')+'</p><p><b>Jam Keluar:</b> '+escapeHtml(data.jam_keluar||'-')+'</p><p><b>Status:</b> '+normalizeStatusBadge(data.status||'-')+'</p><div class="grid-2"><div class="form-group"><label>Mode Kerja</label><select id="attendance_work_mode"><option value="office">Office</option><option value="wfh">WFH</option></select></div><div class="form-group"><label>Lokasi</label><input id="lokasi_absen" placeholder="Office/WFH"></div></div><div class="form-group"><label>Catatan</label><input id="catatan_absen"></div><div class="actions"><button class="btn btn-primary" onclick="submitCheckIn()">Check In</button><button class="btn btn-secondary" onclick="submitCheckOut()">Check Out</button></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+    async function submitCheckIn(){ try{ await api('/api/me/attendance/check-in','POST',{work_mode:(document.getElementById('attendance_work_mode')||{}).value||'office',lokasi:(document.getElementById('lokasi_absen')||{}).value||'',catatan:(document.getElementById('catatan_absen')||{}).value||'',status:'Hadir'}); await loadAttendancePage(); }catch(err){ setContent(renderError(err.message)); } }
+    async function submitCheckOut(){ try{ await api('/api/me/attendance/check-out','POST',{lokasi:(document.getElementById('lokasi_absen')||{}).value||'',catatan:(document.getElementById('catatan_absen')||{}).value||'',status:'Hadir'}); await loadAttendancePage(); }catch(err){ setContent(renderError(err.message)); } }
+
+    async function loadMyAttendanceHistory(){ try{ setLoading('Memuat riwayat absensi...'); const rows=await api('/api/me/attendance/history?limit=90'); setContent('<div class="card"><h3>Riwayat Absensi</h3><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Masuk</th><th>Keluar</th><th>Status</th><th>Lokasi</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.tanggal)+'</td><td>'+escapeHtml(r.jam_masuk||'-')+'</td><td>'+escapeHtml(r.jam_keluar||'-')+'</td><td>'+normalizeStatusBadge(r.status)+'</td><td>'+escapeHtml(r.lokasi||'-')+'</td></tr>';}).join('')||'<tr><td colspan="5">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+
+    async function loadLeaveForm(){ try{ setLoading('Memuat form cuti...'); const types=await api('/api/leave-types/active'); const opts=(types||[]).map(function(t){return '<option value="'+escapeHtml(t.nama_jenis_cuti)+'">'+escapeHtml(t.nama_jenis_cuti)+'</option>';}).join(''); setContent('<div class="card"><h3>Ajukan Cuti</h3><div class="grid-2"><div class="form-group"><label>Jenis Cuti</label><select id="jenis_cuti">'+opts+'</select></div><div class="form-group"><label>Jumlah Hari</label><input id="jumlah_hari" type="number" value="1"></div><div class="form-group"><label>Tanggal Mulai</label><input id="tanggal_mulai" type="date"></div><div class="form-group"><label>Tanggal Selesai</label><input id="tanggal_selesai" type="date"></div></div><div class="form-group"><label>Alasan</label><textarea id="alasan_cuti"></textarea></div><div class="actions"><button class="btn btn-primary" onclick="submitLeave()">Kirim Pengajuan</button></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+    async function submitLeave(){ try{ await api('/api/me/leaves','POST',{jenis_cuti:(document.getElementById('jenis_cuti')||{}).value||'',tanggal_mulai:(document.getElementById('tanggal_mulai')||{}).value||'',tanggal_selesai:(document.getElementById('tanggal_selesai')||{}).value||'',jumlah_hari:Number((document.getElementById('jumlah_hari')||{}).value||0),alasan:(document.getElementById('alasan_cuti')||{}).value||''}); setContent('<div class="card"><div class="success">Pengajuan cuti berhasil dikirim.</div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+
+    async function loadMyLeaveHistory(){ try{ setLoading('Memuat riwayat cuti...'); const rows=await api('/api/me/leaves?limit=100'); setContent('<div class="card"><h3>Riwayat Cuti</h3><div class="table-wrap"><table><thead><tr><th>Jenis</th><th>Mulai</th><th>Selesai</th><th>Hari</th><th>Status</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.jenis_cuti)+'</td><td>'+escapeHtml(r.tanggal_mulai)+'</td><td>'+escapeHtml(r.tanggal_selesai)+'</td><td>'+escapeHtml(r.jumlah_hari)+'</td><td>'+normalizeStatusBadge(r.status)+'</td></tr>';}).join('')||'<tr><td colspan="5">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+
+    async function loadMyPayrollDocs(){ try{ setLoading('Memuat slip gaji...'); const rows=await api('/api/me/payroll-docs?limit=24'); setContent('<div class="card"><h3>Slip Gaji</h3><div class="table-wrap"><table><thead><tr><th>Bulan</th><th>Tahun</th><th>Nama File</th><th>Aksi</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.bulan||'-')+'</td><td>'+escapeHtml(r.tahun||'-')+'</td><td>'+escapeHtml(r.nama_file||'-')+'</td><td><a class="btn btn-primary" href="'+escapeHtml(r.file_url||'#')+'" target="_blank">Buka</a></td></tr>';}).join('')||'<tr><td colspan="4">Belum ada slip gaji</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+
+    async function loadAnnouncements(){ try{ setLoading('Memuat pengumuman...'); const rows=await api('/api/me/announcements?limit=30'); setContent('<div class="card"><h3>Pengumuman</h3>'+((rows||[]).map(function(r){return '<div class="card" style="margin-bottom:10px;background:#f8fafc;"><h3 class="mb-0">'+escapeHtml(r.judul)+'</h3><div class="muted">'+escapeHtml(formatDateTimeDisplay(r.published_at))+'</div><p>'+escapeHtml(r.isi)+'</p></div>';}).join('')||'<div class="muted">Belum ada pengumuman.</div>')+'</div>'); }catch(err){ setContent(renderError(err.message)); } }
+
+    async function init(){ try{ await bootGreeting(); await loadEmployeeHome(); }catch(err){ setContent(renderError(err.message)); } }
+    init();
+  </script>
+</body>
 </html>
