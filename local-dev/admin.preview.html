@@ -886,10 +886,21 @@
       const email=payrollEmailByEmployeeId(id);
       const input=document.getElementById('pay_email');
       if(input) input.value=email;
+      const nameInput=document.getElementById('pay_nama_file');
+      if(nameInput && !String(nameInput.value||'').trim()) nameInput.value=autoPayrollFileName(id);
     }
     function currentPayrollPeriod(){
       const now=new Date();
       return { bulan: now.toLocaleString('id-ID',{month:'long'}), tahun: String(now.getFullYear()) };
+    }
+    function autoPayrollFileName(employeeId){
+      const now=new Date();
+      const prev=new Date(now.getFullYear(), now.getMonth()-1, 1);
+      const bulan=prev.toLocaleString('id-ID',{month:'long'});
+      const tahun=String(now.getFullYear());
+      const row=(payrollEmployeeOptionsCache||[]).find(function(r){ return String(r.employee_id||'')===String(employeeId||''); }) || null;
+      const nama=row?String(row.nama||row.employee_id||'Karyawan'):String(employeeId||'Karyawan');
+      return 'Slip Gaji ' + bulan + ' ' + tahun + ' - ' + nama;
     }
     async function loadPayrollDocs(){
       try{
@@ -920,9 +931,9 @@
         const namaFile=String((document.getElementById('pay_nama_file')||{}).value||'').trim();
         const fileUrl=String((document.getElementById('pay_file_url')||{}).value||'').trim();
         const keterangan=String((document.getElementById('pay_keterangan')||{}).value||'').trim();
-        if(!employeeId||!namaFile||!fileUrl||!bulan||!tahun) throw new Error('Employee, bulan, tahun, nama file, dan file URL wajib diisi.');
+        if(!employeeId||!fileUrl||!bulan||!tahun) throw new Error('Employee, bulan, tahun, dan file URL wajib diisi.');
         await api('/api/admin/payroll-docs','POST',{
-          employee_id:employeeId,email:email,bulan:bulan,tahun:tahun,nama_file:namaFile,file_url:fileUrl,keterangan:keterangan,
+          employee_id:employeeId,email:email,bulan:bulan,tahun:tahun,nama_file:(namaFile||autoPayrollFileName(employeeId)),file_url:fileUrl,keterangan:keterangan,
           gaji_pokok:Number((document.getElementById('pay_gaji_pokok')||{}).value||0),
           tunjangan:Number((document.getElementById('pay_tunjangan')||{}).value||0),
           transport_allowance:Number((document.getElementById('pay_transport_allowance')||{}).value||0),

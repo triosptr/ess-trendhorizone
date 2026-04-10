@@ -118,12 +118,25 @@ const PAYROLL_COMPONENTS = [
   { name: 'Overtime Pay', type: 'EARNING', category: 'VARIABLE' },
   { name: 'Bonus / Incentive', type: 'EARNING', category: 'VARIABLE' },
   { name: 'Attendance Allowance', type: 'EARNING', category: 'VARIABLE' },
+  { name: 'BPJS KESEHATAN PERUSAHAAN 4% ALLOWANCE', type: 'EARNING', category: 'VARIABLE' },
+  { name: 'JKK 0.24% ALLOWANCE', type: 'EARNING', category: 'VARIABLE' },
+  { name: 'JKM 0.3% ALLOWANCE', type: 'EARNING', category: 'VARIABLE' },
+  { name: 'JAMINAN PENSIUN -2% PERUSAHAAN ADDITION', type: 'EARNING', category: 'VARIABLE' },
+  { name: 'JHT -3.7% BY COMPANY ADDITION', type: 'EARNING', category: 'VARIABLE' },
   { name: 'BPJS / Insurance', type: 'DEDUCTION', category: 'FIXED' },
   { name: 'Tax (PPh21)', type: 'DEDUCTION', category: 'VARIABLE' },
   { name: 'Penalty / Deduction', type: 'DEDUCTION', category: 'FIXED' },
   { name: 'Late Deduction', type: 'DEDUCTION', category: 'VARIABLE' },
   { name: 'Absence Deduction', type: 'DEDUCTION', category: 'VARIABLE' },
   { name: 'Other Deduction', type: 'DEDUCTION', category: 'FIXED' },
+  { name: 'BPJS KESEHATAN KARYAWAN 1% DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE' },
+  { name: 'BPJS KESEHATAN PERUSAHAAN 4% DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE' },
+  { name: 'JAMINAN PENSIUN 1% KARYAWAN DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE' },
+  { name: 'JAMINAN PENSIUN 2% PERUSAHAAN DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE' },
+  { name: 'JHT 2% BY EMPLOYEE DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE' },
+  { name: 'JHT 3.7% BY COMPANY DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE' },
+  { name: 'JKK 0.24% DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE' },
+  { name: 'JKM 0.3% DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE' },
   { name: 'THR', type: 'EARNING', category: 'VARIABLE' }
 ];
 function payrollComponentKey(name) {
@@ -137,6 +150,19 @@ function defaultFormulaByName(name) {
   if (n === 'tax (pph21)') return 'gross_salary * tax_rate';
   if (n === 'late deduction') return 'late_minutes * penalty_rate';
   if (n === 'absence deduction') return 'absent_days * daily_salary';
+  if (n === 'bpjs kesehatan karyawan 1% deduction') return 'MaxMinFormula(4500000, UMP_JAM, MAX_KS, 0.01)';
+  if (n === 'bpjs kesehatan perusahaan 4% allowance') return 'MaxMinFormula(4500000, UMP_JAM, MAX_KS, 0.04)';
+  if (n === 'bpjs kesehatan perusahaan 4% deduction') return 'MaxMinFormula(4500000, UMP_JAM, MAX_KS, 0.04)';
+  if (n === 'jaminan pensiun 1% karyawan deduction') return 'MaximumFormula(UMP_JAM, MAX_JP, 0.01)';
+  if (n === 'jaminan pensiun 2% perusahaan deduction') return 'MaximumFormula(UMP_JAM, MAX_JP, 0.02)';
+  if (n === 'jaminan pensiun -2% perusahaan addition') return 'MaximumFormula(UMP_JAM, MAX_JP, -0.02)';
+  if (n === 'jht 2% by employee deduction') return 'UMP_JAM * 0.02';
+  if (n === 'jht -3.7% by company addition') return 'UMP_JAM * -0.037';
+  if (n === 'jht 3.7% by company deduction') return 'UMP_JAM * 0.037';
+  if (n === 'jkk 0.24% allowance') return 'UMP_JAM * 0.0024';
+  if (n === 'jkk 0.24% deduction') return 'UMP_JAM * 0.0024';
+  if (n === 'jkm 0.3% allowance') return 'UMP_JAM * 0.003';
+  if (n === 'jkm 0.3% deduction') return 'UMP_JAM * 0.003';
   return '';
 }
 function shouldApplyDefaultFormula(name, ctx) {
@@ -147,6 +173,9 @@ function shouldApplyDefaultFormula(name, ctx) {
   if (n === 'tax (pph21)') return Number(ctx.tax_rate || 0) > 0;
   if (n === 'late deduction') return Number(ctx.late_minutes || 0) > 0 && Number(ctx.penalty_rate || 0) > 0;
   if (n === 'absence deduction') return Number(ctx.absent_days || 0) > 0 && Number(ctx.daily_salary || 0) > 0;
+  if (n.indexOf('bpjs kesehatan') >= 0) return Number(ctx.UMP_JAM || 0) > 0;
+  if (n.indexOf('jaminan pensiun') >= 0) return Number(ctx.UMP_JAM || 0) > 0;
+  if (n.indexOf('jht') >= 0 || n.indexOf('jkk') >= 0 || n.indexOf('jkm') >= 0) return Number(ctx.UMP_JAM || 0) > 0;
   return false;
 }
 function formulaEvaluator(formula, scope) {
@@ -187,12 +216,25 @@ function componentMapper(input) {
     mapped.push({ name: 'Bonus / Incentive', type: 'EARNING', category: 'VARIABLE', value: val(src.bonus), formula: '' });
     mapped.push({ name: 'Attendance Allowance', type: 'EARNING', category: 'VARIABLE', value: val(src.attendance_allowance), formula: String(src.attendance_formula || '').trim() });
     mapped.push({ name: 'THR', type: 'EARNING', category: 'VARIABLE', value: val(src.thr), formula: '' });
+    mapped.push({ name: 'BPJS KESEHATAN PERUSAHAAN 4% ALLOWANCE', type: 'EARNING', category: 'VARIABLE', value: val(src.bpjs_kesehatan_perusahaan_allowance), formula: '' });
+    mapped.push({ name: 'JKK 0.24% ALLOWANCE', type: 'EARNING', category: 'VARIABLE', value: val(src.jkk_allowance), formula: '' });
+    mapped.push({ name: 'JKM 0.3% ALLOWANCE', type: 'EARNING', category: 'VARIABLE', value: val(src.jkm_allowance), formula: '' });
+    mapped.push({ name: 'JAMINAN PENSIUN -2% PERUSAHAAN ADDITION', type: 'EARNING', category: 'VARIABLE', value: val(src.jaminan_pensiun_perusahaan_addition), formula: '' });
+    mapped.push({ name: 'JHT -3.7% BY COMPANY ADDITION', type: 'EARNING', category: 'VARIABLE', value: val(src.jht_company_addition), formula: '' });
     mapped.push({ name: 'Tax (PPh21)', type: 'DEDUCTION', category: 'VARIABLE', value: val(src.potongan_pajak || src.tax), formula: String(src.tax_formula || '').trim() });
     mapped.push({ name: 'BPJS / Insurance', type: 'DEDUCTION', category: 'FIXED', value: val((src.bpjs_kesehatan || 0) + (src.bpjs_ketenagakerjaan || 0) + (src.bpjs || 0)), formula: '' });
     mapped.push({ name: 'Penalty / Deduction', type: 'DEDUCTION', category: 'FIXED', value: val(src.penalty_deduction), formula: '' });
     mapped.push({ name: 'Late Deduction', type: 'DEDUCTION', category: 'VARIABLE', value: val(src.late_deduction), formula: String(src.late_formula || '').trim() });
     mapped.push({ name: 'Absence Deduction', type: 'DEDUCTION', category: 'VARIABLE', value: val(src.absence_deduction), formula: String(src.absence_formula || '').trim() });
     mapped.push({ name: 'Other Deduction', type: 'DEDUCTION', category: 'FIXED', value: val(src.potongan_lain || src.other_deduction), formula: '' });
+    mapped.push({ name: 'BPJS KESEHATAN KARYAWAN 1% DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE', value: val(src.bpjs_kesehatan_karyawan_deduction || src.bpjs_kesehatan), formula: '' });
+    mapped.push({ name: 'BPJS KESEHATAN PERUSAHAAN 4% DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE', value: val(src.bpjs_kesehatan_perusahaan_deduction), formula: '' });
+    mapped.push({ name: 'JAMINAN PENSIUN 1% KARYAWAN DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE', value: val(src.jaminan_pensiun_karyawan_deduction), formula: '' });
+    mapped.push({ name: 'JAMINAN PENSIUN 2% PERUSAHAAN DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE', value: val(src.jaminan_pensiun_perusahaan_deduction), formula: '' });
+    mapped.push({ name: 'JHT 2% BY EMPLOYEE DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE', value: val(src.jht_employee_deduction || src.bpjs_ketenagakerjaan), formula: '' });
+    mapped.push({ name: 'JHT 3.7% BY COMPANY DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE', value: val(src.jht_company_deduction), formula: '' });
+    mapped.push({ name: 'JKK 0.24% DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE', value: val(src.jkk_deduction), formula: '' });
+    mapped.push({ name: 'JKM 0.3% DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE', value: val(src.jkm_deduction), formula: '' });
   }
   const byName = {};
   mapped.forEach(function(c) { byName[String(c.name || '').toLowerCase()] = c; });
@@ -208,6 +250,20 @@ function componentMapper(input) {
       formula: String(c.formula || '').trim()
     };
   });
+}
+function maxMinFormula(calculationBase, minimumCalculationBase, maximumCalculationBase, tariff) {
+  const minBase = Number(minimumCalculationBase || 0);
+  const maxBase = Number(maximumCalculationBase || 0);
+  let base = Number(calculationBase || 0);
+  if (Number.isFinite(minBase) && minBase > 0) base = Math.max(base, minBase);
+  if (Number.isFinite(maxBase) && maxBase > 0) base = Math.min(base, maxBase);
+  return toMoney(base * Number(tariff || 0));
+}
+function maximumFormula(calculationBase, maximumCalculationBase, tariff) {
+  const base = Number(calculationBase || 0);
+  const maxBase = Number(maximumCalculationBase || 0);
+  const used = Number.isFinite(maxBase) && maxBase > 0 ? Math.min(base, maxBase) : base;
+  return toMoney(used * Number(tariff || 0));
 }
 function payrollEngine(input) {
   const employeeId = String((input && input.employee_id) || '').trim();
@@ -226,8 +282,14 @@ function payrollEngine(input) {
   ctx.late_minutes = Number(ctx.late_minutes || 0);
   ctx.penalty_rate = Number(ctx.penalty_rate || 0);
   ctx.absent_days = Number(ctx.absent_days || 0);
+  ctx.UMP_JAM = Number(ctx.UMP_JAM || ctx.ump_jam || ctx.full_salary || 0);
+  ctx.MAX_KS = Number(ctx.MAX_KS || ctx.max_ks || 12000000);
+  ctx.MAX_JP = Number(ctx.MAX_JP || ctx.max_jp || 10300000);
+  ctx.MaxMinFormula = maxMinFormula;
+  ctx.MaximumFormula = maximumFormula;
   const basicComp = components.find(function(c) { return String(c.name).toLowerCase() === 'basic salary'; }) || { value: 0 };
   ctx.full_salary = Number(ctx.full_salary || basicComp.value || 0);
+  if (!ctx.UMP_JAM || ctx.UMP_JAM <= 0) ctx.UMP_JAM = Number(ctx.full_salary || 0);
   ctx.daily_salary = Number(ctx.daily_salary || (ctx.total_work_days > 0 ? ctx.full_salary / ctx.total_work_days : 0));
   const evaluateComponent = function(comp) {
     const manualFormula = String(comp.formula || '').trim();
@@ -2160,10 +2222,20 @@ module.exports = async function handler(req, res) {
       const employeeId = String(b.employee_id || '').trim();
       const givenEmail = String(b.email || '').trim().toLowerCase();
       let resolvedEmail = givenEmail;
-      if (!resolvedEmail && employeeId) {
-        const em = await db('GET', 'employees', { select: 'email', employee_id: 'eq.' + employeeId, limit: 1 });
-        if (em.ok && Array.isArray(em.data) && em.data[0]) resolvedEmail = String(em.data[0].email || '').trim().toLowerCase();
+      let employeeName = '';
+      if (employeeId) {
+        const em = await db('GET', 'employees', { select: 'nama,email', employee_id: 'eq.' + employeeId, limit: 1 });
+        if (em.ok && Array.isArray(em.data) && em.data[0]) {
+          resolvedEmail = resolvedEmail || String(em.data[0].email || '').trim().toLowerCase();
+          employeeName = String(em.data[0].nama || '').trim();
+        }
       }
+      const nowDate = new Date();
+      const prevMonthDate = new Date(nowDate.getFullYear(), nowDate.getMonth() - 1, 1);
+      const defaultBulan = prevMonthDate.toLocaleString('id-ID', { month: 'long' });
+      const defaultTahun = String(nowDate.getFullYear());
+      const safeEmployeeName = String(employeeName || employeeId || 'Karyawan').replace(/[^\p{L}\p{N}\s_-]/gu, '').trim();
+      const autoFileName = 'Slip Gaji ' + defaultBulan + ' ' + defaultTahun + ' - ' + safeEmployeeName;
       const payrollResult = payrollEngine({
         employee_id: employeeId,
         components: Array.isArray(b.components) ? b.components : undefined,
@@ -2200,7 +2272,10 @@ module.exports = async function handler(req, res) {
           late_minutes: b.late_minutes,
           penalty_rate: b.penalty_rate,
           absent_days: b.absent_days,
-          daily_salary: b.daily_salary
+          daily_salary: b.daily_salary,
+          UMP_JAM: b.UMP_JAM || b.ump_jam || b.gaji_pokok || b.basic_salary || b.full_salary,
+          MAX_KS: b.MAX_KS || b.max_ks,
+          MAX_JP: b.MAX_JP || b.max_jp
         })
       });
       if (Array.isArray(payrollResult.errors) && payrollResult.errors.length > 0) return json(res, 400, { ok: false, message: payrollResult.errors[0], errors: payrollResult.errors });
@@ -2208,14 +2283,18 @@ module.exports = async function handler(req, res) {
         doc_id: rid('PAY'),
         employee_id: String(b.employee_id || '').trim(),
         email: String(b.email || '').trim().toLowerCase(),
-        bulan: String(b.bulan || '').trim(),
-        tahun: String(b.tahun || '').trim(),
-        nama_file: String(b.nama_file || '').trim(),
+        bulan: String(b.bulan || defaultBulan).trim(),
+        tahun: String(b.tahun || defaultTahun).trim(),
+        nama_file: String(b.nama_file || autoFileName).trim(),
         file_url: String(b.file_url || '').trim(),
         keterangan: composePayrollKeterangan(String(b.keterangan || '').trim(), {
           version: 2,
           employee_id: employeeId,
-          context: (b.context || {}),
+          context: Object.assign({}, b.context || {}, {
+            UMP_JAM: b.UMP_JAM || b.ump_jam || b.gaji_pokok || b.basic_salary || b.full_salary,
+            MAX_KS: b.MAX_KS || b.max_ks,
+            MAX_JP: b.MAX_JP || b.max_jp
+          }),
           components: payrollResult.breakdown.earnings.concat(payrollResult.breakdown.deductions),
           payroll_output: payrollResult
         }),
