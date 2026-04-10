@@ -139,6 +139,16 @@ function defaultFormulaByName(name) {
   if (n === 'absence deduction') return 'absent_days * daily_salary';
   return '';
 }
+function shouldApplyDefaultFormula(name, ctx) {
+  const n = String(name || '').toLowerCase().trim();
+  if (n === 'basic salary') return Number(ctx.worked_days || 0) > 0 && Number(ctx.full_salary || 0) > 0;
+  if (n === 'overtime pay') return Number(ctx.overtime_hours || 0) > 0 && Number(ctx.rate_per_hour || 0) > 0;
+  if (n === 'attendance allowance') return Number(ctx.base_allowance || 0) > 0 && Number(ctx.present_days || 0) > 0;
+  if (n === 'tax (pph21)') return Number(ctx.tax_rate || 0) > 0;
+  if (n === 'late deduction') return Number(ctx.late_minutes || 0) > 0 && Number(ctx.penalty_rate || 0) > 0;
+  if (n === 'absence deduction') return Number(ctx.absent_days || 0) > 0 && Number(ctx.daily_salary || 0) > 0;
+  return false;
+}
 function formulaEvaluator(formula, scope) {
   const f = String(formula || '').trim();
   if (!f) return null;
@@ -220,7 +230,9 @@ function payrollEngine(input) {
   ctx.full_salary = Number(ctx.full_salary || basicComp.value || 0);
   ctx.daily_salary = Number(ctx.daily_salary || (ctx.total_work_days > 0 ? ctx.full_salary / ctx.total_work_days : 0));
   const evaluateComponent = function(comp) {
-    const formula = String(comp.formula || defaultFormulaByName(comp.name) || '').trim();
+    const manualFormula = String(comp.formula || '').trim();
+    const autoFormula = manualFormula ? '' : (shouldApplyDefaultFormula(comp.name, ctx) ? defaultFormulaByName(comp.name) : '');
+    const formula = String(manualFormula || autoFormula || '').trim();
     let value = toMoney(comp.value);
     if (formula) {
       const evalVal = formulaEvaluator(formula, ctx);
