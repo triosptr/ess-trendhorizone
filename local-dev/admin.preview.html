@@ -213,6 +213,45 @@
     function resetPayrollNominal(){
       payrollMoneyInputIds().forEach(function(id){ if(id==='pay_max_ks') return setPayNum(id,12000000); if(id==='pay_max_jp') return setPayNum(id,10300000); setPayNum(id,0); });
     }
+    function payrollInputMap(){
+      return {
+        'basic salary':'pay_gaji_pokok',
+        'gaji pokok':'pay_gaji_pokok',
+        'allowance':'pay_tunjangan',
+        'tunjangan':'pay_tunjangan',
+        'transport allowance':'pay_transport_allowance',
+        'meal allowance':'pay_meal_allowance',
+        'overtime pay':'pay_lembur',
+        'lembur':'pay_lembur',
+        'bonus':'pay_bonus',
+        'bonus / incentive':'pay_bonus',
+        'attendance allowance':'pay_attendance_allowance',
+        'thr':'pay_thr',
+        'tax':'pay_pot_pajak',
+        'tax (pph21)':'pay_pot_pajak',
+        'bpjs kesehatan':'pay_bpjs_kes',
+        'bpjs ketenagakerjaan':'pay_bpjs_ket',
+        'penalty':'pay_penalty_deduction',
+        'late deduction':'pay_late_deduction',
+        'absence deduction':'pay_absence_deduction',
+        'other deduction':'pay_pot_lain'
+      };
+    }
+    function applyPayrollFromPaste(){
+      const text=String((document.getElementById('pay_quick_input')||{}).value||'').trim();
+      if(!text) return;
+      const map=payrollInputMap();
+      text.split(/\r?\n/).forEach(function(line){
+        const m=String(line||'').match(/^([^:=\-]+)\s*[:=\-]\s*(.+)$/);
+        if(!m) return;
+        const key=String(m[1]||'').trim().toLowerCase();
+        const val=parseRupiahInput(m[2]||0);
+        const id=map[key];
+        if(id) setPayNum(id,val);
+      });
+      const base=getPayNum('pay_gaji_pokok');
+      if(base>0 && getPayNum('pay_ump_jam')===0) setPayNum('pay_ump_jam', base);
+    }
     function payrollRenderer(html){ return String(html||''); }
     function slaPriorityBadge(p){ const v=String(p||'normal').toLowerCase(); if(v==='critical') return '<span class="status-badge danger">Critical SLA</span>'; if(v==='high') return '<span class="status-badge on-leave">High SLA</span>'; return '<span class="status-badge on-time">Normal SLA</span>'; }
     function severityBadge(sev){ const s=String(sev||'info').toLowerCase(); if(s==='critical') return '<span class="status-badge danger">Critical</span>'; if(s==='high') return '<span class="status-badge on-leave">High</span>'; if(s==='medium') return '<span class="status-badge neutral">Medium</span>'; return '<span class="status-badge on-time">Info</span>'; }
@@ -953,7 +992,7 @@
       panel.id='pay_adv_panel';
       panel.className='card';
       panel.style.cssText='box-shadow:none;background:var(--bg);margin-top:12px;';
-      panel.innerHTML='<div class="team-header"><h3 style="font-size:16px;font-weight:700;">Auto Deduction Rules</h3><div class="actions"><button class="btn btn-secondary" onclick="applyPayrollQuickFill()">Isi Cepat</button><button class="btn btn-secondary" onclick="resetPayrollNominal()">Reset Nominal</button></div></div><div class="grid-2"><div class="form-group"><label><input id="pay_apply_bpjs_kes" type="checkbox" checked> Terapkan BPJS Kesehatan</label></div><div class="form-group"><label><input id="pay_apply_bpjs_ketenaga" type="checkbox" checked> Terapkan BPJS Ketenagakerjaan</label></div><div class="form-group"><label><input id="pay_apply_tax" type="checkbox" checked> Terapkan Tax (PPh21)</label></div><div class="form-group"><label>Tax Rate</label><input id="pay_tax_rate" type="number" min="0" max="1" step="0.001" value="0.05"></div><div class="form-group"><label>UMP_JAM (Base)</label><input id="pay_ump_jam" type="number" min="0" value="0"></div><div class="form-group"><label>MAX_KS</label><input id="pay_max_ks" type="number" min="0" value="12000000"></div><div class="form-group"><label>MAX_JP</label><input id="pay_max_jp" type="number" min="0" value="10300000"></div></div><div class="stat-label">Jika checkbox tidak dicentang, komponen deduction terkait otomatis 0. Nominal gaji bisa diinput dengan format rupiah (contoh: 4.500.000).</div>';
+      panel.innerHTML='<div class="team-header"><h3 style="font-size:16px;font-weight:700;">Auto Deduction Rules</h3><div class="actions"><button class="btn btn-secondary" onclick="applyPayrollQuickFill()">Isi Cepat</button><button class="btn btn-secondary" onclick="resetPayrollNominal()">Reset Nominal</button></div></div><div class="grid-2"><div class="form-group"><label><input id="pay_apply_bpjs_kes" type="checkbox" checked> Terapkan BPJS Kesehatan</label></div><div class="form-group"><label><input id="pay_apply_bpjs_ketenaga" type="checkbox" checked> Terapkan BPJS Ketenagakerjaan</label></div><div class="form-group"><label><input id="pay_apply_tax" type="checkbox" checked> Terapkan Tax (PPh21)</label></div><div class="form-group"><label>Tax Rate</label><input id="pay_tax_rate" type="number" min="0" max="1" step="0.001" value="0.05"></div><div class="form-group"><label>UMP_JAM (Base)</label><input id="pay_ump_jam" type="number" min="0" value="0"></div><div class="form-group"><label>MAX_KS</label><input id="pay_max_ks" type="number" min="0" value="12000000"></div><div class="form-group"><label>MAX_JP</label><input id="pay_max_jp" type="number" min="0" value="10300000"></div></div><div class="form-group"><label>Quick Input (paste baris: komponen: nominal)</label><textarea id="pay_quick_input" placeholder="Basic Salary: 4.500.000&#10;Allowance: 500.000&#10;Tax (PPh21): 225.000"></textarea><div class="actions"><button class="btn btn-secondary" onclick="applyPayrollFromPaste()">Apply Quick Input</button></div></div><div class="stat-label">Jika checkbox tidak dicentang, komponen deduction terkait otomatis 0. Nominal gaji bisa diinput dengan format rupiah (contoh: 4.500.000).</div>';
       wrap.parentElement.insertBefore(panel, wrap.nextSibling);
       const basic=document.getElementById('pay_gaji_pokok');
       const ump=document.getElementById('pay_ump_jam');

@@ -764,6 +764,34 @@ function monthNameId(monthText) {
   const idx = Math.max(1, Math.min(12, Number(m[2] || 1))) - 1;
   return arr[idx] + ' ' + m[1];
 }
+function dayNameId(dateText) {
+  const d = new Date(String(dateText || ymd()));
+  if (Number.isNaN(d.getTime())) return '';
+  const names = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  return names[d.getDay()] || '';
+}
+async function resolveEmployeeShiftForDate(employeeId, dateText) {
+  const date = String(dateText || ymd()).trim().slice(0, 10);
+  const month = date.slice(0, 7);
+  const key = 'SHIFT_SCHEDULE_' + month;
+  const r = await db('GET', 'config', { select: 'value', key: 'eq.' + key, limit: 1 });
+  if (!r.ok) return { shift_code: 'PAGI', off_day: false, month: month, published_at: '' };
+  const row = Array.isArray(r.data) && r.data[0] ? r.data[0] : null;
+  const value = row ? safeJsonParse(row.value, {}) : {};
+  const templates = value.templates || {};
+  const tpl = templates[String(employeeId || '')] || {};
+  const shiftCode = normalizeShiftCode(tpl.shift_code || 'PAGI');
+  const day = dayNameId(date);
+  const offSaturday = String(tpl.off_saturday || '').toLowerCase() === 'true' || tpl.off_saturday === true;
+  const offSunday = String(tpl.off_sunday || '').toLowerCase() === 'true' || tpl.off_sunday === true;
+  const isOff = (day === 'Sabtu' && offSaturday) || (day === 'Minggu' && offSunday);
+  return {
+    shift_code: isOff ? 'OFF' : shiftCode,
+    off_day: isOff,
+    month: month,
+    published_at: String(value.published_at || '')
+  };
+}
 function attendanceMetaKey(attendanceId) {
   return 'ATTENDANCE_META_' + String(attendanceId || '');
 }
@@ -867,8 +895,9 @@ async function handleMeAttendanceCheckIn(req, res, user) {
   const row = Array.isArray(existing.data) && existing.data[0] ? existing.data[0] : null;
   if (row && row.jam_masuk) return json(res, 400, { ok: false, message: 'Anda sudah check-in hari ini.' });
 
-  const shift = String(body.shift_karyawan || '').trim();
-  const shiftCode = shiftRule(shift).code;
+  const sched = await resolveEmployeeShiftForDate(user.employee_id, tanggal);
+  const shift = String(body.shift_karyawan || sched.shift_code || '').trim();
+  const shiftCode = shift === 'OFF' ? 'PAGI' : shiftRule(shift).code;
   const baseCatatan = String(body.catatan || '').trim();
   const jamMasuk = String(body.jam_masuk || hms()).trim();
   const lateAfter = shiftLateAfterTime(shiftCode);
@@ -1074,16 +1103,19 @@ module.exports = async function handler(req, res) {
       const meta = arow && arow.attendance_id ? await attendanceMetaGet(arow.attendance_id) : {};
       const workSecondsToday = arow ? effectiveWorkSeconds(arow.jam_masuk, arow.jam_keluar, meta, hms()) : 0;
       const workMinutesToday = Math.floor(workSecondsToday / 60);
-      const progress = shiftProgress(workMinutesToday, meta.shift_code || 'PAGI');
+      const scheduleNow = await resolveEmployeeShiftForDate(u.employee_id, ymd());
+      const scheduleShift = scheduleNow.shift_code === 'OFF' ? 'OFF' : normalizeShiftCode(scheduleNow.shift_code || 'PAGI');
+      const progress = shiftProgress(workMinutesToday, meta.shift_code || scheduleShift || 'PAGI');
       return json(res, 200, Object.assign({}, profile, {
         pendingLeaves: Array.isArray(leaves.data) ? leaves.data.length : 0,
         work_seconds_today: workSecondsToday,
         work_minutes_today: workMinutesToday,
         work_duration_digital_today: workDurationDigital(workSecondsToday),
         work_duration_today: workDurationLabel(workMinutesToday),
-        shift_code_today: progress.shift_code,
+        shift_code_today: scheduleShift === 'OFF' ? 'OFF' : progress.shift_code,
         shift_target_today: progress.target_duration,
-        shift_progress_percent_today: progress.progress_percent
+        shift_progress_percent_today: scheduleShift === 'OFF' ? 0 : progress.progress_percent,
+        shift_published_at_today: scheduleNow.published_at || ''
       }));
     }
 
@@ -1112,6 +1144,8 @@ module.exports = async function handler(req, res) {
           limit: 1
         });
         const leaveRow = leaveToday.ok && Array.isArray(leaveToday.data) && leaveToday.data[0] ? leaveToday.data[0] : null;
+        const sched = await resolveEmployeeShiftForDate(u.employee_id, tanggal);
+        const isOff = sched.shift_code === 'OFF' || sched.off_day;
         return json(res, 200, {
           attendance_id: '',
           employee_id: u.employee_id,
@@ -1119,7 +1153,7 @@ module.exports = async function handler(req, res) {
           tanggal: tanggal,
           jam_masuk: '',
           jam_keluar: '',
-          status: leaveRow ? 'On Leave' : 'Belum Absen',
+          status: leaveRow ? 'On Leave' : (isOff ? 'Off Day' : 'Belum Absen'),
           lokasi: '',
           work_mode: '',
           foto_masuk_url: '',
@@ -1136,10 +1170,11 @@ module.exports = async function handler(req, res) {
           break_total_minutes: 0,
           break_duration_digital: '00:00:00',
           break_active: false,
-          shift_code: 'PAGI',
-          shift_target_duration: '8j 0m',
+          shift_code: isOff ? 'OFF' : normalizeShiftCode(sched.shift_code || 'PAGI'),
+          shift_target_duration: isOff ? '0j 0m' : shiftRule(sched.shift_code || 'PAGI').target_work_minutes ? workDurationLabel(shiftRule(sched.shift_code || 'PAGI').target_work_minutes) : '8j 0m',
           shift_progress_percent: 0,
-          shift_late_after: '09:15:00'
+          shift_late_after: isOff ? '' : shiftLateAfterTime(sched.shift_code || 'PAGI'),
+          shift_published_at: sched.published_at || ''
         });
       }
       const meta = await attendanceMetaGet(row.attendance_id);
@@ -1809,7 +1844,7 @@ module.exports = async function handler(req, res) {
           shift_code: String(meta.shift_code || '')
         }));
       }
-      return json(res, 200, rows.map(enrichPayrollDoc));
+      return json(res, 200, rows);
     }
 
     if (path === 'admin/reports/status/export-csv' && method === 'POST') {

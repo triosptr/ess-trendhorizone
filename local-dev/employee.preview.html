@@ -260,12 +260,23 @@
   </div>
 
   <script>
-    function navTo(id, el){ document.querySelectorAll('.menu-item').forEach(e=>e.classList.remove('active')); el.classList.add('active'); if(window.innerWidth<=992) document.getElementById('sidebar').classList.remove('open'); }
+    let employeeCurrentSection='home';
+    let employeeScheduleRefreshTimer=null;
+    let employeeTodayShiftCode='PAGI';
+    function navTo(id, el){ employeeCurrentSection=String(id||'home'); document.querySelectorAll('.menu-item').forEach(e=>e.classList.remove('active')); el.classList.add('active'); if(window.innerWidth<=992) document.getElementById('sidebar').classList.remove('open'); }
     if(window.innerWidth<=992) { document.getElementById('mobileToggle').style.display='block'; document.querySelector('.mobile-close').style.display='block'; }
     document.getElementById('header_date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long', day:'2-digit', month:'short'});
 
     let workDurationTimer=null;
     let leaveAttachmentPayload=null;
+    function ensureEmployeeResponsiveSchedule(){
+      if(employeeScheduleRefreshTimer) return;
+      employeeScheduleRefreshTimer=setInterval(async function(){
+        if(employeeCurrentSection!=='home') return;
+        try{ await loadEmployeeHome(); }catch(_){}
+      }, 45000);
+      window.addEventListener('focus', async function(){ if(employeeCurrentSection==='home'){ try{ await loadEmployeeHome(); }catch(_){} } });
+    }
     function safe(v){ return v===null||v===undefined?'':v; }
     function escapeHtml(v){ return String(safe(v)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
     function clearWorkDurationTicker(){ if(workDurationTimer){ clearInterval(workDurationTimer); workDurationTimer=null; } }
@@ -482,7 +493,7 @@
         setLoading('Loading dashboard...'); 
         const profile = await bootGreeting();
         let data={ shift_progress_percent_today:0, shift_code_today:'PAGI', shift_target_today:'8j 0m', sisa_cuti:0 };
-        let today={ tanggal:formatDateDisplay(new Date()), jam_masuk:'', jam_keluar:'', break_active:false, break_duration_digital:'00:00:00', status:'Belum Absen' };
+        let today={ tanggal:formatDateDisplay(new Date()), jam_masuk:'', jam_keluar:'', break_active:false, break_duration_digital:'00:00:00', status:'Belum Absen', shift_code:'PAGI' };
         let notif={ total_unread:0 };
         let announcements=[];
         let notifications=[];
@@ -499,6 +510,7 @@
         try { reminderPlan = await api('/api/me/operations-intelligence/reminder-plan'); } catch(e) {}
         try { incidentTimeline = await api('/api/me/incidents/timeline?limit=6'); } catch(e) {}
         try { payrollSummary = await api('/api/me/payroll/summary'); } catch(e) {}
+        employeeTodayShiftCode=String(today.shift_code||data.shift_code_today||'PAGI');
 
         const pct = Math.min(100, Math.max(0, Number(data.shift_progress_percent_today||0)));
         const strokeDash = `${pct}, 100`;
@@ -544,7 +556,7 @@
                             <div class="salary-header">
                                 <span class="salary-label">Shift Progress</span>
                             </div>
-                            <div class="salary-amount">${escapeHtml(data.shift_code_today||'PAGI')}</div>
+                            <div class="salary-amount">${escapeHtml(employeeTodayShiftCode||'PAGI')}</div>
                             <div class="salary-meta">
                                 <span><i class="ph ph-target"></i> Target: ${escapeHtml(data.shift_target_today||'8h')}</span>
                             </div>
@@ -777,7 +789,7 @@
     async function finalCheckInSubmit(){
       try{
         if(!checkInCapturedPhoto) throw new Error('Capture photo first.');
-        await api('/api/me/attendance/check-in','POST',{ work_mode:'office', shift_karyawan:'PAGI', lokasi:'', catatan:'', status:'Hadir', photo:checkInCapturedPhoto });
+        await api('/api/me/attendance/check-in','POST',{ work_mode:'office', shift_karyawan:employeeTodayShiftCode||'PAGI', lokasi:'', catatan:'', status:'Hadir', photo:checkInCapturedPhoto });
         closeCheckInModal();
         await loadEmployeeHome();
       }catch(err){ alert(err.message); }
@@ -950,7 +962,7 @@
         setContentLayout(html, null); } catch(e){ setContentLayout(renderError(e.message), null); }
     }
 
-    async function init(){ try { await bootGreeting(); await loadEmployeeHome(); } catch(e){ document.getElementById('main_content_grid').innerHTML = renderError(e.message); } }
+    async function init(){ try { ensureEmployeeResponsiveSchedule(); await bootGreeting(); await loadEmployeeHome(); } catch(e){ document.getElementById('main_content_grid').innerHTML = renderError(e.message); } }
     init();
   </script>
 </body>
