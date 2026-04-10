@@ -57,16 +57,429 @@ async function db(method, table, params, body, extraHeaders) {
 }
 
 function nowIso() { return new Date().toISOString(); }
+function isValidEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim().toLowerCase()); }
+function isValidDateYmd(value) { return /^\d{4}-\d{2}-\d{2}$/.test(String(value || '').trim()); }
+function isBooleanLike(value) {
+  const v = String(value).toLowerCase();
+  return v === 'true' || v === 'false' || value === true || value === false;
+}
+function wibParts(dateObj) {
+  const d = dateObj instanceof Date ? dateObj : new Date();
+  const dtf = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+  const p = dtf.formatToParts(d).reduce(function(acc, x) { if (x && x.type) acc[x.type] = x.value; return acc; }, {});
+  return {
+    year: String(p.year || '1970'),
+    month: String(p.month || '01'),
+    day: String(p.day || '01'),
+    hour: String(p.hour || '00'),
+    minute: String(p.minute || '00'),
+    second: String(p.second || '00')
+  };
+}
 function ymd() {
-  const d = new Date();
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const p = wibParts(new Date());
+  return p.year + '-' + p.month + '-' + p.day;
 }
 function hms() {
-  const d = new Date();
-  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0');
+  const p = wibParts(new Date());
+  return p.hour + ':' + p.minute + ':' + p.second;
 }
 function rid(prefix) { return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 function roleAdmin(role) { const v = String(role || '').toLowerCase(); return v === 'superadmin' || v === 'admin'; }
+async function validateDivisionAndPosition(divisi, jabatan) {
+  const divName = String(divisi || '').trim();
+  const posName = String(jabatan || '').trim();
+  if (!divName || !posName) return { ok: false, message: 'divisi dan jabatan wajib diisi.' };
+  const div = await db('GET', 'divisions', { select: 'division_id,nama_divisi,is_active', nama_divisi: 'eq.' + divName, limit: 1 });
+  if (!div.ok) return { ok: false, message: 'Gagal validasi divisi.', error: div.error };
+  const divRow = Array.isArray(div.data) && div.data[0] ? div.data[0] : null;
+  if (!divRow || !(divRow.is_active === true || String(divRow.is_active).toLowerCase() === 'true')) return { ok: false, message: 'Divisi tidak ditemukan atau tidak aktif.' };
+  const pos = await db('GET', 'positions', { select: 'position_id,nama_jabatan,division_id,is_active', nama_jabatan: 'eq.' + posName, limit: 1 });
+  if (!pos.ok) return { ok: false, message: 'Gagal validasi jabatan.', error: pos.error };
+  const posRow = Array.isArray(pos.data) && pos.data[0] ? pos.data[0] : null;
+  if (!posRow || !(posRow.is_active === true || String(posRow.is_active).toLowerCase() === 'true')) return { ok: false, message: 'Jabatan tidak ditemukan atau tidak aktif.' };
+  if (String(posRow.division_id || '').trim() && String(posRow.division_id || '').trim() !== String(divRow.division_id || '').trim()) return { ok: false, message: 'Jabatan tidak sesuai dengan divisi terpilih.' };
+  return { ok: true };
+}
+function toDataUrlFromFileObject(obj) {
+  if (!obj || typeof obj !== 'object') return '';
+  const base64 = String(obj.base64Data || '').trim();
+  if (!base64) return '';
+  const mime = String(obj.mimeType || 'application/octet-stream').trim();
+  return 'data:' + mime + ';base64,' + base64;
+}
+function parseDriveFolderId(input) {
+  const raw = String(input || '').trim();
+  if (!raw) return '';
+  const m1 = raw.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  if (m1 && m1[1]) return m1[1];
+  if (/^[a-zA-Z0-9_-]{10,}$/.test(raw)) return raw;
+  return '';
+}
+function bufferFromBase64(base64) {
+  const b = String(base64 || '').trim();
+  if (!b) return null;
+  if (typeof Buffer !== 'undefined') return Buffer.from(b, 'base64');
+  return null;
+}
+function extensionFromMimeType(mimeType) {
+  const m = String(mimeType || '').toLowerCase().trim();
+  if (m === 'image/jpeg' || m === 'image/jpg') return 'jpg';
+  if (m === 'image/png') return 'png';
+  if (m === 'image/webp') return 'webp';
+  if (m === 'image/gif') return 'gif';
+  if (m === 'application/pdf') return 'pdf';
+  return 'bin';
+}
+function toSafeFileToken(v, fallback) {
+  const raw = String(v || '').trim();
+  const t = raw
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 60);
+  return t || String(fallback || 'file');
+}
+function driveFolderId() {
+  const folderRaw = String(process.env.ATTENDANCE_DRIVE_FOLDER || '1cI6C6okEJDfQbfoIodJg2kUlDmMScRng').trim();
+  return parseDriveFolderId(folderRaw);
+}
+function reportDriveFolderId() {
+  const folderRaw = String(process.env.REPORT_DRIVE_FOLDER || '1kiRVtwgOrYDCTErhmhamzLPi_ID8jv5C').trim();
+  return parseDriveFolderId(folderRaw);
+}
+function leaveDriveFolderId() {
+  const folderRaw = String(process.env.LEAVE_ATTACHMENT_DRIVE_FOLDER || '1mpbIt5CEkPOVFGd1MXHSh1VnDs2hwoKy').trim();
+  return parseDriveFolderId(folderRaw);
+}
+async function getDriveAccessToken() {
+  const directToken = String(process.env.GOOGLE_DRIVE_ACCESS_TOKEN || '').trim();
+  if (directToken) return { ok: true, token: directToken, source: 'access_token' };
+  const refreshToken = String(process.env.GOOGLE_DRIVE_REFRESH_TOKEN || '').trim();
+  const clientId = String(process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim();
+  const clientSecret = String(process.env.GOOGLE_OAUTH_CLIENT_SECRET || '').trim();
+  if (!refreshToken || !clientId || !clientSecret) return { ok: false, error: 'GOOGLE_DRIVE_ACCESS_TOKEN atau (GOOGLE_DRIVE_REFRESH_TOKEN + GOOGLE_OAUTH_CLIENT_ID + GOOGLE_OAUTH_CLIENT_SECRET) belum diset.' };
+  const body = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    refresh_token: refreshToken,
+    grant_type: 'refresh_token'
+  });
+  const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() });
+  const tx = await r.text();
+  let j = null;
+  try { j = tx ? JSON.parse(tx) : null; } catch (e) { j = null; }
+  const token = String((j && j.access_token) || '').trim();
+  if (!r.ok || !token) return { ok: false, error: j || tx || 'Gagal refresh token Google OAuth.' };
+  return { ok: true, token: token, source: 'refresh_token' };
+}
+async function tryUploadAttendancePhotoToDrive(photoObj, meta) {
+  if (!photoObj || typeof photoObj !== 'object') return '';
+  const tk = await getDriveAccessToken();
+  const token = tk.ok ? tk.token : '';
+  const folderId = driveFolderId();
+  if (!token || !folderId) return '';
+  const base64 = String(photoObj.base64Data || '').trim();
+  const mimeType = String(photoObj.mimeType || 'image/jpeg').trim();
+  const bin = bufferFromBase64(base64);
+  if (!bin) return '';
+  const employeeName = toSafeFileToken(meta && meta.employee_name, meta && meta.employee_id || 'karyawan');
+  const tanggal = String(meta && meta.tanggal || ymd()).replace(/[^0-9]/g, '');
+  const jam = String(meta && meta.jam || hms()).replace(/[^0-9]/g, '');
+  const type = toSafeFileToken(meta && meta.type || 'checkin', 'checkin');
+  const fileName = employeeName + '_' + tanggal + '_' + jam + '_' + type + '.jpg';
+  const metadata = JSON.stringify({ name: fileName, parents: [folderId], mimeType: mimeType });
+  const boundary = 'essBoundary' + Date.now().toString(36);
+  const part1 = Buffer.from('--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + metadata + '\r\n');
+  const part2 = Buffer.from('--' + boundary + '\r\nContent-Type: ' + mimeType + '\r\n\r\n');
+  const part3 = Buffer.from('\r\n--' + boundary + '--');
+  const body = Buffer.concat([part1, part2, bin, part3]);
+  const up = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink,thumbnailLink', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'multipart/related; boundary=' + boundary },
+    body: body
+  });
+  const upText = await up.text();
+  let upJson = null;
+  try { upJson = upText ? JSON.parse(upText) : null; } catch (e) { upJson = null; }
+  if (!up.ok || !upJson || !upJson.id) return '';
+  const fileId = String(upJson.id || '');
+  if (!fileId) return '';
+  await fetch('https://www.googleapis.com/drive/v3/files/' + fileId + '/permissions', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role: 'reader', type: 'anyone' })
+  });
+  return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1200';
+}
+async function tryUploadLeaveAttachmentToDrive(fileObj, meta) {
+  if (!fileObj || typeof fileObj !== 'object') return '';
+  const tk = await getDriveAccessToken();
+  const token = tk.ok ? tk.token : '';
+  const folderId = leaveDriveFolderId();
+  if (!token || !folderId) return '';
+  const base64 = String(fileObj.base64Data || '').trim();
+  const mimeType = String(fileObj.mimeType || 'application/octet-stream').trim();
+  const bin = bufferFromBase64(base64);
+  if (!bin) return '';
+  const employeeName = toSafeFileToken(meta && meta.employee_name, meta && meta.employee_id || 'karyawan');
+  const leaveType = toSafeFileToken(meta && meta.leave_type, 'cuti');
+  const tanggal = String(meta && meta.tanggal || ymd()).replace(/[^0-9]/g, '');
+  const jam = String(meta && meta.jam || hms()).replace(/[^0-9]/g, '');
+  const ext = extensionFromMimeType(mimeType);
+  const fileName = employeeName + '_' + leaveType + '_' + tanggal + '_' + jam + '.' + ext;
+  const metadata = JSON.stringify({ name: fileName, parents: [folderId], mimeType: mimeType });
+  const boundary = 'essBoundary' + Date.now().toString(36);
+  const part1 = Buffer.from('--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + metadata + '\r\n');
+  const part2 = Buffer.from('--' + boundary + '\r\nContent-Type: ' + mimeType + '\r\n\r\n');
+  const part3 = Buffer.from('\r\n--' + boundary + '--');
+  const body = Buffer.concat([part1, part2, bin, part3]);
+  const up = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink,thumbnailLink,mimeType', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'multipart/related; boundary=' + boundary },
+    body: body
+  });
+  const upText = await up.text();
+  let upJson = null;
+  try { upJson = upText ? JSON.parse(upText) : null; } catch (e) { upJson = null; }
+  if (!up.ok || !upJson || !upJson.id) return '';
+  const fileId = String(upJson.id || '');
+  if (!fileId) return '';
+  await fetch('https://www.googleapis.com/drive/v3/files/' + fileId + '/permissions', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role: 'reader', type: 'anyone' })
+  });
+  return 'https://drive.google.com/file/d/' + fileId + '/view';
+}
+async function uploadBufferToDrive(fileName, mimeType, buffer, folderId) {
+  const tk = await getDriveAccessToken();
+  const token = tk.ok ? tk.token : '';
+  const parentId = String(folderId || '').trim();
+  if (!token || !parentId || !buffer) return '';
+  const metadata = JSON.stringify({ name: String(fileName || 'report.txt'), parents: [parentId], mimeType: String(mimeType || 'application/octet-stream') });
+  const boundary = 'essBoundary' + Date.now().toString(36);
+  const part1 = Buffer.from('--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + metadata + '\r\n');
+  const part2 = Buffer.from('--' + boundary + '\r\nContent-Type: ' + String(mimeType || 'application/octet-stream') + '\r\n\r\n');
+  const part3 = Buffer.from('\r\n--' + boundary + '--');
+  const body = Buffer.concat([part1, part2, buffer, part3]);
+  const up = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'multipart/related; boundary=' + boundary },
+    body: body
+  });
+  const tx = await up.text();
+  let j = null;
+  try { j = tx ? JSON.parse(tx) : null; } catch (e) { j = null; }
+  const fileId = String((j && j.id) || '');
+  if (!up.ok || !fileId) return '';
+  await fetch('https://www.googleapis.com/drive/v3/files/' + fileId + '/permissions', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role: 'reader', type: 'anyone' })
+  });
+  return 'https://drive.google.com/file/d/' + fileId + '/view';
+}
+function simplePdfBuffer(title, rows) {
+  const header = String(title || 'ESS Report').replace(/[()]/g, '');
+  const lines = [header].concat((rows || []).map(function(r) { return String(r || '').replace(/[()]/g, ''); }));
+  let y = 800;
+  const commands = [];
+  lines.slice(0, 42).forEach(function(line) {
+    commands.push('BT /F1 10 Tf 40 ' + String(y) + ' Td (' + line + ') Tj ET');
+    y -= 16;
+  });
+  const content = commands.join('\n');
+  const objects = [];
+  objects.push('1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj');
+  objects.push('2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj');
+  objects.push('3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj');
+  objects.push('4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj');
+  objects.push('5 0 obj << /Length ' + String(Buffer.byteLength(content, 'utf8')) + ' >> stream\n' + content + '\nendstream endobj');
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  objects.forEach(function(obj) { offsets.push(Buffer.byteLength(pdf, 'utf8')); pdf += obj + '\n'; });
+  const xrefPos = Buffer.byteLength(pdf, 'utf8');
+  pdf += 'xref\n0 ' + String(objects.length + 1) + '\n';
+  pdf += '0000000000 65535 f \n';
+  for (let i = 1; i <= objects.length; i += 1) {
+    pdf += String(offsets[i]).padStart(10, '0') + ' 00000 n \n';
+  }
+  pdf += 'trailer << /Size ' + String(objects.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + String(xrefPos) + '\n%%EOF';
+  return Buffer.from(pdf, 'utf8');
+}
+async function getEmployeeDisplayName(user) {
+  const r = await db('GET', 'employees', { select: 'nama', employee_id: 'eq.' + String(user.employee_id || ''), limit: 1 });
+  if (!r.ok) return String(user.employee_id || user.email || 'karyawan');
+  const row = Array.isArray(r.data) && r.data[0] ? r.data[0] : null;
+  return String((row && row.nama) || user.employee_id || user.email || 'karyawan');
+}
+function calcLeaveDays(startDate, endDate) {
+  const a = new Date(startDate);
+  const b = new Date(endDate);
+  if (isNaN(a.getTime()) || isNaN(b.getTime())) return 0;
+  const oneDay = 24 * 60 * 60 * 1000;
+  return Math.max(0, Math.floor((b.setHours(0, 0, 0, 0) - a.setHours(0, 0, 0, 0)) / oneDay) + 1);
+}
+function dateOnly(v) {
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return '';
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function dateShift(baseDate, deltaDays) {
+  const d = new Date(baseDate);
+  if (isNaN(d.getTime())) return '';
+  d.setDate(d.getDate() + Number(deltaDays || 0));
+  return dateOnly(d);
+}
+function dateRangeList(startDate, endDate) {
+  const out = [];
+  let cur = dateOnly(startDate);
+  const end = dateOnly(endDate);
+  if (!cur || !end) return out;
+  while (cur <= end) {
+    out.push(cur);
+    cur = dateShift(cur, 1);
+    if (!cur) break;
+    if (out.length > 4000) break;
+  }
+  return out;
+}
+function safeJsonParse(v, fallback) {
+  try { return JSON.parse(String(v || '')); } catch (e) { return fallback; }
+}
+function hammingDistance(a, b) {
+  const x = String(a || '');
+  const y = String(b || '');
+  const len = Math.min(x.length, y.length);
+  let diff = Math.abs(x.length - y.length);
+  for (let i = 0; i < len; i += 1) if (x[i] !== y[i]) diff += 1;
+  return diff;
+}
+function toSecondsFromHms(v) {
+  const s = String(v || '').trim();
+  const m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!m) return 0;
+  const h = Number(m[1] || 0);
+  const mi = Number(m[2] || 0);
+  const se = Number(m[3] || 0);
+  return Math.max(0, (h * 3600) + (mi * 60) + se);
+}
+function workDurationMinutes(jamMasuk, jamKeluar) {
+  return Math.floor(workDurationSeconds(jamMasuk, jamKeluar) / 60);
+}
+function workDurationSeconds(jamMasuk, jamKeluar) {
+  const a = toSecondsFromHms(jamMasuk);
+  const b = toSecondsFromHms(jamKeluar);
+  if (!a || !b) return 0;
+  const diff = b >= a ? (b - a) : ((24 * 3600 - a) + b);
+  return Math.max(0, diff);
+}
+function workDurationLabel(minutes) {
+  const m = Math.max(0, Number(minutes || 0));
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  return String(h) + 'j ' + String(r) + 'm';
+}
+function workDurationDigital(seconds) {
+  const s = Math.max(0, Math.floor(Number(seconds || 0)));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const se = s % 60;
+  return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(se).padStart(2, '0');
+}
+function addMinutesToHms(hmsText, minutesToAdd) {
+  const sec = toSecondsFromHms(hmsText);
+  if (!sec) return '';
+  const total = (sec + (Number(minutesToAdd || 0) * 60)) % (24 * 3600);
+  const s = total < 0 ? total + (24 * 3600) : total;
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const se = s % 60;
+  return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(se).padStart(2, '0');
+}
+function normalizeShiftCode(v) {
+  const s = String(v || '').trim().toUpperCase();
+  if (s === 'PAGI') return 'PAGI';
+  if (s === 'SORE') return 'SORE';
+  if (s === 'MALAM') return 'MALAM';
+  if (s === 'FLX' || s === 'FLEXIBLE' || s === 'FLEXI') return 'FLX';
+  return 'PAGI';
+}
+function shiftRule(shiftCode) {
+  const c = normalizeShiftCode(shiftCode);
+  if (c === 'SORE') return { code: 'SORE', start: '15:00:00', end: '01:00:00', break_minutes_default: 120, target_work_minutes: 8 * 60 };
+  if (c === 'MALAM') return { code: 'MALAM', start: '21:00:00', end: '07:00:00', break_minutes_default: 120, target_work_minutes: 8 * 60 };
+  if (c === 'FLX') return { code: 'FLX', start: '', end: '', break_minutes_default: 0, target_work_minutes: 5 * 60 };
+  return { code: 'PAGI', start: '09:00:00', end: '19:00:00', break_minutes_default: 120, target_work_minutes: 8 * 60 };
+}
+function shiftLateAfterTime(shiftCode) {
+  const r = shiftRule(shiftCode);
+  if (!r.start) return '';
+  return addMinutesToHms(r.start, 15);
+}
+function monthNameId(monthText) {
+  const m = String(monthText || '').trim().match(/^(\d{4})-(\d{2})$/);
+  if (!m) return String(monthText || '');
+  const arr = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  const idx = Math.max(1, Math.min(12, Number(m[2] || 1))) - 1;
+  return arr[idx] + ' ' + m[1];
+}
+function attendanceMetaKey(attendanceId) {
+  return 'ATTENDANCE_META_' + String(attendanceId || '');
+}
+async function attendanceMetaGet(attendanceId) {
+  if (!attendanceId) return {};
+  const r = await db('GET', 'config', { select: 'value', key: 'eq.' + attendanceMetaKey(attendanceId), limit: 1 });
+  if (!r.ok) return {};
+  const row = Array.isArray(r.data) && r.data[0] ? r.data[0] : null;
+  if (!row) return {};
+  return safeJsonParse(row.value, {}) || {};
+}
+async function attendanceMetaSave(attendanceId, meta) {
+  if (!attendanceId) return false;
+  const payload = { key: attendanceMetaKey(attendanceId), value: JSON.stringify(meta || {}) };
+  const r = await db('POST', 'config', { on_conflict: 'key' }, payload, { Prefer: 'resolution=merge-duplicates,return=minimal' });
+  return !!r.ok;
+}
+function effectiveWorkMinutes(jamMasuk, jamKeluar, meta, nowTime) {
+  return Math.floor(effectiveWorkSeconds(jamMasuk, jamKeluar, meta, nowTime) / 60);
+}
+function effectiveWorkSeconds(jamMasuk, jamKeluar, meta, nowTime) {
+  const base = workDurationSeconds(jamMasuk, jamKeluar || nowTime || hms());
+  const m = meta || {};
+  let breakSeconds = Number(m.break_total_seconds || (Number(m.break_total_minutes || 0) * 60) || 0);
+  if (m.break_active_start && !jamKeluar) breakSeconds += workDurationSeconds(m.break_active_start, nowTime || hms());
+  return Math.max(0, base - Math.max(0, breakSeconds));
+}
+function shiftProgress(effectiveMinutes, shiftCode) {
+  const rule = shiftRule(shiftCode);
+  const target = Number(rule.target_work_minutes || 0);
+  const percent = target > 0 ? Math.min(100, Math.round((Math.max(0, effectiveMinutes) / target) * 100)) : 0;
+  return { shift_code: rule.code, target_minutes: target, target_duration: workDurationLabel(target), progress_percent: percent };
+}
+async function auditLog(userEmail, aksi, modul, detail, ipInfo) {
+  try {
+    await db('POST', 'audit_log', null, {
+      log_id: rid('LOG'),
+      timestamp: nowIso(),
+      user_email: String(userEmail || '').trim().toLowerCase(),
+      aksi: String(aksi || '').trim(),
+      modul: String(modul || '').trim(),
+      detail: String(detail || '').trim(),
+      ip_info: String(ipInfo || '').trim()
+    }, { Prefer: 'return=minimal' });
+  } catch (e) {}
+}
 
 function userCtx(req) {
   const q = req.query || {};
@@ -124,22 +537,41 @@ async function handleMeAttendanceCheckIn(req, res, user) {
   const row = Array.isArray(existing.data) && existing.data[0] ? existing.data[0] : null;
   if (row && row.jam_masuk) return json(res, 400, { ok: false, message: 'Anda sudah check-in hari ini.' });
 
+  const shift = String(body.shift_karyawan || '').trim();
+  const shiftCode = shiftRule(shift).code;
+  const baseCatatan = String(body.catatan || '').trim();
+  const jamMasuk = String(body.jam_masuk || hms()).trim();
+  const lateAfter = shiftLateAfterTime(shiftCode);
+  const statusAuto = (shiftCode === 'FLX') ? 'Hadir' : (lateAfter && jamMasuk > lateAfter ? 'Terlambat' : 'Hadir');
+  const employeeName = await getEmployeeDisplayName(user);
+  const sourcePhotoUrl = String(body.foto_masuk_url || '').trim() || toDataUrlFromFileObject(body.photo);
+  const drivePhotoUrl = await tryUploadAttendancePhotoToDrive(body.photo, { type: 'checkin', employee_id: user.employee_id, employee_name: employeeName, tanggal: tanggal, jam: jamMasuk });
   const payload = {
     attendance_id: rid('ATD'),
     employee_id: user.employee_id,
     email: user.email,
     tanggal: tanggal,
-    jam_masuk: String(body.jam_masuk || hms()).trim(),
-    status: String(body.status || 'Hadir').trim(),
+    jam_masuk: jamMasuk,
+    status: statusAuto,
     lokasi: String(body.lokasi || '').trim(),
     work_mode: String(body.work_mode || '').trim().toLowerCase(),
-    foto_masuk_url: String(body.foto_masuk_url || '').trim(),
-    catatan: String(body.catatan || '').trim(),
+    foto_masuk_url: drivePhotoUrl || sourcePhotoUrl,
+    catatan: baseCatatan,
     created_at: nowIso(),
     updated_at: nowIso()
   };
   const ins = await db('POST', 'attendance', null, payload, { Prefer: 'return=representation' });
   if (!ins.ok) return json(res, 500, { ok: false, message: 'Gagal check-in.', error: ins.error });
+  const inserted = Array.isArray(ins.data) && ins.data[0] ? ins.data[0] : null;
+  if (inserted && inserted.attendance_id) {
+    await attendanceMetaSave(inserted.attendance_id, {
+      shift_code: shiftRule(shift).code,
+      break_total_seconds: 0,
+      break_total_minutes: 0,
+      break_active_start: '',
+      break_sessions: []
+    });
+  }
   return json(res, 200, { ok: true, message: 'Check-in berhasil.', data: ins.data });
 }
 
@@ -152,11 +584,26 @@ async function handleMeAttendanceCheckOut(req, res, user) {
   if (!row || !row.attendance_id || !row.jam_masuk) return json(res, 400, { ok: false, message: 'Belum check-in hari ini.' });
   if (row.jam_keluar) return json(res, 400, { ok: false, message: 'Sudah check-out hari ini.' });
 
+  const jamKeluar = String(body.jam_keluar || hms()).trim();
+  const employeeName = await getEmployeeDisplayName(user);
+  const sourcePhotoUrl = String(body.foto_keluar_url || '').trim() || toDataUrlFromFileObject(body.photo);
+  const drivePhotoUrl = await tryUploadAttendancePhotoToDrive(body.photo, { type: 'checkout', employee_id: user.employee_id, employee_name: employeeName, tanggal: tanggal, jam: jamKeluar });
+  const meta = await attendanceMetaGet(row.attendance_id);
+  if (meta.break_active_start) {
+    const extraSec = workDurationSeconds(meta.break_active_start, jamKeluar);
+    const extraMin = Math.floor(extraSec / 60);
+    meta.break_total_seconds = Number(meta.break_total_seconds || 0) + extraSec;
+    meta.break_total_minutes = Math.floor(Number(meta.break_total_seconds || 0) / 60);
+    meta.break_sessions = Array.isArray(meta.break_sessions) ? meta.break_sessions : [];
+    meta.break_sessions.push({ start: meta.break_active_start, end: jamKeluar, seconds: extraSec, minutes: extraMin });
+    meta.break_active_start = '';
+    await attendanceMetaSave(row.attendance_id, meta);
+  }
   const patch = await db('PATCH', 'attendance', { attendance_id: 'eq.' + row.attendance_id }, {
-    jam_keluar: String(body.jam_keluar || hms()).trim(),
+    jam_keluar: jamKeluar,
     status: String(body.status || row.status || 'Hadir').trim(),
     lokasi: String(body.lokasi || row.lokasi || '').trim(),
-    foto_keluar_url: String(body.foto_keluar_url || '').trim(),
+    foto_keluar_url: drivePhotoUrl || sourcePhotoUrl,
     catatan: String(body.catatan || row.catatan || '').trim(),
     updated_at: nowIso()
   }, { Prefer: 'return=representation' });
@@ -190,6 +637,80 @@ module.exports = async function handler(req, res) {
       return json(res, 200, row);
     }
 
+    if (path === 'me/face/profile' && method === 'GET') {
+      const u = requireUser(req, res); if (!u) return;
+      const key = 'FACE_PROFILE_' + u.employee_id;
+      const r = await db('GET', 'config', { select: 'key,value', key: 'eq.' + key, limit: 1 });
+      if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil profil wajah.', error: r.error });
+      const row = (r.data && r.data[0]) || null;
+      if (!row) return json(res, 200, { ok: true, enrolled: false, employee_id: u.employee_id });
+      const value = safeJsonParse(row.value, {});
+      const hashes = Array.isArray(value.face_hashes) ? value.face_hashes.filter(Boolean) : (value.face_hash ? [value.face_hash] : []);
+      return json(res, 200, {
+        ok: true,
+        enrolled: hashes.length > 0,
+        employee_id: u.employee_id,
+        face_hash: String((hashes[0] || value.face_hash || '')),
+        hash_count: hashes.length,
+        face_photo_url: String(value.face_photo_url || ''),
+        updated_at: ''
+      });
+    }
+
+    if (path === 'me/face/enroll' && method === 'POST') {
+      const u = requireUser(req, res); if (!u) return;
+      const b = await readBody(req);
+      const faceHash = String(b.face_hash || '').trim();
+      const facePhotoUrl = String(b.face_photo_url || '').trim() || toDataUrlFromFileObject(b.photo);
+      if (!faceHash) return json(res, 400, { ok: false, message: 'face_hash wajib diisi.' });
+      const key = 'FACE_PROFILE_' + u.employee_id;
+      const value = JSON.stringify({
+        employee_id: u.employee_id,
+        email: u.email,
+        face_hash: faceHash,
+        face_hashes: [faceHash],
+        face_photo_url: facePhotoUrl,
+        enrolled_at: nowIso()
+      });
+      const up = await db('POST', 'config', { on_conflict: 'key' }, { key: key, value: value }, { Prefer: 'resolution=merge-duplicates,return=representation' });
+      if (!up.ok) return json(res, 500, { ok: false, message: 'Gagal menyimpan profil wajah.', error: up.error });
+      await auditLog(u.email, 'ENROLL_FACE', 'attendance_face', 'Enroll wajah ' + u.employee_id, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, { ok: true, message: 'Profil wajah berhasil disimpan.', enrolled: true });
+    }
+
+    if (path === 'me/face/verify' && method === 'POST') {
+      const u = requireUser(req, res); if (!u) return;
+      const b = await readBody(req);
+      const faceHash = String(b.face_hash || '').trim();
+      if (!faceHash) return json(res, 400, { ok: false, message: 'face_hash wajib diisi.' });
+      const key = 'FACE_PROFILE_' + u.employee_id;
+      const r = await db('GET', 'config', { select: 'value', key: 'eq.' + key, limit: 1 });
+      if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal verifikasi wajah.', error: r.error });
+      const row = (r.data && r.data[0]) || null;
+      if (!row) return json(res, 200, { ok: true, enrolled: false, verified: false, status: 'not_enrolled', color: 'red', similarity: 0 });
+      const value = safeJsonParse(row.value, {});
+      const enrolledHashes = Array.isArray(value.face_hashes) ? value.face_hashes.filter(Boolean).map(function(x) { return String(x); }) : [];
+      if (value.face_hash && enrolledHashes.length === 0) enrolledHashes.push(String(value.face_hash));
+      if (enrolledHashes.length === 0) return json(res, 200, { ok: true, enrolled: false, verified: false, status: 'not_enrolled', color: 'red', similarity: 0 });
+      let best = 0;
+      enrolledHashes.forEach(function(h) {
+        const distance = hammingDistance(h, faceHash);
+        const maxLen = Math.max(h.length, faceHash.length, 1);
+        const sim = Math.max(0, 1 - (distance / maxLen));
+        if (sim > best) best = sim;
+      });
+      const verified = best >= 0.9;
+      return json(res, 200, {
+        ok: true,
+        enrolled: true,
+        verified: verified,
+        status: verified ? 'verified' : 'not_match',
+        color: verified ? 'green' : 'red',
+        similarity: Number(best.toFixed(4)),
+        threshold: 0.9
+      });
+    }
+
     if (path === 'me/dashboard-summary' && method === 'GET') {
       const u = requireUser(req, res); if (!u) return;
       const p = await db('GET', 'employees', { select: 'employee_id,nama,divisi,jabatan,jatah_cuti,sisa_cuti', employee_id: 'eq.' + u.employee_id, limit: 1 });
@@ -198,7 +719,23 @@ module.exports = async function handler(req, res) {
       if (!row) return json(res, 404, { ok: false, message: 'Karyawan tidak ditemukan.' });
       const leaves = await db('GET', 'leave_requests', { select: 'leave_id', employee_id: 'eq.' + u.employee_id, status: 'eq.pending' });
       if (!leaves.ok) return json(res, 500, { ok: false, message: 'Gagal ambil pending leaves.', error: leaves.error });
-      return json(res, 200, Object.assign({}, row, { pendingLeaves: Array.isArray(leaves.data) ? leaves.data.length : 0 }));
+      const att = await db('GET', 'attendance', { select: 'attendance_id,jam_masuk,jam_keluar', employee_id: 'eq.' + u.employee_id, tanggal: 'eq.' + ymd(), order: 'created_at.desc', limit: 1 });
+      if (!att.ok) return json(res, 500, { ok: false, message: 'Gagal ambil attendance summary.', error: att.error });
+      const arow = Array.isArray(att.data) && att.data[0] ? att.data[0] : null;
+      const meta = arow && arow.attendance_id ? await attendanceMetaGet(arow.attendance_id) : {};
+      const workSecondsToday = arow ? effectiveWorkSeconds(arow.jam_masuk, arow.jam_keluar, meta, hms()) : 0;
+      const workMinutesToday = Math.floor(workSecondsToday / 60);
+      const progress = shiftProgress(workMinutesToday, meta.shift_code || 'PAGI');
+      return json(res, 200, Object.assign({}, row, {
+        pendingLeaves: Array.isArray(leaves.data) ? leaves.data.length : 0,
+        work_seconds_today: workSecondsToday,
+        work_minutes_today: workMinutesToday,
+        work_duration_digital_today: workDurationDigital(workSecondsToday),
+        work_duration_today: workDurationLabel(workMinutesToday),
+        shift_code_today: progress.shift_code,
+        shift_target_today: progress.target_duration,
+        shift_progress_percent_today: progress.progress_percent
+      }));
     }
 
     if (path === 'me/attendance/config' && method === 'GET') {
@@ -216,8 +753,66 @@ module.exports = async function handler(req, res) {
       const r = await db('GET', 'attendance', { select: '*', employee_id: 'eq.' + u.employee_id, tanggal: 'eq.' + tanggal, order: 'created_at.desc', limit: 1 });
       if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil attendance today.', error: r.error });
       const row = (r.data && r.data[0]) || null;
-      if (!row) return json(res, 200, { attendance_id: '', employee_id: u.employee_id, email: u.email, tanggal: tanggal, jam_masuk: '', jam_keluar: '', status: 'Belum Absen', lokasi: '', work_mode: '', foto_masuk_url: '', foto_keluar_url: '', catatan: '' });
-      return json(res, 200, row);
+      if (!row) {
+        const leaveToday = await db('GET', 'leave_requests', {
+          select: 'leave_id,jenis_cuti,tanggal_mulai,tanggal_selesai,status',
+          employee_id: 'eq.' + u.employee_id,
+          status: 'eq.approved',
+          and: '(tanggal_mulai.lte.' + tanggal + ',tanggal_selesai.gte.' + tanggal + ')',
+          order: 'updated_at.desc,created_at.desc',
+          limit: 1
+        });
+        const leaveRow = leaveToday.ok && Array.isArray(leaveToday.data) && leaveToday.data[0] ? leaveToday.data[0] : null;
+        return json(res, 200, {
+          attendance_id: '',
+          employee_id: u.employee_id,
+          email: u.email,
+          tanggal: tanggal,
+          jam_masuk: '',
+          jam_keluar: '',
+          status: leaveRow ? 'On Leave' : 'Belum Absen',
+          lokasi: '',
+          work_mode: '',
+          foto_masuk_url: '',
+          foto_keluar_url: '',
+          catatan: '',
+          on_leave: !!leaveRow,
+          leave_id: leaveRow ? String(leaveRow.leave_id || '') : '',
+          leave_type: leaveRow ? String(leaveRow.jenis_cuti || '') : '',
+          work_seconds: 0,
+          work_minutes: 0,
+          work_duration_digital: '00:00:00',
+          work_duration: '0j 0m',
+          break_total_seconds: 0,
+          break_total_minutes: 0,
+          break_duration_digital: '00:00:00',
+          break_active: false,
+          shift_code: 'PAGI',
+          shift_target_duration: '8j 0m',
+          shift_progress_percent: 0,
+          shift_late_after: '09:15:00'
+        });
+      }
+      const meta = await attendanceMetaGet(row.attendance_id);
+      const workSeconds = effectiveWorkSeconds(row.jam_masuk, row.jam_keluar, meta, hms());
+      const workMinutes = Math.floor(workSeconds / 60);
+      const breakTotalSeconds = Number(meta.break_total_seconds || (Number(meta.break_total_minutes || 0) * 60) || 0);
+      const progress = shiftProgress(workMinutes, meta.shift_code || 'PAGI');
+      return json(res, 200, Object.assign({}, row, {
+        work_seconds: workSeconds,
+        work_minutes: workMinutes,
+        work_duration_digital: workDurationDigital(workSeconds),
+        work_duration: workDurationLabel(workMinutes),
+        break_total_seconds: breakTotalSeconds,
+        break_total_minutes: Number(meta.break_total_minutes || 0),
+        break_duration_digital: workDurationDigital(breakTotalSeconds),
+        break_active: !!meta.break_active_start,
+        break_active_start: String(meta.break_active_start || ''),
+        shift_code: progress.shift_code,
+        shift_target_duration: progress.target_duration,
+        shift_progress_percent: progress.progress_percent,
+        shift_late_after: shiftLateAfterTime(progress.shift_code)
+      }));
     }
 
     if (path === 'me/attendance/history' && method === 'GET') {
@@ -237,6 +832,74 @@ module.exports = async function handler(req, res) {
       return await handleMeAttendanceCheckOut(req, res, u);
     }
 
+    if (path === 'me/attendance/break/start' && method === 'POST') {
+      const u = requireUser(req, res); if (!u) return;
+      const tanggal = String((await readBody(req)).tanggal || ymd()).trim();
+      const r = await db('GET', 'attendance', { select: '*', employee_id: 'eq.' + u.employee_id, tanggal: 'eq.' + tanggal, order: 'created_at.desc', limit: 1 });
+      if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil attendance.', error: r.error });
+      const row = Array.isArray(r.data) && r.data[0] ? r.data[0] : null;
+      if (!row || !row.jam_masuk) return json(res, 400, { ok: false, message: 'Belum check-in.' });
+      if (row.jam_keluar) return json(res, 400, { ok: false, message: 'Sudah check-out.' });
+      const meta = await attendanceMetaGet(row.attendance_id);
+      if (meta.break_active_start) return json(res, 400, { ok: false, message: 'Istirahat sudah berjalan.' });
+      meta.shift_code = meta.shift_code || shiftRule('').code;
+      meta.break_total_seconds = Number(meta.break_total_seconds || (Number(meta.break_total_minutes || 0) * 60) || 0);
+      meta.break_total_minutes = Number(meta.break_total_minutes || 0);
+      meta.break_sessions = Array.isArray(meta.break_sessions) ? meta.break_sessions : [];
+      meta.break_active_start = hms();
+      await attendanceMetaSave(row.attendance_id, meta);
+      return json(res, 200, { ok: true, message: 'Istirahat dimulai.', break_active_start: meta.break_active_start, break_total_seconds: meta.break_total_seconds, break_total_minutes: meta.break_total_minutes });
+    }
+
+    if (path === 'me/attendance/break/end' && method === 'POST') {
+      const u = requireUser(req, res); if (!u) return;
+      const tanggal = String((await readBody(req)).tanggal || ymd()).trim();
+      const r = await db('GET', 'attendance', { select: '*', employee_id: 'eq.' + u.employee_id, tanggal: 'eq.' + tanggal, order: 'created_at.desc', limit: 1 });
+      if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil attendance.', error: r.error });
+      const row = Array.isArray(r.data) && r.data[0] ? r.data[0] : null;
+      if (!row || !row.jam_masuk) return json(res, 400, { ok: false, message: 'Belum check-in.' });
+      if (row.jam_keluar) return json(res, 400, { ok: false, message: 'Sudah check-out.' });
+      const meta = await attendanceMetaGet(row.attendance_id);
+      if (!meta.break_active_start) return json(res, 400, { ok: false, message: 'Istirahat tidak aktif.' });
+      const nowT = hms();
+      const sec = workDurationSeconds(meta.break_active_start, nowT);
+      meta.break_total_seconds = Number(meta.break_total_seconds || (Number(meta.break_total_minutes || 0) * 60) || 0) + sec;
+      meta.break_total_minutes = Math.floor(meta.break_total_seconds / 60);
+      meta.break_sessions = Array.isArray(meta.break_sessions) ? meta.break_sessions : [];
+      meta.break_sessions.push({ start: meta.break_active_start, end: nowT, seconds: sec, minutes: Math.floor(sec / 60) });
+      meta.break_active_start = '';
+      await attendanceMetaSave(row.attendance_id, meta);
+      return json(res, 200, { ok: true, message: 'Istirahat selesai.', break_seconds_added: sec, break_minutes_added: Math.floor(sec / 60), break_total_seconds: meta.break_total_seconds, break_total_minutes: meta.break_total_minutes });
+    }
+
+    if (path === 'me/schedule/monthly' && method === 'GET') {
+      const u = requireUser(req, res); if (!u) return;
+      const month = String(req.query.month || ymd().slice(0, 7)).trim().slice(0, 7);
+      const key = 'SHIFT_SCHEDULE_' + month;
+      const r = await db('GET', 'config', { select: 'value', key: 'eq.' + key, limit: 1 });
+      if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil jadwal bulanan.', error: r.error });
+      const row = Array.isArray(r.data) && r.data[0] ? r.data[0] : null;
+      const value = row ? safeJsonParse(row.value, {}) : {};
+      const templates = value.templates || {};
+      const t = templates[u.employee_id] || {};
+      const shiftCode = normalizeShiftCode(t.shift_code || 'PAGI');
+      const offList = [];
+      if (String(t.off_saturday || '').toLowerCase() === 'true' || t.off_saturday === true) offList.push('Sabtu');
+      if (String(t.off_sunday || '').toLowerCase() === 'true' || t.off_sunday === true) offList.push('Minggu');
+      const offText = offList.length ? offList.join(', ') : '-';
+      return json(res, 200, {
+        ok: true,
+        month: month,
+        employee_id: u.employee_id,
+        shift_code: shiftCode,
+        off_saturday: offList.indexOf('Sabtu') >= 0,
+        off_sunday: offList.indexOf('Minggu') >= 0,
+        summary_text: 'Jadwal Bulan ' + monthNameId(month) + ': ' + shiftCode + ', Off: ' + offText,
+        published_at: value.published_at || '',
+        notes: value.notes || ''
+      });
+    }
+
     if (path === 'leave-types/active' && method === 'GET') {
       const r = await db('GET', 'leave_types', { select: '*', is_active: 'eq.true', order: 'nama_jenis_cuti.asc' });
       if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil leave types.', error: r.error });
@@ -253,22 +916,50 @@ module.exports = async function handler(req, res) {
     if (path === 'me/leaves' && method === 'POST') {
       const u = requireUser(req, res); if (!u) return;
       const b = await readBody(req);
+      const leaveTypeName = String(b.jenis_cuti || '').trim();
+      const lt = leaveTypeName ? await db('GET', 'leave_types', { select: 'leave_type_id,nama_jenis_cuti,requires_attachment', nama_jenis_cuti: 'eq.' + leaveTypeName, limit: 1 }) : { ok: true, data: [] };
+      if (!lt.ok) return json(res, 500, { ok: false, message: 'Gagal validasi jenis cuti.', error: lt.error });
+      const ltRow = Array.isArray(lt.data) && lt.data[0] ? lt.data[0] : null;
+      if (!ltRow) return json(res, 400, { ok: false, message: 'Jenis cuti tidak valid atau tidak aktif.' });
+      const inferredSick = /sakit/i.test(leaveTypeName);
+      const requireAttachment = !!((ltRow && (ltRow.requires_attachment === true || String(ltRow.requires_attachment).toLowerCase() === 'true')) || inferredSick);
+      const sourceAttachmentUrl = String(b.lampiran_url || '').trim() || toDataUrlFromFileObject(b.attachment);
+      const hasAttachmentObj = !!(b.attachment && String((b.attachment || {}).base64Data || '').trim());
+      if (requireAttachment && !sourceAttachmentUrl && !hasAttachmentObj) {
+        return json(res, 400, { ok: false, message: 'Lampiran surat wajib untuk cuti sakit.' });
+      }
+      const employeeName = await getEmployeeDisplayName(u);
+      const driveAttachmentUrl = hasAttachmentObj ? await tryUploadLeaveAttachmentToDrive(b.attachment, {
+        employee_id: u.employee_id,
+        employee_name: employeeName,
+        leave_type: leaveTypeName || 'cuti',
+        tanggal: String(b.tanggal_mulai || ymd()),
+        jam: hms()
+      }) : '';
+      if (requireAttachment && hasAttachmentObj && !driveAttachmentUrl) {
+        return json(res, 500, { ok: false, message: 'Upload lampiran surat sakit ke Drive gagal. Periksa koneksi Google Drive.' });
+      }
+      const attachmentUrl = String(driveAttachmentUrl || sourceAttachmentUrl || '').trim();
+      const days = Number(b.jumlah_hari || 0) > 0 ? Number(b.jumlah_hari || 0) : calcLeaveDays(b.tanggal_mulai, b.tanggal_selesai);
       const payload = {
         leave_id: rid('LEAVE'),
         employee_id: u.employee_id,
         email: u.email,
-        jenis_cuti: String(b.jenis_cuti || '').trim(),
+        jenis_cuti: leaveTypeName,
         tanggal_mulai: String(b.tanggal_mulai || '').trim(),
         tanggal_selesai: String(b.tanggal_selesai || '').trim(),
-        jumlah_hari: Number(b.jumlah_hari || 0),
+        jumlah_hari: days,
         alasan: String(b.alasan || '').trim(),
-        lampiran_url: String(b.lampiran_url || '').trim(),
+        lampiran_url: attachmentUrl,
         status: 'pending',
         approver_email: String(b.approver_email || '').trim(),
         created_at: nowIso(),
         updated_at: nowIso()
       };
       if (!payload.jenis_cuti || !payload.tanggal_mulai || !payload.tanggal_selesai) return json(res, 400, { ok: false, message: 'jenis_cuti, tanggal_mulai, tanggal_selesai wajib diisi.' });
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(payload.tanggal_mulai) || !/^\d{4}-\d{2}-\d{2}$/.test(payload.tanggal_selesai)) return json(res, 400, { ok: false, message: 'Format tanggal harus YYYY-MM-DD.' });
+      if (payload.tanggal_mulai > payload.tanggal_selesai) return json(res, 400, { ok: false, message: 'Tanggal mulai tidak boleh lebih besar dari tanggal selesai.' });
+      if (Number(payload.jumlah_hari || 0) <= 0) return json(res, 400, { ok: false, message: 'Rentang tanggal cuti tidak valid.' });
       const ins = await db('POST', 'leave_requests', null, payload, { Prefer: 'return=representation' });
       if (!ins.ok) return json(res, 500, { ok: false, message: 'Gagal submit leave.', error: ins.error });
       return json(res, 200, { ok: true, message: 'Pengajuan cuti berhasil dikirim.', data: ins.data });
@@ -294,7 +985,7 @@ module.exports = async function handler(req, res) {
       if (!seen.ok) return json(res, 500, { ok: false, message: 'Gagal ambil notification seen.', error: seen.error });
       let row = (seen.data && seen.data[0]) || null;
       if (!row) {
-        const up = await db('POST', 'notification_seen', null, [{ email: u.email }], { Prefer: 'resolution=merge-duplicates,return=representation', 'On-Conflict': 'email' });
+        const up = await db('POST', 'notification_seen', { on_conflict: 'email' }, [{ email: u.email }], { Prefer: 'resolution=merge-duplicates,return=representation' });
         if (!up.ok) return json(res, 500, { ok: false, message: 'Gagal init notification seen.', error: up.error });
         row = (up.data && up.data[0]) || { email: u.email };
       }
@@ -315,7 +1006,7 @@ module.exports = async function handler(req, res) {
       const payload = { email: u.email, updated_at: nowIso() };
       if (type === 'all' || type === 'announcement') payload.announcement_seen_at = nowIso();
       if (type === 'all' || type === 'payroll') payload.payroll_seen_at = nowIso();
-      const up = await db('POST', 'notification_seen', null, [payload], { Prefer: 'resolution=merge-duplicates,return=representation', 'On-Conflict': 'email' });
+      const up = await db('POST', 'notification_seen', { on_conflict: 'email' }, [payload], { Prefer: 'resolution=merge-duplicates,return=representation' });
       if (!up.ok) return json(res, 500, { ok: false, message: 'Gagal mark seen.', error: up.error });
       return json(res, 200, { ok: true, message: 'Notifikasi ditandai dilihat.' });
     }
@@ -332,11 +1023,11 @@ module.exports = async function handler(req, res) {
       const notifications = [];
       (ann.data || []).forEach(function(x) {
         const ts = new Date(x.published_at || 0).getTime() || 0;
-        notifications.push({ notification_type: 'announcement', item_id: x.announcement_id || '', title: x.judul || 'Pengumuman Baru', message: x.isi || '', date_value: x.published_at || '', is_unread: ts > annTs ? 'TRUE' : 'FALSE', action_label: 'Lihat Pengumuman' });
+        notifications.push({ notification_type: 'announcement', item_id: x.announcement_id || '', title: x.judul || 'Pengumuman Baru', message: x.isi || '', date_value: x.published_at || '', is_unread: ts > annTs, action_label: 'Lihat Pengumuman' });
       });
       (pay.data || []).forEach(function(x) {
         const ts = new Date(x.uploaded_at || 0).getTime() || 0;
-        notifications.push({ notification_type: 'payroll', item_id: x.doc_id || '', title: 'Slip Gaji Baru Tersedia', message: (x.nama_file || 'Dokumen payroll') + ' • ' + (x.bulan || '-') + ' ' + (x.tahun || '-'), date_value: x.uploaded_at || '', is_unread: ts > payTs ? 'TRUE' : 'FALSE', file_url: x.file_url || '', action_label: 'Buka Slip Gaji' });
+        notifications.push({ notification_type: 'payroll', item_id: x.doc_id || '', title: 'Slip Gaji Baru Tersedia', message: (x.nama_file || 'Dokumen payroll') + ' • ' + (x.bulan || '-') + ' ' + (x.tahun || '-'), date_value: x.uploaded_at || '', is_unread: ts > payTs, file_url: x.file_url || '', action_label: 'Buka Slip Gaji' });
       });
       notifications.sort(function(a, b) { return new Date(b.date_value || 0).getTime() - new Date(a.date_value || 0).getTime(); });
       return json(res, 200, notifications);
@@ -371,24 +1062,325 @@ module.exports = async function handler(req, res) {
         created_at: nowIso(),
         updated_at: nowIso()
       };
+      const allowedRoles = ['employee', 'admin', 'superadmin'];
+      const allowedStatus = ['Tetap', 'Kontrak', 'Magang', 'Probation', 'Outsource'];
       if (!payload.email || !payload.nama) return json(res, 400, { ok: false, message: 'email dan nama wajib diisi.' });
+      if (!isValidEmail(payload.email)) return json(res, 400, { ok: false, message: 'Format email tidak valid.' });
+      if (!allowedRoles.includes(payload.role)) return json(res, 400, { ok: false, message: 'Role tidak valid.' });
+      if (!allowedStatus.includes(payload.status_karyawan)) return json(res, 400, { ok: false, message: 'Status karyawan tidak valid.' });
+      if (!payload.tanggal_masuk || !isValidDateYmd(payload.tanggal_masuk)) return json(res, 400, { ok: false, message: 'tanggal_masuk wajib format YYYY-MM-DD.' });
+      if (Number(payload.jatah_cuti) < 0 || Number(payload.sisa_cuti) < 0) return json(res, 400, { ok: false, message: 'Jatah/sisa cuti tidak boleh negatif.' });
+      if (Number(payload.sisa_cuti) > Number(payload.jatah_cuti)) return json(res, 400, { ok: false, message: 'Sisa cuti tidak boleh lebih besar dari jatah cuti.' });
+      const vdp = await validateDivisionAndPosition(payload.divisi, payload.jabatan);
+      if (!vdp.ok) return json(res, 400, { ok: false, message: vdp.message, error: vdp.error });
       const ins = await db('POST', 'employees', null, payload, { Prefer: 'return=representation' });
       if (!ins.ok) return json(res, 500, { ok: false, message: 'Gagal tambah employee.', error: ins.error });
+      await auditLog(a.email, 'CREATE', 'employees', 'Tambah employee ' + payload.employee_id + ' (' + payload.email + ')', String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, { ok: true, message: 'Employee berhasil ditambahkan.', data: ins.data });
+    }
+
+    if (path === 'admin/employees' && method === 'PATCH') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const employeeId = String(b.employee_id || '').trim();
+      if (!employeeId) return json(res, 400, { ok: false, message: 'employee_id wajib diisi.' });
+      const cur = await db('GET', 'employees', { select: '*', employee_id: 'eq.' + employeeId, limit: 1 });
+      if (!cur.ok) return json(res, 500, { ok: false, message: 'Gagal validasi employee.', error: cur.error });
+      const current = Array.isArray(cur.data) && cur.data[0] ? cur.data[0] : null;
+      if (!current) return json(res, 404, { ok: false, message: 'Employee tidak ditemukan.' });
+      const patch = { updated_at: nowIso() };
+      if (b.email !== undefined) patch.email = String(b.email || '').trim().toLowerCase();
+      if (b.nama !== undefined) patch.nama = String(b.nama || '').trim();
+      if (b.nik !== undefined) patch.nik = String(b.nik || '').trim();
+      if (b.divisi !== undefined) patch.divisi = String(b.divisi || '').trim();
+      if (b.jabatan !== undefined) patch.jabatan = String(b.jabatan || '').trim();
+      if (b.atasan_email !== undefined) patch.atasan_email = String(b.atasan_email || '').trim().toLowerCase();
+      if (b.status_karyawan !== undefined) patch.status_karyawan = String(b.status_karyawan || '').trim();
+      if (b.tanggal_masuk !== undefined) patch.tanggal_masuk = b.tanggal_masuk || null;
+      if (b.jatah_cuti !== undefined) patch.jatah_cuti = Number(b.jatah_cuti || 0);
+      if (b.sisa_cuti !== undefined) patch.sisa_cuti = Number(b.sisa_cuti || 0);
+      if (b.role !== undefined) patch.role = String(b.role || '').trim().toLowerCase();
+      if (b.is_active !== undefined) {
+        if (!isBooleanLike(b.is_active)) return json(res, 400, { ok: false, message: 'is_active harus boolean.' });
+        patch.is_active = String(b.is_active).toLowerCase() === 'true';
+      }
+      if (b.no_hp !== undefined) patch.no_hp = String(b.no_hp || '').trim();
+      if (b.alamat !== undefined) patch.alamat = String(b.alamat || '').trim();
+      const allowedRoles = ['employee', 'admin', 'superadmin'];
+      const allowedStatus = ['Tetap', 'Kontrak', 'Magang', 'Probation', 'Outsource'];
+      if (patch.email !== undefined && patch.email && !isValidEmail(patch.email)) return json(res, 400, { ok: false, message: 'Format email tidak valid.' });
+      if (patch.role !== undefined && !allowedRoles.includes(patch.role)) return json(res, 400, { ok: false, message: 'Role tidak valid.' });
+      if (patch.status_karyawan !== undefined && !allowedStatus.includes(patch.status_karyawan)) return json(res, 400, { ok: false, message: 'Status karyawan tidak valid.' });
+      if (patch.tanggal_masuk !== undefined && patch.tanggal_masuk !== null && !isValidDateYmd(patch.tanggal_masuk)) return json(res, 400, { ok: false, message: 'tanggal_masuk harus format YYYY-MM-DD.' });
+      if (patch.jatah_cuti !== undefined && Number(patch.jatah_cuti) < 0) return json(res, 400, { ok: false, message: 'Jatah cuti tidak boleh negatif.' });
+      if (patch.sisa_cuti !== undefined && Number(patch.sisa_cuti) < 0) return json(res, 400, { ok: false, message: 'Sisa cuti tidak boleh negatif.' });
+      const finalJatah = patch.jatah_cuti !== undefined ? Number(patch.jatah_cuti) : Number(current.jatah_cuti || 0);
+      const finalSisa = patch.sisa_cuti !== undefined ? Number(patch.sisa_cuti) : Number(current.sisa_cuti || 0);
+      if (finalSisa > finalJatah) return json(res, 400, { ok: false, message: 'Sisa cuti tidak boleh lebih besar dari jatah cuti.' });
+      const finalDivisi = patch.divisi !== undefined ? patch.divisi : String(current.divisi || '');
+      const finalJabatan = patch.jabatan !== undefined ? patch.jabatan : String(current.jabatan || '');
+      const vdp = await validateDivisionAndPosition(finalDivisi, finalJabatan);
+      if (!vdp.ok) return json(res, 400, { ok: false, message: vdp.message, error: vdp.error });
+      if (Object.keys(patch).length <= 1) return json(res, 400, { ok: false, message: 'Tidak ada field yang diupdate.' });
+      const upd = await db('PATCH', 'employees', { employee_id: 'eq.' + employeeId }, patch, { Prefer: 'return=representation' });
+      if (!upd.ok) return json(res, 500, { ok: false, message: 'Gagal update employee.', error: upd.error });
+      if (!Array.isArray(upd.data) || upd.data.length === 0) return json(res, 404, { ok: false, message: 'Employee tidak ditemukan.' });
+      await auditLog(a.email, 'UPDATE', 'employees', 'Update employee ' + employeeId, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, { ok: true, message: 'Employee berhasil diperbarui.', data: upd.data });
+    }
+
+    if (path === 'admin/employees/detail' && method === 'GET') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const employeeId = String(req.query.employee_id || '').trim();
+      if (!employeeId) return json(res, 400, { ok: false, message: 'employee_id wajib diisi.' });
+      const limit = Math.min(Number(req.query.limit || 10), 50);
+      const emp = await db('GET', 'employees', { select: '*', employee_id: 'eq.' + employeeId, limit: 1 });
+      if (!emp.ok) return json(res, 500, { ok: false, message: 'Gagal ambil detail employee.', error: emp.error });
+      const employee = Array.isArray(emp.data) && emp.data[0] ? emp.data[0] : null;
+      if (!employee) return json(res, 404, { ok: false, message: 'Employee tidak ditemukan.' });
+      const attendance = await db('GET', 'attendance', { select: '*', employee_id: 'eq.' + employeeId, order: 'tanggal.desc,created_at.desc', limit: limit });
+      const leaves = await db('GET', 'leave_requests', { select: '*', employee_id: 'eq.' + employeeId, order: 'created_at.desc', limit: limit });
+      const payroll = await db('GET', 'payroll_docs', { select: '*', employee_id: 'eq.' + employeeId, order: 'uploaded_at.desc', limit: limit });
+      const email = String(employee.email || '').trim().toLowerCase();
+      const auditByUser = email ? await db('GET', 'audit_log', { select: '*', user_email: 'eq.' + email, order: 'timestamp.desc', limit: limit }) : { ok: true, data: [] };
+      const auditByDetail = await db('GET', 'audit_log', { select: '*', detail: 'ilike.*' + employeeId + '*', order: 'timestamp.desc', limit: limit });
+      if (!attendance.ok || !leaves.ok || !payroll.ok || !auditByUser.ok || !auditByDetail.ok) {
+        const err = !attendance.ok ? attendance.error : !leaves.ok ? leaves.error : !payroll.ok ? payroll.error : !auditByUser.ok ? auditByUser.error : auditByDetail.error;
+        return json(res, 500, { ok: false, message: 'Gagal ambil detail riwayat employee.', error: err });
+      }
+      const recentAttendance = attendance.data || [];
+      const recentLeaves = leaves.data || [];
+      const recentPayroll = payroll.data || [];
+      const auditMap = {};
+      (auditByUser.data || []).concat(auditByDetail.data || []).forEach(function(x) {
+        const key = String(x.log_id || '');
+        if (!key) return;
+        if (!auditMap[key]) auditMap[key] = x;
+      });
+      const recentAudit = Object.values(auditMap).sort(function(x, y) {
+        return new Date(y.timestamp || 0).getTime() - new Date(x.timestamp || 0).getTime();
+      }).slice(0, limit);
+      const summary = {
+        attendance_total: recentAttendance.length,
+        leave_total: recentLeaves.length,
+        pending_leaves: recentLeaves.filter(function(x) { return String(x.status || '').toLowerCase() === 'pending'; }).length,
+        payroll_total: recentPayroll.length,
+        last_attendance_date: recentAttendance[0] ? (recentAttendance[0].tanggal || '') : '',
+        last_leave_date: recentLeaves[0] ? (recentLeaves[0].created_at || '') : '',
+        last_payroll_at: recentPayroll[0] ? (recentPayroll[0].uploaded_at || '') : ''
+      };
+      return json(res, 200, {
+        ok: true,
+        employee: employee,
+        summary: summary,
+        recent_attendance: recentAttendance,
+        recent_leaves: recentLeaves,
+        recent_payroll: recentPayroll,
+        recent_audit: recentAudit
+      });
+    }
+
+    if (path === 'admin/schedules/monthly' && method === 'GET') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const month = String(req.query.month || ymd().slice(0, 7)).trim().slice(0, 7);
+      const key = 'SHIFT_SCHEDULE_' + month;
+      const em = await db('GET', 'employees', { select: 'employee_id,nama,email,divisi,jabatan,is_active', order: 'nama.asc', limit: 5000 });
+      if (!em.ok) return json(res, 500, { ok: false, message: 'Gagal ambil employee list.', error: em.error });
+      const r = await db('GET', 'config', { select: 'value', key: 'eq.' + key, limit: 1 });
+      if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil jadwal bulanan.', error: r.error });
+      const row = Array.isArray(r.data) && r.data[0] ? r.data[0] : null;
+      const value = row ? safeJsonParse(row.value, {}) : {};
+      return json(res, 200, {
+        ok: true,
+        month: month,
+        shifts: ['PAGI', 'SORE', 'MALAM', 'FLX'],
+        employees: em.data || [],
+        templates: value.templates || {},
+        published_at: value.published_at || '',
+        notes: value.notes || ''
+      });
+    }
+
+    if (path === 'admin/schedules/monthly' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const month = String(b.month || ymd().slice(0, 7)).trim().slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(month)) return json(res, 400, { ok: false, message: 'Format month harus YYYY-MM.' });
+      const templates = (b.templates && typeof b.templates === 'object') ? b.templates : {};
+      const payload = {
+        key: 'SHIFT_SCHEDULE_' + month,
+        value: JSON.stringify({
+          month: month,
+          templates: templates,
+          notes: String(b.notes || '').trim(),
+          updated_by: a.email,
+          updated_at: nowIso(),
+          published_at: String(b.published_at || '')
+        })
+      };
+      const up = await db('POST', 'config', { on_conflict: 'key' }, payload, { Prefer: 'resolution=merge-duplicates,return=minimal' });
+      if (!up.ok) return json(res, 500, { ok: false, message: 'Gagal simpan jadwal bulanan.', error: up.error });
+      await auditLog(a.email, 'UPSERT', 'shift_schedule', 'Simpan jadwal bulanan ' + month, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, { ok: true, message: 'Jadwal bulanan berhasil disimpan.', month: month });
+    }
+
+    if (path === 'admin/schedules/monthly/publish' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const month = String(b.month || ymd().slice(0, 7)).trim().slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(month)) return json(res, 400, { ok: false, message: 'Format month harus YYYY-MM.' });
+      const key = 'SHIFT_SCHEDULE_' + month;
+      const r = await db('GET', 'config', { select: 'value', key: 'eq.' + key, limit: 1 });
+      if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil jadwal untuk publish.', error: r.error });
+      const row = Array.isArray(r.data) && r.data[0] ? r.data[0] : null;
+      if (!row) return json(res, 400, { ok: false, message: 'Jadwal bulan ini belum disimpan.' });
+      const value = safeJsonParse(row.value, {}) || {};
+      value.published_at = nowIso();
+      value.published_by = a.email;
+      const up = await db('POST', 'config', { on_conflict: 'key' }, { key: key, value: JSON.stringify(value) }, { Prefer: 'resolution=merge-duplicates,return=minimal' });
+      if (!up.ok) return json(res, 500, { ok: false, message: 'Gagal update status publish.', error: up.error });
+      const ann = {
+        announcement_id: rid('ANN'),
+        judul: 'Jadwal Kerja Bulanan ' + month + ' Dipublikasikan',
+        isi: 'Jadwal kerja bulan ' + month + ' sudah dipublikasikan. Silakan cek menu Jadwal Kerja Anda.',
+        target_role: 'employee',
+        published_at: nowIso(),
+        expired_at: null,
+        is_active: true,
+        created_by: a.email
+      };
+      const ins = await db('POST', 'announcements', null, ann, { Prefer: 'return=minimal' });
+      if (!ins.ok) return json(res, 500, { ok: false, message: 'Gagal kirim notifikasi jadwal.', error: ins.error });
+      await auditLog(a.email, 'PUBLISH', 'shift_schedule', 'Publish jadwal bulanan ' + month, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, { ok: true, message: 'Jadwal bulanan dipublikasikan dan notifikasi terkirim.', month: month, published_at: value.published_at });
     }
 
     if (path === 'admin/attendance/today' && method === 'GET') {
       const a = requireAdmin(req, res); if (!a) return;
       const r = await db('GET', 'attendance', { select: '*', tanggal: 'eq.' + String(req.query.tanggal || ymd()), order: 'created_at.desc', limit: Math.min(Number(req.query.limit || 500), 2000) });
       if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil attendance today.', error: r.error });
-      return json(res, 200, r.data || []);
+      const rows = [];
+      for (const x of (r.data || [])) {
+        const meta = await attendanceMetaGet(x.attendance_id);
+        const ws = effectiveWorkSeconds(x.jam_masuk, x.jam_keluar, meta, hms());
+        const wm = Math.floor(ws / 60);
+        const bs = Number(meta.break_total_seconds || (Number(meta.break_total_minutes || 0) * 60) || 0);
+        rows.push(Object.assign({}, x, {
+          work_seconds: ws,
+          work_minutes: wm,
+          work_duration_digital: workDurationDigital(ws),
+          work_duration: workDurationLabel(wm),
+          break_total_seconds: bs,
+          break_total_minutes: Number(meta.break_total_minutes || 0),
+          break_duration_digital: workDurationDigital(bs),
+          break_active: !!meta.break_active_start,
+          break_active_start: String(meta.break_active_start || ''),
+          shift_code: String(meta.shift_code || '')
+        }));
+      }
+      return json(res, 200, rows);
+    }
+
+    if (path === 'admin/reports/status/export-csv' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const tanggal = String((await readBody(req)).tanggal || ymd()).trim();
+      const [rEmp, rAtt] = await Promise.all([
+        db('GET', 'employees', { select: 'employee_id,nama', order: 'employee_id.asc', limit: 5000 }),
+        db('GET', 'attendance', { select: '*', tanggal: 'eq.' + tanggal, order: 'created_at.desc', limit: 5000 })
+      ]);
+      if (!rEmp.ok || !rAtt.ok) return json(res, 500, { ok: false, message: 'Gagal generate export status CSV.', error: (!rEmp.ok ? rEmp.error : rAtt.error) });
+      const attMap = {};
+      (rAtt.data || []).forEach(function(x) { if (!attMap[x.employee_id]) attMap[x.employee_id] = x; });
+      const lines = ['tanggal,employee_id,nama,status,shift,jam_masuk,jam_keluar,jam_kerja_digital,istirahat_digital'];
+      for (const e of (rEmp.data || [])) {
+        const arow = attMap[e.employee_id] || null;
+        let work = '00:00:00';
+        let brk = '00:00:00';
+        let shift = '-';
+        let statusLive = 'Belum Check In';
+        if (arow) {
+          const meta = await attendanceMetaGet(arow.attendance_id);
+          const ws = effectiveWorkSeconds(arow.jam_masuk, arow.jam_keluar, meta, hms());
+          const bs = Number(meta.break_total_seconds || (Number(meta.break_total_minutes || 0) * 60) || 0);
+          work = workDurationDigital(ws);
+          brk = workDurationDigital(bs);
+          shift = String(meta.shift_code || '-');
+          statusLive = !arow.jam_masuk ? 'Belum Check In' : (arow.jam_keluar ? 'Selesai Check Out' : (meta.break_active_start ? 'Sedang Istirahat' : 'Sedang Kerja'));
+        }
+        lines.push([
+          tanggal,
+          '"' + String(e.employee_id || '').replace(/"/g, '""') + '"',
+          '"' + String(e.nama || '').replace(/"/g, '""') + '"',
+          '"' + statusLive + '"',
+          '"' + shift + '"',
+          '"' + String((arow && arow.jam_masuk) || '-') + '"',
+          '"' + String((arow && arow.jam_keluar) || '-') + '"',
+          '"' + work + '"',
+          '"' + brk + '"'
+        ].join(','));
+      }
+      const fileName = 'status_karyawan_' + String(tanggal).replace(/-/g, '') + '.csv';
+      const url = await uploadBufferToDrive(fileName, 'text/csv', Buffer.from(lines.join('\n'), 'utf8'), reportDriveFolderId());
+      if (!url) return json(res, 500, { ok: false, message: 'Gagal upload CSV ke Drive.' });
+      return json(res, 200, { ok: true, message: 'CSV status berhasil diekspor.', file_name: fileName, file_url: url });
+    }
+
+    if (path === 'admin/reports/status/export-pdf' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const tanggal = String((await readBody(req)).tanggal || ymd()).trim();
+      const [rEmp, rAtt] = await Promise.all([
+        db('GET', 'employees', { select: 'employee_id,nama', order: 'employee_id.asc', limit: 5000 }),
+        db('GET', 'attendance', { select: '*', tanggal: 'eq.' + tanggal, order: 'created_at.desc', limit: 5000 })
+      ]);
+      if (!rEmp.ok || !rAtt.ok) return json(res, 500, { ok: false, message: 'Gagal generate export status PDF.', error: (!rEmp.ok ? rEmp.error : rAtt.error) });
+      const attMap = {};
+      (rAtt.data || []).forEach(function(x) { if (!attMap[x.employee_id]) attMap[x.employee_id] = x; });
+      const rows = ['Tanggal: ' + tanggal, 'Format ringkas status karyawan', ''];
+      for (const e of (rEmp.data || [])) {
+        const arow = attMap[e.employee_id] || null;
+        let work = '00:00:00';
+        let brk = '00:00:00';
+        let shift = '-';
+        let statusLive = 'Belum Check In';
+        if (arow) {
+          const meta = await attendanceMetaGet(arow.attendance_id);
+          const ws = effectiveWorkSeconds(arow.jam_masuk, arow.jam_keluar, meta, hms());
+          const bs = Number(meta.break_total_seconds || (Number(meta.break_total_minutes || 0) * 60) || 0);
+          work = workDurationDigital(ws);
+          brk = workDurationDigital(bs);
+          shift = String(meta.shift_code || '-');
+          statusLive = !arow.jam_masuk ? 'Belum Check In' : (arow.jam_keluar ? 'Selesai Check Out' : (meta.break_active_start ? 'Sedang Istirahat' : 'Sedang Kerja'));
+        }
+        rows.push(String(e.employee_id || '-') + ' | ' + String(e.nama || '-') + ' | ' + statusLive + ' | Shift:' + shift + ' | Kerja:' + work + ' | Istirahat:' + brk);
+      }
+      const pdf = simplePdfBuffer('Laporan Status Karyawan ESS', rows);
+      const fileName = 'status_karyawan_' + String(tanggal).replace(/-/g, '') + '.pdf';
+      const url = await uploadBufferToDrive(fileName, 'application/pdf', pdf, reportDriveFolderId());
+      if (!url) return json(res, 500, { ok: false, message: 'Gagal upload PDF ke Drive.' });
+      return json(res, 200, { ok: true, message: 'PDF status berhasil diekspor.', file_name: fileName, file_url: url });
     }
 
     if (path === 'admin/leaves/pending' && method === 'GET') {
       const a = requireAdmin(req, res); if (!a) return;
       const r = await db('GET', 'leave_requests', { select: '*', status: 'eq.pending', order: 'created_at.asc', limit: Math.min(Number(req.query.limit || 300), 1000) });
       if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil cuti pending.', error: r.error });
-      return json(res, 200, r.data || []);
+      const rows = r.data || [];
+      const ids = Array.from(new Set(rows.map(function(x) { return String(x.employee_id || '').trim(); }).filter(Boolean)));
+      const empMap = {};
+      if (ids.length > 0) {
+        const em = await db('GET', 'employees', { select: 'employee_id,nama,email', employee_id: 'in.(' + ids.join(',') + ')' });
+        if (em.ok) {
+          (em.data || []).forEach(function(e) { empMap[String(e.employee_id || '')] = e; });
+        }
+      }
+      const enriched = rows.map(function(x) {
+        const e = empMap[String(x.employee_id || '')] || {};
+        return Object.assign({}, x, {
+          nama: String(e.nama || ''),
+          email: String(x.email || e.email || '')
+        });
+      });
+      return json(res, 200, enriched);
     }
 
     if (path === 'admin/leaves' && method === 'GET') {
@@ -397,7 +1389,23 @@ module.exports = async function handler(req, res) {
       if (req.query.status) q.status = 'eq.' + String(req.query.status).toLowerCase();
       const r = await db('GET', 'leave_requests', q);
       if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil leaves.', error: r.error });
-      return json(res, 200, r.data || []);
+      const rows = r.data || [];
+      const ids = Array.from(new Set(rows.map(function(x) { return String(x.employee_id || '').trim(); }).filter(Boolean)));
+      const empMap = {};
+      if (ids.length > 0) {
+        const em = await db('GET', 'employees', { select: 'employee_id,nama,email', employee_id: 'in.(' + ids.join(',') + ')' });
+        if (em.ok) {
+          (em.data || []).forEach(function(e) { empMap[String(e.employee_id || '')] = e; });
+        }
+      }
+      const enriched = rows.map(function(x) {
+        const e = empMap[String(x.employee_id || '')] || {};
+        return Object.assign({}, x, {
+          nama: String(e.nama || ''),
+          email: String(x.email || e.email || '')
+        });
+      });
+      return json(res, 200, enriched);
     }
 
     if (path === 'admin/leaves/approve' && method === 'POST') {
@@ -405,8 +1413,15 @@ module.exports = async function handler(req, res) {
       const b = await readBody(req);
       const leaveId = String(b.leave_id || '').trim();
       if (!leaveId) return json(res, 400, { ok: false, message: 'leave_id wajib diisi.' });
-      const p = await db('PATCH', 'leave_requests', { leave_id: 'eq.' + leaveId }, { status: 'approved', approver_email: a.email, approved_at: nowIso(), catatan_approver: String(b.catatan_approver || '').trim(), updated_at: nowIso() }, { Prefer: 'return=representation' });
+      const cur = await db('GET', 'leave_requests', { select: 'leave_id,status', leave_id: 'eq.' + leaveId, limit: 1 });
+      if (!cur.ok) return json(res, 500, { ok: false, message: 'Gagal validasi leave.', error: cur.error });
+      const curRow = Array.isArray(cur.data) && cur.data[0] ? cur.data[0] : null;
+      if (!curRow) return json(res, 404, { ok: false, message: 'Leave request tidak ditemukan.' });
+      if (String(curRow.status || '').toLowerCase() !== 'pending') return json(res, 400, { ok: false, message: 'Leave request ini tidak dalam status pending.' });
+      const p = await db('PATCH', 'leave_requests', { leave_id: 'eq.' + leaveId, status: 'eq.pending' }, { status: 'approved', approver_email: a.email, approved_at: nowIso(), catatan_approver: String(b.catatan_approver || '').trim(), updated_at: nowIso() }, { Prefer: 'return=representation' });
       if (!p.ok) return json(res, 500, { ok: false, message: 'Gagal approve.', error: p.error });
+      if (!Array.isArray(p.data) || p.data.length === 0) return json(res, 409, { ok: false, message: 'Status leave sudah berubah. Silakan refresh data.' });
+      await auditLog(a.email, 'APPROVE', 'leave_requests', 'Approve leave ' + leaveId, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, { ok: true, message: 'Pengajuan cuti berhasil disetujui.', data: p.data });
     }
 
@@ -415,8 +1430,15 @@ module.exports = async function handler(req, res) {
       const b = await readBody(req);
       const leaveId = String(b.leave_id || '').trim();
       if (!leaveId) return json(res, 400, { ok: false, message: 'leave_id wajib diisi.' });
-      const p = await db('PATCH', 'leave_requests', { leave_id: 'eq.' + leaveId }, { status: 'rejected', approver_email: a.email, approved_at: nowIso(), catatan_approver: String(b.catatan_approver || '').trim(), updated_at: nowIso() }, { Prefer: 'return=representation' });
+      const cur = await db('GET', 'leave_requests', { select: 'leave_id,status', leave_id: 'eq.' + leaveId, limit: 1 });
+      if (!cur.ok) return json(res, 500, { ok: false, message: 'Gagal validasi leave.', error: cur.error });
+      const curRow = Array.isArray(cur.data) && cur.data[0] ? cur.data[0] : null;
+      if (!curRow) return json(res, 404, { ok: false, message: 'Leave request tidak ditemukan.' });
+      if (String(curRow.status || '').toLowerCase() !== 'pending') return json(res, 400, { ok: false, message: 'Leave request ini tidak dalam status pending.' });
+      const p = await db('PATCH', 'leave_requests', { leave_id: 'eq.' + leaveId, status: 'eq.pending' }, { status: 'rejected', approver_email: a.email, approved_at: nowIso(), catatan_approver: String(b.catatan_approver || '').trim(), updated_at: nowIso() }, { Prefer: 'return=representation' });
       if (!p.ok) return json(res, 500, { ok: false, message: 'Gagal reject.', error: p.error });
+      if (!Array.isArray(p.data) || p.data.length === 0) return json(res, 409, { ok: false, message: 'Status leave sudah berubah. Silakan refresh data.' });
+      await auditLog(a.email, 'REJECT', 'leave_requests', 'Reject leave ' + leaveId, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, { ok: true, message: 'Pengajuan cuti berhasil ditolak.', data: p.data });
     }
 
@@ -432,9 +1454,33 @@ module.exports = async function handler(req, res) {
       const b = await readBody(req);
       const payload = { announcement_id: rid('ANN'), judul: String(b.judul || '').trim(), isi: String(b.isi || '').trim(), target_role: String(b.target_role || 'all').trim().toLowerCase(), published_at: b.published_at || nowIso(), expired_at: b.expired_at || null, is_active: b.is_active === undefined ? true : String(b.is_active).toLowerCase() === 'true', created_by: a.email };
       if (!payload.judul || !payload.isi) return json(res, 400, { ok: false, message: 'judul dan isi wajib diisi.' });
+      if (!['all', 'employee', 'admin'].includes(payload.target_role)) return json(res, 400, { ok: false, message: 'target_role tidak valid.' });
       const ins = await db('POST', 'announcements', null, payload, { Prefer: 'return=representation' });
       if (!ins.ok) return json(res, 500, { ok: false, message: 'Gagal membuat announcement.', error: ins.error });
       return json(res, 200, { ok: true, message: 'Announcement berhasil dibuat.', data: ins.data });
+    }
+
+    if (path === 'admin/announcements' && method === 'PATCH') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const announcementId = String(b.announcement_id || '').trim();
+      if (!announcementId) return json(res, 400, { ok: false, message: 'announcement_id wajib diisi.' });
+      const patch = { updated_at: nowIso() };
+      if (b.judul !== undefined) patch.judul = String(b.judul || '').trim();
+      if (b.isi !== undefined) patch.isi = String(b.isi || '').trim();
+      if (b.target_role !== undefined) patch.target_role = String(b.target_role || '').trim().toLowerCase();
+      if (b.published_at !== undefined) patch.published_at = b.published_at || nowIso();
+      if (b.expired_at !== undefined) patch.expired_at = b.expired_at || null;
+      if (b.is_active !== undefined) patch.is_active = String(b.is_active).toLowerCase() === 'true';
+      if (patch.judul !== undefined && !patch.judul) return json(res, 400, { ok: false, message: 'judul tidak boleh kosong.' });
+      if (patch.isi !== undefined && !patch.isi) return json(res, 400, { ok: false, message: 'isi tidak boleh kosong.' });
+      if (patch.target_role !== undefined && !['all', 'employee', 'admin'].includes(patch.target_role)) return json(res, 400, { ok: false, message: 'target_role tidak valid.' });
+      if (Object.keys(patch).length <= 1) return json(res, 400, { ok: false, message: 'Tidak ada field yang diupdate.' });
+      const upd = await db('PATCH', 'announcements', { announcement_id: 'eq.' + announcementId }, patch, { Prefer: 'return=representation' });
+      if (!upd.ok) return json(res, 500, { ok: false, message: 'Gagal update announcement.', error: upd.error });
+      if (!Array.isArray(upd.data) || upd.data.length === 0) return json(res, 404, { ok: false, message: 'Announcement tidak ditemukan.' });
+      await auditLog(a.email, 'UPDATE', 'announcements', 'Update announcement ' + announcementId, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, { ok: true, message: 'Announcement berhasil diperbarui.', data: upd.data });
     }
 
     if (path === 'admin/payroll-docs' && method === 'GET') {
@@ -447,10 +1493,19 @@ module.exports = async function handler(req, res) {
     if (path === 'admin/payroll-docs' && method === 'POST') {
       const a = requireAdmin(req, res); if (!a) return;
       const b = await readBody(req);
+      const employeeId = String(b.employee_id || '').trim();
+      const givenEmail = String(b.email || '').trim().toLowerCase();
+      let resolvedEmail = givenEmail;
+      if (!resolvedEmail && employeeId) {
+        const em = await db('GET', 'employees', { select: 'email', employee_id: 'eq.' + employeeId, limit: 1 });
+        if (em.ok && Array.isArray(em.data) && em.data[0]) resolvedEmail = String(em.data[0].email || '').trim().toLowerCase();
+      }
       const payload = { doc_id: rid('PAY'), employee_id: String(b.employee_id || '').trim(), email: String(b.email || '').trim().toLowerCase(), bulan: String(b.bulan || '').trim(), tahun: String(b.tahun || '').trim(), nama_file: String(b.nama_file || '').trim(), file_url: String(b.file_url || '').trim(), keterangan: String(b.keterangan || '').trim(), uploaded_at: b.uploaded_at || nowIso() };
-      if (!payload.employee_id || !payload.file_url || !payload.nama_file) return json(res, 400, { ok: false, message: 'employee_id, nama_file, file_url wajib diisi.' });
+      payload.email = resolvedEmail;
+      if (!payload.employee_id || !payload.file_url || !payload.nama_file || !payload.email) return json(res, 400, { ok: false, message: 'employee_id, email, nama_file, file_url wajib diisi.' });
       const ins = await db('POST', 'payroll_docs', null, payload, { Prefer: 'return=representation' });
       if (!ins.ok) return json(res, 500, { ok: false, message: 'Gagal membuat payroll doc.', error: ins.error });
+      await auditLog(a.email, 'CREATE', 'payroll_docs', 'Tambah payroll doc ' + payload.doc_id + ' untuk ' + payload.employee_id, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, { ok: true, message: 'Payroll doc berhasil dibuat.', data: ins.data });
     }
 
@@ -508,11 +1563,233 @@ module.exports = async function handler(req, res) {
       return json(res, 200, { ok: true, message: 'Notifikasi leave ditandai dilihat.' });
     }
 
+    if (path === 'admin/drive/status' && method === 'GET') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const folderId = driveFolderId();
+      const tk = await getDriveAccessToken();
+      if (!folderId) return json(res, 200, { ok: true, drive_ready: false, reason: 'ATTENDANCE_DRIVE_FOLDER tidak valid.' });
+      if (!tk.ok) return json(res, 200, { ok: true, drive_ready: false, folder_id: folderId, reason: tk.error });
+      const r = await fetch('https://www.googleapis.com/drive/v3/files/' + folderId + '?fields=id,name', {
+        method: 'GET',
+        headers: { Authorization: 'Bearer ' + tk.token }
+      });
+      const tx = await r.text();
+      let j = null;
+      try { j = tx ? JSON.parse(tx) : null; } catch (e) { j = null; }
+      if (!r.ok) return json(res, 200, { ok: true, drive_ready: false, folder_id: folderId, token_source: tk.source, reason: j || tx || 'Tidak bisa akses folder Drive.' });
+      return json(res, 200, { ok: true, drive_ready: true, folder_id: folderId, folder_name: (j && j.name) || '', token_source: tk.source });
+    }
+
+    if (path === 'admin/kpi/hr' && method === 'GET') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const today = ymd();
+      const startDate = String(req.query.start_date || dateShift(today, -29)).trim();
+      const endDate = String(req.query.end_date || today).trim();
+      const periodDays = dateRangeList(startDate, endDate);
+      if (!periodDays.length) return json(res, 400, { ok: false, message: 'Periode tidak valid.' });
+      const attendanceQ = { select: 'employee_id,email,tanggal,jam_masuk,status,work_mode', order: 'tanggal.asc,created_at.asc', limit: Math.min(Number(req.query.limit || 20000), 30000), and: '(tanggal.gte.' + startDate + ',tanggal.lte.' + endDate + ')' };
+      const leaveQ = { select: 'employee_id,email,jenis_cuti,tanggal_mulai,status,created_at', order: 'tanggal_mulai.asc,created_at.asc', limit: Math.min(Number(req.query.limit || 20000), 30000), and: '(tanggal_mulai.gte.' + startDate + ',tanggal_mulai.lte.' + endDate + ')' };
+      const rAttendance = await db('GET', 'attendance', attendanceQ);
+      const rLeaves = await db('GET', 'leave_requests', leaveQ);
+      const rEmp = await db('GET', 'employees', { select: 'employee_id,nama,divisi,jabatan,is_active', order: 'employee_id.asc', limit: 5000 });
+      const rCfg = await db('GET', 'config', { select: 'key,value', key: 'eq.LATE_AFTER_TIME', limit: 1 });
+      if (!rAttendance.ok || !rLeaves.ok || !rEmp.ok || !rCfg.ok) {
+        const err = !rAttendance.ok ? rAttendance.error : !rLeaves.ok ? rLeaves.error : !rEmp.ok ? rEmp.error : rCfg.error;
+        return json(res, 500, { ok: false, message: 'Gagal ambil data KPI HR.', error: err });
+      }
+      const attendanceRows = rAttendance.data || [];
+      const leaveRows = rLeaves.data || [];
+      const empRows = rEmp.data || [];
+      const lateAfter = String((rCfg.data && rCfg.data[0] && rCfg.data[0].value) || '08:30:00');
+      const empMap = {};
+      empRows.forEach(function(x) { empMap[String(x.employee_id || '')] = x; });
+      const trendAttendance = {};
+      const trendLeaves = {};
+      periodDays.forEach(function(d) {
+        trendAttendance[d] = { date: d, total: 0, hadir: 0, terlambat: 0, wfh: 0, office: 0 };
+        trendLeaves[d] = { date: d, total: 0, pending: 0, approved: 0, rejected: 0 };
+      });
+      const lateMap = {};
+      const punctualMap = {};
+      const divisionLateMap = {};
+      const divisionDateMap = {};
+      let lateCount = 0;
+      attendanceRows.forEach(function(r) {
+        const d = String(r.tanggal || '');
+        if (!trendAttendance[d]) return;
+        trendAttendance[d].total += 1;
+        const st = String(r.status || '').toLowerCase();
+        if (st === 'hadir') trendAttendance[d].hadir += 1;
+        if (String(r.work_mode || '').toLowerCase() === 'wfh') trendAttendance[d].wfh += 1;
+        if (String(r.work_mode || '').toLowerCase() === 'office') trendAttendance[d].office += 1;
+        const jamMasuk = String(r.jam_masuk || '');
+        const isLate = st === 'terlambat' || (jamMasuk && jamMasuk > lateAfter);
+        if (isLate) {
+          trendAttendance[d].terlambat += 1;
+          lateCount += 1;
+          const key = String(r.employee_id || '');
+          if (!lateMap[key]) lateMap[key] = { employee_id: key, email: String(r.email || ''), nama: '', divisi: '', jabatan: '', late_count: 0 };
+          lateMap[key].late_count += 1;
+        }
+        const keyP = String(r.employee_id || '');
+        if (!punctualMap[keyP]) punctualMap[keyP] = { employee_id: keyP, email: String(r.email || ''), nama: '', divisi: '', jabatan: '', present_count: 0, ontime_count: 0, late_count: 0, punctual_rate: 0 };
+        punctualMap[keyP].present_count += 1;
+        if (isLate) punctualMap[keyP].late_count += 1;
+        else punctualMap[keyP].ontime_count += 1;
+        const emp = empMap[keyP] || {};
+        const divKey = String(emp.divisi || 'Tanpa Divisi');
+        if (!divisionLateMap[divKey]) divisionLateMap[divKey] = { divisi: divKey, attendance_records: 0, late_records: 0, ontime_records: 0, late_rate: 0 };
+        divisionLateMap[divKey].attendance_records += 1;
+        if (isLate) divisionLateMap[divKey].late_records += 1;
+        else divisionLateMap[divKey].ontime_records += 1;
+        const ddKey = divKey + '|' + d;
+        if (!divisionDateMap[ddKey]) divisionDateMap[ddKey] = { divisi: divKey, date: d, attendance_records: 0, late_records: 0, ontime_records: 0, late_rate: 0 };
+        divisionDateMap[ddKey].attendance_records += 1;
+        if (isLate) divisionDateMap[ddKey].late_records += 1;
+        else divisionDateMap[ddKey].ontime_records += 1;
+      });
+      leaveRows.forEach(function(r) {
+        const d = String(r.tanggal_mulai || '');
+        if (!trendLeaves[d]) return;
+        trendLeaves[d].total += 1;
+        const st = String(r.status || '').toLowerCase();
+        if (st === 'pending') trendLeaves[d].pending += 1;
+        if (st === 'approved') trendLeaves[d].approved += 1;
+        if (st === 'rejected') trendLeaves[d].rejected += 1;
+      });
+      Object.keys(lateMap).forEach(function(k) {
+        const e = empMap[k] || {};
+        lateMap[k].nama = String(e.nama || '-');
+        lateMap[k].divisi = String(e.divisi || '-');
+        lateMap[k].jabatan = String(e.jabatan || '-');
+      });
+      const topLate = Object.values(lateMap).sort(function(a1, b1) { return Number(b1.late_count || 0) - Number(a1.late_count || 0); }).slice(0, 10);
+      Object.keys(punctualMap).forEach(function(k) {
+        const e = empMap[k] || {};
+        punctualMap[k].nama = String(e.nama || '-');
+        punctualMap[k].divisi = String(e.divisi || '-');
+        punctualMap[k].jabatan = String(e.jabatan || '-');
+        const present = Number(punctualMap[k].present_count || 0);
+        const ontime = Number(punctualMap[k].ontime_count || 0);
+        punctualMap[k].punctual_rate = present > 0 ? Math.round((ontime / present) * 10000) / 100 : 0;
+      });
+      const topPunctual = Object.values(punctualMap)
+        .filter(function(x) { return Number(x.present_count || 0) > 0; })
+        .sort(function(a1, b1) {
+          if (Number(b1.punctual_rate || 0) !== Number(a1.punctual_rate || 0)) return Number(b1.punctual_rate || 0) - Number(a1.punctual_rate || 0);
+          if (Number(b1.ontime_count || 0) !== Number(a1.ontime_count || 0)) return Number(b1.ontime_count || 0) - Number(a1.ontime_count || 0);
+          return Number(b1.present_count || 0) - Number(a1.present_count || 0);
+        })
+        .slice(0, 10);
+      const lateByDivision = Object.values(divisionLateMap).map(function(x) {
+        const total = Number(x.attendance_records || 0);
+        const late = Number(x.late_records || 0);
+        x.late_rate = total > 0 ? Math.round((late / total) * 10000) / 100 : 0;
+        return x;
+      }).sort(function(a1, b1) { return Number(b1.late_rate || 0) - Number(a1.late_rate || 0); });
+      const lateHeatmap = Object.values(divisionDateMap).map(function(x) {
+        const total = Number(x.attendance_records || 0);
+        const late = Number(x.late_records || 0);
+        x.late_rate = total > 0 ? Math.round((late / total) * 10000) / 100 : 0;
+        return x;
+      }).sort(function(a1, b1) {
+        if (String(a1.divisi || '') !== String(b1.divisi || '')) return String(a1.divisi || '').localeCompare(String(b1.divisi || ''));
+        return String(a1.date || '').localeCompare(String(b1.date || ''));
+      });
+      const summary = {
+        start_date: startDate,
+        end_date: endDate,
+        period_days: periodDays.length,
+        total_employees: empRows.length,
+        active_employees: empRows.filter(function(x) { return String(x.is_active).toLowerCase() === 'true'; }).length,
+        attendance_records: attendanceRows.length,
+        late_records: lateCount,
+        leave_requests: leaveRows.length,
+        pending_leaves: leaveRows.filter(function(x) { return String(x.status || '').toLowerCase() === 'pending'; }).length,
+        late_after_time: lateAfter
+      };
+      await auditLog(a.email, 'REPORT', 'kpi_hr', 'Generate KPI HR ' + startDate + ' s/d ' + endDate, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, {
+        ok: true,
+        summary: summary,
+        trend_attendance: periodDays.map(function(d) { return trendAttendance[d]; }),
+        trend_leaves: periodDays.map(function(d) { return trendLeaves[d]; }),
+        top_late: topLate,
+        top_punctual: topPunctual,
+        late_by_division: lateByDivision,
+        late_heatmap: lateHeatmap
+      });
+    }
+
+    if (path === 'admin/kpi/hr/day' && method === 'GET') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const date = String(req.query.date || '').trim();
+      if (!date) return json(res, 400, { ok: false, message: 'date wajib diisi (YYYY-MM-DD).' });
+      const rCfg = await db('GET', 'config', { select: 'key,value', key: 'eq.LATE_AFTER_TIME', limit: 1 });
+      const rEmp = await db('GET', 'employees', { select: 'employee_id,nama,divisi,jabatan', order: 'employee_id.asc', limit: 5000 });
+      const rAttendance = await db('GET', 'attendance', { select: 'attendance_id,employee_id,email,tanggal,jam_masuk,jam_keluar,status,lokasi,work_mode', tanggal: 'eq.' + date, order: 'jam_masuk.asc,created_at.asc', limit: 5000 });
+      const rLeaves = await db('GET', 'leave_requests', { select: 'leave_id,employee_id,email,jenis_cuti,tanggal_mulai,tanggal_selesai,status,created_at', tanggal_mulai: 'eq.' + date, order: 'created_at.desc', limit: 5000 });
+      if (!rCfg.ok || !rEmp.ok || !rAttendance.ok || !rLeaves.ok) {
+        const err = !rCfg.ok ? rCfg.error : !rEmp.ok ? rEmp.error : !rAttendance.ok ? rAttendance.error : rLeaves.error;
+        return json(res, 500, { ok: false, message: 'Gagal ambil detail KPI harian.', error: err });
+      }
+      const lateAfter = String((rCfg.data && rCfg.data[0] && rCfg.data[0].value) || '08:30:00');
+      const empMap = {};
+      (rEmp.data || []).forEach(function(x) { empMap[String(x.employee_id || '')] = x; });
+      const attendance = (rAttendance.data || []).map(function(r) {
+        const e = empMap[String(r.employee_id || '')] || {};
+        return Object.assign({}, r, { nama: String(e.nama || '-'), divisi: String(e.divisi || '-'), jabatan: String(e.jabatan || '-') });
+      });
+      const leaves = (rLeaves.data || []).map(function(r) {
+        const e = empMap[String(r.employee_id || '')] || {};
+        return Object.assign({}, r, { nama: String(e.nama || '-'), divisi: String(e.divisi || '-'), jabatan: String(e.jabatan || '-') });
+      });
+      const lateRows = attendance.filter(function(r) {
+        const st = String(r.status || '').toLowerCase();
+        const jm = String(r.jam_masuk || '');
+        return st === 'terlambat' || (jm && jm > lateAfter);
+      }).sort(function(x, y) {
+        return String(y.jam_masuk || '').localeCompare(String(x.jam_masuk || ''));
+      });
+      const summary = {
+        date: date,
+        attendance_total: attendance.length,
+        attendance_hadir: attendance.filter(function(r) { return String(r.status || '').toLowerCase() === 'hadir'; }).length,
+        attendance_terlambat: lateRows.length,
+        leaves_total: leaves.length,
+        leaves_pending: leaves.filter(function(r) { return String(r.status || '').toLowerCase() === 'pending'; }).length,
+        leaves_approved: leaves.filter(function(r) { return String(r.status || '').toLowerCase() === 'approved'; }).length,
+        leaves_rejected: leaves.filter(function(r) { return String(r.status || '').toLowerCase() === 'rejected'; }).length,
+        late_after_time: lateAfter
+      };
+      await auditLog(a.email, 'REPORT', 'kpi_hr_day', 'Open KPI harian ' + date, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, { ok: true, summary: summary, attendance: attendance, leaves: leaves, late_rows: lateRows });
+    }
+
     if (path === 'admin/reports/employees' && method === 'GET') {
       const a = requireAdmin(req, res); if (!a) return;
-      const r = await db('GET', 'employees', { select: '*', order: 'employee_id.asc', limit: Math.min(Number(req.query.limit || 2000), 5000) });
+      const q = { select: '*', order: 'employee_id.asc', limit: Math.min(Number(req.query.limit || 2000), 5000) };
+      if (req.query.role) q.role = 'eq.' + String(req.query.role || '').trim().toLowerCase();
+      if (req.query.divisi) q.divisi = 'eq.' + String(req.query.divisi || '').trim();
+      if (req.query.is_active !== undefined && req.query.is_active !== '') q.is_active = 'eq.' + (String(req.query.is_active).toLowerCase() === 'true' ? 'true' : 'false');
+      const startDate = String(req.query.start_date || '').trim();
+      const endDate = String(req.query.end_date || '').trim();
+      if (startDate && endDate) q.and = '(tanggal_masuk.gte.' + startDate + ',tanggal_masuk.lte.' + endDate + ')';
+      else if (startDate) q.tanggal_masuk = 'gte.' + startDate;
+      else if (endDate) q.tanggal_masuk = 'lte.' + endDate;
+      const r = await db('GET', 'employees', q);
       if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil report employees.', error: r.error });
-      return json(res, 200, { ok: true, rows: r.data || [] });
+      const rows = r.data || [];
+      const summary = {
+        total: rows.length,
+        active: rows.filter(function(x) { return String(x.is_active).toLowerCase() === 'true'; }).length,
+        inactive: rows.filter(function(x) { return String(x.is_active).toLowerCase() !== 'true'; }).length,
+        employee: rows.filter(function(x) { return String(x.role || '').toLowerCase() === 'employee'; }).length,
+        admin: rows.filter(function(x) { return String(x.role || '').toLowerCase() === 'admin'; }).length,
+        superadmin: rows.filter(function(x) { return String(x.role || '').toLowerCase() === 'superadmin'; }).length
+      };
+      await auditLog(a.email, 'REPORT', 'employees', 'Generate report employees total=' + String(summary.total), String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, { ok: true, summary: summary, rows: rows });
     }
 
     return json(res, 404, { ok: false, message: 'Endpoint tidak ditemukan.', path: path, method: method });

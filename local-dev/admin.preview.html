@@ -5,122 +5,738 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ESS Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <style>
-    * { box-sizing: border-box; }
-    :root { --bg:#f3f6fb; --panel:#fff; --panel-2:#f8fafc; --text:#0f172a; --muted:#64748b; --line:#e2e8f0; --accent:#2563eb; --success:#15803d; --danger:#b91c1c; --warning:#b45309; --shadow:0 8px 24px rgba(15,23,42,.08); --radius:18px; }
-    html,body { margin:0; padding:0; font-family:Arial,sans-serif; background:var(--bg); color:var(--text); }
-    .layout { display:flex; min-height:100vh; }
-    .sidebar { width:300px; background:linear-gradient(180deg,#081223 0%,#0b1b34 100%); color:#fff; padding:20px 16px; min-height:100vh; }
-    .sidebar h2 { font-size:22px; margin-bottom:24px; padding:0 6px; }
-    .sidebar button { width:100%; margin-bottom:12px; padding:14px 16px; border:0; border-radius:14px; background:rgba(255,255,255,.08); color:#fff; cursor:pointer; text-align:left; font-size:14px; font-weight:600; }
-    .sidebar button:hover { background:rgba(255,255,255,.16); }
-    .main { flex:1; padding:28px; }
-    .card { background:var(--panel); border-radius:var(--radius); padding:22px 24px; box-shadow:var(--shadow); margin-bottom:18px; }
-    .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:16px; margin-bottom:20px; }
-    .stat { font-size:30px; font-weight:700; margin-top:10px; }
-    .muted { color:var(--muted); font-size:14px; }
-    .error { color:#b91c1c; font-weight:700; }
-    .table-wrap { width:100%; overflow-x:auto; border-radius:14px; border:1px solid #e2e8f0; }
-    table { width:100%; min-width:760px; border-collapse:collapse; background:#fff; }
-    th,td { border-bottom:1px solid #e2e8f0; padding:12px 14px; text-align:left; font-size:14px; vertical-align:top; }
-    th { background:#f8fafc; font-weight:700; white-space:nowrap; }
-    .badge { display:inline-block; padding:6px 10px; border-radius:999px; font-size:12px; font-weight:700; line-height:1; }
-    .badge-success { background:#dcfce7; color:#166534; }
-    .badge-danger { background:#fee2e2; color:#991b1b; }
-    .badge-warning { background:#fef3c7; color:#92400e; }
-    .badge-neutral { background:#e2e8f0; color:#334155; }
-    .section-title { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
-    .actions { display:flex; gap:10px; flex-wrap:wrap; }
-    .btn { display:inline-block; border:0; border-radius:12px; padding:10px 14px; font-size:14px; font-weight:700; cursor:pointer; text-decoration:none; }
-    .btn-primary { background:#2563eb; color:#fff; }
-    .btn-secondary { background:#e2e8f0; color:#0f172a; }
-    .btn-danger { background:#dc2626; color:#fff; }
-    .form-group { margin-bottom:14px; }
-    label { display:block; margin-bottom:6px; font-size:14px; font-weight:700; }
-    input,select,textarea { width:100%; padding:11px 12px; border:1px solid #cbd5e1; border-radius:12px; font-size:14px; background:#fff; color:#0f172a; outline:none; }
-    textarea { min-height:110px; resize:vertical; }
-    .grid-2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
-    @media (max-width:960px){ .layout{flex-direction:column;} .sidebar{width:100%;min-height:auto;} .main{padding:16px;} .grid-2,.cards{grid-template-columns:1fr;} }
+    :root {
+      --primary: #4F46E5; --secondary: #6366F1; --primary-light: #EEF2FF;
+      --bg: #F9FAFB; --card: #FFFFFF; --sidebar-bg: #F8FAFC; --border: #E5E7EB;
+      --text-main: #111827; --text-sec: #6B7280;
+      --success: #10B981; --success-bg: #D1FAE5;
+      --warning: #F59E0B; --warning-bg: #FEF3C7; --danger: #EF4444; --danger-bg: #FEE2E2;
+      --radius-lg: 20px; --radius-md: 16px; --radius-sm: 12px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+      --shadow-lg: 0 10px 25px -3px rgba(0,0,0,0.04), 0 4px 10px -2px rgba(0,0,0,0.02);
+      --shadow-hover: 0 14px 30px -4px rgba(79, 70, 229, 0.15);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background-color: var(--bg); color: var(--text-main); line-height: 1.5; -webkit-font-smoothing: antialiased; overflow: hidden; }
+    .layout { display: flex; height: 100vh; }
+    .sidebar { width: 240px; background-color: var(--sidebar-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 24px 20px; transition: transform 0.3s ease; z-index: 50; }
+    .sidebar-header { display: flex; align-items: center; gap: 12px; margin-bottom: 40px; padding: 0 8px; }
+    .logo img { height: 32px; width: auto; }
+    .logo-text { font-weight: 700; font-size: 18px; letter-spacing: -0.02em; }
+    .sidebar-menu { display: flex; flex-direction: column; gap: 6px; flex: 1; overflow-y: auto; }
+    .menu-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; text-decoration: none; color: var(--text-sec); border-radius: var(--radius-sm); font-weight: 500; font-size: 14px; transition: all 0.2s ease; cursor:pointer; border:none; background:transparent; width:100%; text-align:left; }
+    .menu-item i { font-size: 20px; }
+    .menu-item:hover { background-color: var(--border); color: var(--text-main); }
+    .menu-item.active { background-color: var(--primary-light); color: var(--primary); }
+    .main-wrapper { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .header { height: 80px; display: flex; justify-content: space-between; align-items: center; padding: 0 32px; background-color: var(--card); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .header-left { display: flex; align-items: center; gap: 16px; }
+    .search-bar { display: flex; align-items: center; gap: 10px; background-color: var(--bg); padding: 10px 16px; border-radius: 99px; border: 1px solid var(--border); width: 320px; transition: all 0.2s; }
+    .search-bar:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); background-color: var(--card); }
+    .search-bar i { color: var(--text-sec); font-size: 18px; }
+    .search-bar input { border: none; background: transparent; outline: none; width: 100%; font-size: 14px; font-family: inherit; }
+    .header-right { display: flex; align-items: center; gap: 24px; }
+    .date-display { display: flex; align-items: center; gap: 8px; color: var(--text-sec); font-size: 14px; font-weight: 500; }
+    .icon-btn { background: none; border: none; font-size: 22px; color: var(--text-sec); cursor: pointer; position: relative; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; transition: background 0.2s; }
+    .icon-btn:hover { background-color: var(--bg); color: var(--text-main); }
+    .badge { position: absolute; top: 6px; right: 6px; background-color: #EF4444; color: white; font-size: 10px; font-weight: 700; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 2px solid var(--card); }
+    .user-profile { display: flex; align-items: center; gap: 12px; cursor: pointer; padding: 6px; border-radius: var(--radius-sm); transition: background 0.2s; }
+    .user-profile:hover { background-color: var(--bg); }
+    .avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background:var(--primary); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:16px; }
+    .user-info { display: flex; flex-direction: column; }
+    .user-name { font-weight: 600; font-size: 14px; }
+    .user-role { font-size: 12px; color: var(--text-sec); }
+    
+    .content-grid { display: grid; grid-template-columns: 1fr; gap: 24px; padding: 32px; overflow-y: auto; height: calc(100vh - 80px); }
+    .middle-col { display: flex; flex-direction: column; gap: 24px; }
+    
+    .greeting h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }
+    .greeting p { color: var(--text-sec); font-size: 15px; }
+    .cards-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 24px; }
+    
+    .card { background-color: var(--card); border-radius: var(--radius-lg); border: 1px solid var(--border); box-shadow: var(--shadow-sm); padding: 24px; transition: box-shadow 0.3s ease, transform 0.3s ease; }
+    .card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+    
+    .stat-large { font-size: 42px; font-weight: 800; color: var(--primary); line-height: 1; margin-bottom: 4px; letter-spacing: -0.02em; }
+    .stat-label { font-size: 14px; color: var(--text-sec); font-weight: 500; }
+    .status-badge { padding: 4px 12px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+    .status-badge.on-time { background-color: var(--success-bg); color: var(--success); }
+    .status-badge.on-leave { background-color: var(--warning-bg); color: var(--warning); }
+    .status-badge.danger { background-color: var(--danger-bg); color: var(--danger); }
+    .status-badge.neutral { background-color: var(--border); color: var(--text-sec); }
+    
+    /* Generic Forms / Tables */
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 600; color: var(--text-main); }
+    input, select, textarea { width: 100%; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: #fff; color: var(--text-main); outline: none; font-family: inherit; transition: border-color 0.2s; }
+    input:focus, select:focus, textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+    .table-wrap { width: 100%; overflow-x: auto; border-radius: var(--radius-md); border: 1px solid var(--border); background: #fff; margin-top: 16px; }
+    table { width: 100%; min-width: 760px; border-collapse: collapse; background: #fff; }
+    th, td { border-bottom: 1px solid var(--border); padding: 14px 16px; text-align: left; font-size: 14px; vertical-align: middle; }
+    th { background: var(--bg); font-weight: 600; color: var(--text-sec); text-transform: uppercase; letter-spacing: 0.05em; font-size: 12px; }
+    .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 99px; padding: 10px 20px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; transition: .2s ease; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--secondary); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(79,70,229,.2); }
+    .btn-secondary { background: var(--primary-light); color: var(--primary); }
+    .btn-secondary:hover { background: #E0E7FF; transform: translateY(-1px); }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger:hover { background: #DC2626; transform: translateY(-1px); }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .muted { color: var(--text-sec); font-size: 14px; }
+    .error { background: var(--danger-bg); color: var(--danger); border: 1px solid #fecaca; border-radius: var(--radius-sm); padding: 12px 14px; font-size: 14px; font-weight: 600; }
+    .clean-list { list-style: none; display: flex; flex-direction: column; gap: 16px; }
+    .clean-list li { display: flex; align-items: center; gap: 16px; }
+    .icon-box { width: 44px; height: 44px; border-radius: var(--radius-sm); background-color: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 22px; }
+    .list-text { flex: 1; display: flex; flex-direction: column; }
+    .list-title { font-weight: 600; font-size: 14px; color: var(--text-main); }
+    .list-desc { font-size: 13px; color: var(--text-sec); }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(17,24,39,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; backdrop-filter: blur(4px); }
+    .modal-card { width: min(860px, 96vw); max-height: 92vh; overflow: auto; background: #fff; border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-lg); }
+    .thumb-mini { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; border: 1px solid var(--border); background: var(--bg); }
+    .thumb-mini-fallback { width: 48px; height: 48px; border-radius: 10px; display:flex; align-items:center; justify-content:center; border:1px solid var(--border); background:var(--bg); color:var(--text-sec); font-size:20px; }
+
+    .team-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+    
+    @media (max-width: 992px) { .sidebar { position: fixed; transform: translateX(-100%); height: 100vh; box-shadow: var(--shadow-lg); } .sidebar.open { transform: translateX(0); } .header { padding: 0 24px; } .search-bar { display: none; } }
+    @media (max-width: 768px) { .content-grid { padding: 20px; } .header-right .date-display { display: none; } }
   </style>
 </head>
 <body>
   <div class="layout">
-    <div class="sidebar">
-      <h2>ESS Admin</h2>
-      <button onclick="loadSummary()">Dashboard</button>
-      <button onclick="loadAllEmployees()">Data Karyawan</button>
-      <button onclick="loadAddEmployeeForm()">Tambah Karyawan</button>
-      <button onclick="loadLeaveManagement()">Manajemen Cuti</button>
-      <button onclick="loadTodayAttendance()">Rekap Absensi Hari Ini</button>
-      <button onclick="loadPayrollDocs()">Payroll Docs</button>
-      <button onclick="loadAddPayrollForm()">Tambah Payroll Doc</button>
-      <button onclick="loadAnnouncements()">Pemberitahuan</button>
-      <button onclick="loadAddAnnouncementForm()">Tambah Pemberitahuan</button>
-      <button onclick="loadDivisions()">Divisions</button>
-      <button onclick="loadAddDivisionForm()">Tambah Division</button>
-      <button onclick="loadPositions()">Positions</button>
-      <button onclick="loadAddPositionForm()">Tambah Position</button>
-      <button onclick="loadLeaveTypes()">Leave Types</button>
-      <button onclick="loadAddLeaveTypeForm()">Tambah Leave Type</button>
-      <button onclick="loadAdminNotifications()">Notifikasi</button>
-    </div>
-    <div class="main">
-      <div class="card">
-        <h1>Dashboard Admin</h1>
-        <div class="muted" id="admin_meta">admin@perusahaan.com • superadmin</div>
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo"><img src="https://trendhorizone.id/wp-content/uploads/2024/07/174135616958657596.png" alt="Logo"></div>
+        <button class="mobile-close" onclick="document.getElementById('sidebar').classList.remove('open')" style="display:none;"><i class="ph ph-x"></i></button>
       </div>
-      <div id="content"></div>
+      <nav class="sidebar-menu">
+        <button class="menu-item active" onclick="navTo('home', this); loadSummary()"><i class="ph ph-squares-four"></i><span>Dashboard</span></button>
+        <button class="menu-item" onclick="navTo('emp', this); loadAllEmployees()"><i class="ph ph-users"></i><span>Employees</span></button>
+        <button class="menu-item" onclick="navTo('leave', this); loadLeaveManagement()"><i class="ph ph-calendar-blank"></i><span>Leave Approvals</span></button>
+        <button class="menu-item" onclick="navTo('sched', this); loadMonthlyScheduleAdmin()"><i class="ph ph-calendar-check"></i><span>Monthly Schedule</span></button>
+        <button class="menu-item" onclick="navTo('att', this); loadTodayAttendance()"><i class="ph ph-clock"></i><span>Attendance Log</span></button>
+        <button class="menu-item" onclick="navTo('rep', this); loadEmployeeReports()"><i class="ph ph-chart-bar"></i><span>Reports</span></button>
+        <button class="menu-item" onclick="navTo('master', this); loadMasterDataHub()"><i class="ph ph-database"></i><span>Master Data</span></button>
+      </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <div class="main-wrapper">
+      <header class="header">
+        <div class="header-left">
+          <button class="icon-btn" onclick="document.getElementById('sidebar').classList.add('open')" style="display:none;" id="mobileToggle"><i class="ph ph-list"></i></button>
+          <div class="search-bar"><i class="ph ph-magnifying-glass"></i><input type="text" placeholder="Search anything..."></div>
+        </div>
+        <div class="header-right">
+          <div class="date-display"><i class="ph ph-calendar"></i><span id="header_date">Today</span></div>
+          <button class="icon-btn" onclick="loadAdminNotifications()"><i class="ph ph-bell"></i><span class="badge" id="notif_badge" style="display:none;">0</span></button>
+          <div class="user-profile">
+            <div class="avatar" id="header_avatar">A</div>
+            <div class="user-info"><span class="user-name" id="header_name">Admin</span><span class="user-role" id="header_role">Superadmin</span></div>
+          </div>
+        </div>
+      </header>
+
+      <div class="content-grid" id="main_content_grid">
+        <!-- Injected by JS -->
+      </div>
     </div>
   </div>
 
   <script>
+    function navTo(id, el){ document.querySelectorAll('.menu-item').forEach(e=>e.classList.remove('active')); el.classList.add('active'); if(window.innerWidth<=992) document.getElementById('sidebar').classList.remove('open'); }
+    if(window.innerWidth<=992) { document.getElementById('mobileToggle').style.display='block'; document.querySelector('.mobile-close').style.display='block'; }
+    document.getElementById('header_date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long', day:'2-digit', month:'short'});
+
+    let adminStatusTimer=null;
     function safe(v){ return v===null||v===undefined?'':v; }
     function escapeHtml(v){ return String(safe(v)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
-    function setContent(html){ const el=document.getElementById('content'); if(el) el.innerHTML=html; }
-    function setLoading(t){ setContent('<div class="card"><h3>'+escapeHtml(t||'Memuat data...')+'</h3><p class="muted">Mohon tunggu sebentar.</p></div>'); }
-    function renderError(m){ return '<div class="card"><div class="error">'+escapeHtml(m||'Terjadi kesalahan.')+'</div></div>'; }
-    function normalizeStatusBadge(status){ const s=String(safe(status)).trim().toLowerCase(); if(s==='approved'||s==='active'||s==='true'||s==='hadir') return '<span class="badge badge-success">'+escapeHtml(status)+'</span>'; if(s==='rejected'||s==='inactive'||s==='false') return '<span class="badge badge-danger">'+escapeHtml(status)+'</span>'; if(s==='pending'||s==='terlambat') return '<span class="badge badge-warning">'+escapeHtml(status)+'</span>'; return '<span class="badge badge-neutral">'+escapeHtml(status||'-')+'</span>'; }
-    function hdr(){ return {'Content-Type':'application/json','x-user-email':localStorage.getItem('ess_admin_email')||'admin@perusahaan.com','x-user-role':localStorage.getItem('ess_admin_role')||'superadmin'}; }
+    function clearAdminStatusTicker(){ if(adminStatusTimer){ clearInterval(adminStatusTimer); adminStatusTimer=null; } }
+    
+    function setContent(html){
+        clearAdminStatusTicker();
+        document.getElementById('main_content_grid').innerHTML = `<main class="middle-col">${html}</main>`;
+    }
+    
+    function setLoading(t){ setContent(`<div class="card"><h3>${escapeHtml(t||'Loading...')}</h3><p class="muted">Please wait a moment.</p></div>`); }
+    function renderError(m){ return `<div class="card"><div class="error">${escapeHtml(m||'Error occurred.')}</div></div>`; }
+    function normalizeStatusBadge(status){ const s=String(safe(status)).trim().toLowerCase(); if(s==='approved'||s==='active'||s==='true'||s==='hadir') return `<span class="status-badge on-time">${escapeHtml(status)}</span>`; if(s==='rejected'||s==='inactive'||s==='false') return `<span class="status-badge danger">${escapeHtml(status)}</span>`; if(s==='pending'||s==='terlambat') return `<span class="status-badge on-leave">${escapeHtml(status)}</span>`; return `<span class="status-badge neutral">${escapeHtml(status||'-')}</span>`; }
+    function getDriveFileId(url){ const raw=String(url||'').trim(); if(!raw) return ''; const a=raw.match(/\/file\/d\/([a-zA-Z0-9_-]+)/); if(a&&a[1]) return a[1]; const b=raw.match(/[?&]id=([a-zA-Z0-9_-]+)/); if(b&&b[1]) return b[1]; return ''; }
+    function isImageAttachment(url){ const raw=String(url||'').toLowerCase(); if(!raw) return false; if(raw.startsWith('data:image/')) return true; if(/(\.jpg|\.jpeg|\.png|\.webp|\.gif)(\?|#|$)/.test(raw)) return true; if(raw.includes('drive.google.com/thumbnail')) return true; const id=getDriveFileId(raw); return !!id; }
+    function renderAttachmentThumb(url){ const safeUrl=escapeHtml(url||''); if(!safeUrl) return '-'; if(isImageAttachment(url)){ const id=getDriveFileId(url); const src=id?('https://drive.google.com/thumbnail?id='+id+'&sz=w200'):safeUrl; return '<a href="'+safeUrl+'" target="_blank" title="Lihat lampiran"><img class="thumb-mini" src="'+src+'" alt="Lampiran"></a>'; } return '<a href="'+safeUrl+'" target="_blank" class="thumb-mini-fallback" title="Buka lampiran"><i class="ph ph-file-pdf"></i></a>'; }
+    function formatDateTimeDisplay(value){ if(!value) return ''; const d=new Date(value); if(isNaN(d.getTime())) return String(value); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0'); }
+    function formatDateDisplay(value){ if(!value) return ''; const d=new Date(value); if(isNaN(d.getTime())) return String(value); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+    function nowHmsWIB(){ const p=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jakarta',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).formatToParts(new Date()).reduce(function(a,x){ if(x&&x.type) a[x.type]=x.value; return a; },{}); return String(p.hour||'00')+':'+String(p.minute||'00')+':'+String(p.second||'00'); }
+    function hmsToSec(v){ const s=String(v||'').trim(); const m=s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/); if(!m) return 0; return Number(m[1]||0)*3600+Number(m[2]||0)*60+Number(m[3]||0); }
+    function isValidHms(v){ return /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.test(String(v||'').trim()); }
+    function diffSecClock(a,b){ if(!isValidHms(a)||!isValidHms(b)) return 0; const x=hmsToSec(a), y=hmsToSec(b); return y>=x?(y-x):((24*3600-x)+y); }
+    function secToDigital(total){ const t=Math.max(0,Math.floor(Number(total||0))); const h=Math.floor(t/3600), m=Math.floor((t%3600)/60), s=t%60; return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'); }
+    
+    function startAdminStatusTicker(){
+      const rows=[].slice.call(document.querySelectorAll('tr[data-live-row="1"]'));
+      if(!rows.length) return;
+      const tick=function(){
+        const now=nowHmsWIB();
+        rows.forEach(function(tr){
+          const masuk=String(tr.getAttribute('data-masuk')||'');
+          const keluar=String(tr.getAttribute('data-keluar')||'');
+          const breakSec=Number(tr.getAttribute('data-break-seconds')||0);
+          const breakActive=String(tr.getAttribute('data-break-active')||'')==='1';
+          const breakStart=String(tr.getAttribute('data-break-start')||'');
+          if(!masuk) return;
+          let gross=keluar?diffSecClock(masuk,keluar):diffSecClock(masuk,now);
+          let b=breakSec;
+          if(!keluar && breakActive && breakStart){ b+=diffSecClock(breakStart,now); }
+          const eff=Math.max(0,gross-b);
+          const workEl=tr.querySelector('[data-cell=\"work\"]'); if(workEl) workEl.textContent=secToDigital(eff);
+          const breakEl=tr.querySelector('[data-cell=\"break\"]'); if(breakEl) breakEl.textContent=secToDigital(b);
+        });
+      };
+      tick();
+      adminStatusTimer=setInterval(tick,1000);
+    }
+
+    function hdr(){
+      return { 'Content-Type':'application/json', 'x-user-email':localStorage.getItem('ess_admin_email')||localStorage.getItem('ess_demo_admin_email')||'admin@perusahaan.com', 'x-user-role':localStorage.getItem('ess_admin_role')||'superadmin' };
+    }
     function base(){ return localStorage.getItem('ess_api_base') || 'https://ess-2026-trendhorizone-id.vercel.app'; }
-    async function api(path,method,body){ const r=await fetch(base()+path,{method:method||'GET',headers:hdr(),body:body?JSON.stringify(body):undefined}); const tx=await r.text(); let d=tx; try{d=JSON.parse(tx);}catch(e){} if(!r.ok) throw new Error((d&&d.message)||'Request gagal'); return d; }
+    async function api(path,method,body){ const r=await fetch(base()+path,{method:method||'GET',headers:hdr(),body:body?JSON.stringify(body):undefined}); const tx=await r.text(); let d=tx; try{d=JSON.parse(tx);}catch(e){} if(!r.ok) throw new Error((d&&d.message)||'Request failed'); return d; }
 
-    async function loadSummary(){ try{ setLoading('Memuat dashboard admin...'); const emps=await api('/api/admin/employees?limit=500'); const pending=await api('/api/admin/leaves/pending'); const ann=await api('/api/admin/announcements'); const pay=await api('/api/admin/payroll-docs'); const today=await api('/api/admin/attendance/today?tanggal='+(new Date().toISOString().slice(0,10))); setContent(''
-      +'<div class="cards"><div class="card"><div>Total Karyawan</div><div class="stat">'+escapeHtml((emps||[]).length)+'</div></div><div class="card"><div>Pending Cuti</div><div class="stat">'+escapeHtml((pending||[]).length)+'</div></div><div class="card"><div>Pengumuman</div><div class="stat">'+escapeHtml((ann||[]).length)+'</div></div><div class="card"><div>Payroll Docs</div><div class="stat">'+escapeHtml((pay||[]).length)+'</div></div><div class="card"><div>Attendance Hari Ini</div><div class="stat">'+escapeHtml((today||[]).length)+'</div></div></div>'
-      +'<div class="card"><h3>Aksi Cepat</h3><div class="actions"><button class="btn btn-secondary" onclick="loadLeaveManagement()">Buka Manajemen Cuti</button><button class="btn btn-secondary" onclick="loadAllEmployees()">Buka Data Karyawan</button><button class="btn btn-secondary" onclick="loadAdminNotifications()">Buka Notifikasi</button></div></div>'
-    ); }catch(err){ setContent(renderError(err.message)); } }
+    async function loadSummary(){
+      try{
+        setLoading('Loading dashboard...');
+        const todayDate=(new Date().toISOString().slice(0,10));
+        const kpiStart=(new Date(Date.now()-29*24*60*60*1000).toISOString().slice(0,10));
+        const [emps,pending,ann,pay,today]=await Promise.all([
+          api('/api/admin/employees?limit=500').catch(()=>[]),
+          api('/api/admin/leaves/pending').catch(()=>[]),
+          api('/api/admin/announcements').catch(()=>[]),
+          api('/api/admin/payroll-docs').catch(()=>[]),
+          api('/api/admin/attendance/today?tanggal='+todayDate).catch(()=>[])
+        ]);
+        
+        let kpiErr='';
+        const kpi=await api('/api/admin/kpi/hr?start_date='+encodeURIComponent(kpiStart)+'&end_date='+encodeURIComponent(todayDate)).catch(e=>{ kpiErr=String((e&&e.message)||''); return null; });
+        const kpiOk=!!(kpi&&kpi.summary);
+        hrKpiData=kpiOk?kpi:null;
+        const s=(kpiOk?kpi.summary:null)||{ start_date:kpiStart,end_date:todayDate,late_records:0,pending_leaves:(pending||[]).length,attendance_records:(today||[]).length,leave_requests:0 };
+        
+        const attMap={}; (today||[]).forEach(r=>{ if(!attMap[r.employee_id]) attMap[r.employee_id]=r; });
+        const liveStatus=function(a){ if(!a||!a.jam_masuk) return 'Belum Check In'; if(a.jam_keluar) return 'Selesai Check Out'; if(a.break_active) return 'Sedang Istirahat'; return 'Sedang Kerja'; };
+        
+        const statusRows=(emps||[]).map(function(e,i){ const a=attMap[e.employee_id]||null; return '<tr data-live-row="1" data-masuk="'+escapeHtml((a&&a.jam_masuk)||'')+'" data-keluar="'+escapeHtml((a&&a.jam_keluar)||'')+'" data-break-seconds="'+escapeHtml((a&&a.break_total_seconds)||0)+'" data-break-active="'+(a&&a.break_active?'1':'0')+'" data-break-start="'+escapeHtml((a&&a.break_active_start)||'')+'"><td>'+escapeHtml(e.employee_id||'-')+'</td><td>'+escapeHtml(e.nama||'-')+'</td><td>'+normalizeStatusBadge(liveStatus(a))+'</td><td>'+escapeHtml((a&&a.shift_code)||'-')+'</td><td>'+escapeHtml((a&&a.jam_masuk)||'-')+'</td><td>'+escapeHtml((a&&a.jam_keluar)||'-')+'</td><td data-cell="work" style="font-family:monospace;font-weight:600;color:var(--primary);">'+escapeHtml((a&&a.work_duration_digital)||'00:00:00')+'</td><td data-cell="break" style="font-family:monospace;">'+escapeHtml((a&&a.break_duration_digital)||'00:00:00')+'</td></tr>'; }).join('') || '<tr><td colspan="8">Tidak ada data karyawan</td></tr>';
+        
+        const html = `
+            <div class="greeting">
+                <h1>Admin Dashboard</h1>
+                <p>Overview of today's attendance and quick HR actions.</p>
+            </div>
+            
+            <div class="cards-row" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+                <div class="card"><div class="stat-label">Total Employees</div><div class="stat-large">${escapeHtml((emps||[]).length)}</div></div>
+                <div class="card"><div class="stat-label">Present Today</div><div class="stat-large">${escapeHtml(Object.keys(attMap).length)}</div></div>
+                <div class="card"><div class="stat-label">Pending Leaves</div><div class="stat-large">${escapeHtml((pending||[]).length)}</div></div>
+                <div class="card"><div class="stat-label">Late (30d)</div><div class="stat-large">${escapeHtml(s.late_records||0)}</div></div>
+            </div>
 
-    async function loadAllEmployees(){ try{ setLoading('Memuat data karyawan...'); const rows=await api('/api/admin/employees?limit=500'); setContent('<div class="card"><h3>Data Karyawan</h3><div class="table-wrap"><table><thead><tr><th>ID</th><th>Email</th><th>Nama</th><th>Role</th><th>Divisi</th><th>Jabatan</th><th>Status</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.employee_id)+'</td><td>'+escapeHtml(r.email)+'</td><td>'+escapeHtml(r.nama)+'</td><td>'+escapeHtml(r.role)+'</td><td>'+escapeHtml(r.divisi||'-')+'</td><td>'+escapeHtml(r.jabatan||'-')+'</td><td>'+normalizeStatusBadge(String(r.is_active))+'</td></tr>';}).join('')||'<tr><td colspan="7">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
-    function loadAddEmployeeForm(){ setContent('<div class="card"><h3>Tambah Karyawan</h3><div class="grid-2"><div class="form-group"><label>Employee ID</label><input id="emp_id"></div><div class="form-group"><label>Email</label><input id="emp_email"></div><div class="form-group"><label>Nama</label><input id="emp_nama"></div><div class="form-group"><label>Role</label><select id="emp_role"><option value="employee">employee</option><option value="admin">admin</option><option value="superadmin">superadmin</option></select></div></div><div class="actions"><button class="btn btn-primary" onclick="submitAddEmployee()">Simpan</button></div></div>'); }
-    async function submitAddEmployee(){ try{ await api('/api/admin/employees','POST',{employee_id:(document.getElementById('emp_id')||{}).value||'',email:(document.getElementById('emp_email')||{}).value||'',nama:(document.getElementById('emp_nama')||{}).value||'',role:(document.getElementById('emp_role')||{}).value||'employee'}); await loadAllEmployees(); }catch(err){ setContent(renderError(err.message)); } }
+            <div class="card">
+                <div class="team-header">
+                    <h3 style="font-size:20px;font-weight:700;">Quick Actions</h3>
+                    <div class="actions">
+                        <button class="btn btn-secondary" onclick="loadLeaveManagement()"><i class="ph ph-calendar-blank"></i> Leaves</button>
+                        <button class="btn btn-secondary" onclick="loadAllEmployees()"><i class="ph ph-users"></i> Employees</button>
+                        <button class="btn btn-primary" onclick="loadKpiHrDashboard()"><i class="ph ph-chart-bar"></i> Full KPI</button>
+                        <button class="btn btn-primary" onclick="exportTodayStatusPdf()"><i class="ph ph-download-simple"></i> Export PDF</button>
+                    </div>
+                </div>
+            </div>
 
+            <div class="card">
+                <div class="team-header">
+                    <h3 style="font-size:20px;font-weight:700;">Live Employee Status</h3>
+                    <div class="stat-label">${escapeHtml(todayDate)}</div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>ID</th><th>Nama</th><th>Status Live</th><th>Shift</th><th>Masuk</th><th>Keluar</th><th>Jam Kerja</th><th>Istirahat</th></tr></thead>
+                        <tbody>${statusRows}</tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+        
+        setContent(html);
+        startAdminStatusTicker();
+
+        // fetch unread notif count
+        api('/api/admin/notifications/leave/summary').then(n=>{
+            const b=document.getElementById('notif_badge');
+            if(n.total_unread>0){b.style.display='flex';b.textContent=n.total_unread;}else{b.style.display='none';}
+        }).catch(()=>{});
+
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+
+    // --- KPI & CHART HELPERS ---
+    let hrKpiData = null;
+    let hrKpiDayDetail = null;
+    let kpiLateFocusEmployee = '';
+    function num(v){ const n=Number(v||0); return isNaN(n)?0:n; }
+    function compactDates(arr){ const a=(arr||[]); if(a.length<=14) return a; const step=Math.ceil(a.length/14); return a.filter(function(_,i){ return i%step===0 || i===a.length-1; }); }
+    function renderLineChartSvg(series,labels,opts){
+      const width=920, height=260, padL=44, padR=16, padT=14, padB=28;
+      const w=width-padL-padR, h=height-padT-padB;
+      const xStep=(labels.length<=1)?w:(w/(labels.length-1));
+      const all=[]; (series||[]).forEach(function(s){ (s.values||[]).forEach(function(v){ all.push(num(v)); }); });
+      const max=Math.max(1,Math.max.apply(null,all));
+      const y=function(v){ return padT + (h - (num(v)/max)*h); };
+      const x=function(i){ return padL + i*xStep; };
+      const grid=[0,.25,.5,.75,1].map(function(r){ const yy=padT + h*r; const val=Math.round(max*(1-r)); return '<line x1="'+padL+'" y1="'+yy+'" x2="'+(padL+w)+'" y2="'+yy+'" stroke="var(--border)" stroke-width="1"></line><text x="6" y="'+(yy+4)+'" fill="var(--text-sec)" font-size="11">'+val+'</text>'; }).join('');
+      const fnName=opts&&opts.onPointClick?String(opts.onPointClick):'';
+      const paths=(series||[]).map(function(s){
+        const points=(s.values||[]).map(function(v,i){ return x(i)+','+y(v); }).join(' ');
+        const circles=(s.values||[]).map(function(v,i){
+          const date=String(labels[i]||'');
+          const click=fnName&&date?' onclick="'+fnName+'(\''+escapeHtml(date)+'\')" style="cursor:pointer;" ':'';
+          return '<circle cx="'+x(i)+'" cy="'+y(v)+'" r="3.5" fill="'+s.color+'"'+click+'><title>'+escapeHtml((s.name||'')+' '+date+' : '+String(v||0))+'</title></circle>';
+        }).join('');
+        return '<polyline points="'+points+'" fill="none" stroke="'+s.color+'" stroke-width="2.5"></polyline>'+circles;
+      }).join('');
+      const tickLabels=compactDates(labels).map(function(lbl){ const idx=labels.indexOf(lbl); return '<text x="'+x(idx)+'" y="'+(height-8)+'" fill="var(--text-sec)" font-size="11" text-anchor="middle">'+escapeHtml(lbl.slice(5))+'</text>'; }).join('');
+      const legends=(series||[]).map(function(s,i){ return '<span style="display:inline-flex;align-items:center;margin-right:14px;font-size:12px;font-weight:600;"><span style="display:inline-block;width:12px;height:12px;border-radius:4px;background:'+s.color+';margin-right:6px;"></span>'+escapeHtml(s.name)+'</span>'; }).join('');
+      return '<div style="margin-bottom:12px;">'+legends+'</div><div style="overflow-x:auto;"><svg viewBox="0 0 '+width+' '+height+'" style="width:100%;min-width:760px;background:var(--bg);border-radius:var(--radius-sm);">'+grid+paths+tickLabels+'</svg></div>';
+    }
+    function renderBarChartSvg(rows){
+      const width=920, height=280, padL=50, padR=16, padT=14, padB=56;
+      const w=width-padL-padR, h=height-padT-padB;
+      const data=(rows||[]).slice(0,10);
+      const max=Math.max(1,Math.max.apply(null,data.map(function(r){ return num(r.late_count); })));
+      const barW=(w/Math.max(1,data.length))*0.62;
+      const gap=(w/Math.max(1,data.length))*0.38;
+      const bars=data.map(function(r,i){
+        const v=num(r.late_count), bh=(v/max)*h, x=padL+i*(barW+gap)+(gap*0.5), y=padT+(h-bh);
+        const empId=String(r.employee_id||'');
+        const click=empId?' onclick="focusLateEmployee(\''+escapeHtml(empId)+'\')" style="cursor:pointer;" ':'';
+        return '<rect x="'+x+'" y="'+y+'" width="'+barW+'" height="'+bh+'" rx="4" fill="var(--warning)"'+click+'><title>'+escapeHtml(empId+' : '+v)+'</title></rect>'
+          +'<text x="'+(x+barW/2)+'" y="'+(y-6)+'" text-anchor="middle" fill="var(--warning)" font-size="11" font-weight="700">'+v+'</text>'
+          +'<text x="'+(x+barW/2)+'" y="'+(height-30)+'" text-anchor="middle" fill="var(--text-sec)" font-size="10">'+escapeHtml(String(r.employee_id||'-'))+'</text>';
+      }).join('');
+      return '<div style="overflow-x:auto;"><svg viewBox="0 0 '+width+' '+height+'" style="width:100%;min-width:760px;background:var(--bg);border-radius:var(--radius-sm);"><line x1="'+padL+'" y1="'+(padT+h)+'" x2="'+(padL+w)+'" y2="'+(padT+h)+'" stroke="var(--border)"></line>'+bars+'</svg></div>';
+    }
+    function renderLateHeatmapMatrix(rows){
+      const data=rows||[];
+      const dates=Array.from(new Set(data.map(function(r){ return String(r.date||''); }))).sort();
+      const cols=dates.slice(Math.max(0,dates.length-14));
+      const divisions=Array.from(new Set(data.map(function(r){ return String(r.divisi||'Tanpa Divisi'); }))).sort();
+      const map={}; data.forEach(function(r){ map[String(r.divisi||'Tanpa Divisi')+'|'+String(r.date||'')] = r; });
+      const head='<tr><th>Divisi</th>'+cols.map(function(d){ return '<th>'+escapeHtml(String(d||'').slice(5))+'</th>'; }).join('')+'</tr>';
+      const body=divisions.map(function(div){
+        const cells=cols.map(function(d){
+          const row=map[div+'|'+d]||{ late_rate:0, late_records:0, attendance_records:0 };
+          const rate=Number(row.late_rate||0);
+          const opacity=Math.min(0.9,Math.max(0.08,rate/100));
+          const bg='rgba(245,158,11,'+opacity.toFixed(2)+')';
+          const label=(Number(row.attendance_records||0)>0)?(String(rate)+'%'):'-';
+          const tip='Terlambat: '+String(row.late_records||0)+' / '+String(row.attendance_records||0);
+          return '<td title="'+escapeHtml(tip)+'" style="background:'+bg+';text-align:center;font-weight:700;">'+escapeHtml(label)+'</td>';
+        }).join('');
+        return '<tr><td style="font-weight:600;">'+escapeHtml(div)+'</td>'+cells+'</tr>';
+      }).join('') || '<tr><td colspan="'+String(cols.length+1)+'">Tidak ada data heatmap</td></tr>';
+      return '<div class="table-wrap"><table><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>';
+    }
+    function summarizeHeatmapWarnings(rows, threshold){
+      const t=Number(threshold||20);
+      const data=(rows||[]).filter(function(r){ return Number(r.attendance_records||0)>0 && Number(r.late_rate||0)>=t; });
+      const divisionMap={};
+      data.forEach(function(r){
+        const key=String(r.divisi||'Tanpa Divisi');
+        if(!divisionMap[key]) divisionMap[key]={ divisi:key, days:0, worst_rate:0 };
+        divisionMap[key].days += 1;
+        if(Number(r.late_rate||0)>Number(divisionMap[key].worst_rate||0)) divisionMap[key].worst_rate=Number(r.late_rate||0);
+      });
+      const list=Object.values(divisionMap).sort(function(a,b){
+        if(Number(b.days||0)!==Number(a.days||0)) return Number(b.days||0)-Number(a.days||0);
+        return Number(b.worst_rate||0)-Number(a.worst_rate||0);
+      });
+      return { threshold:t, rows:data, divisions:list };
+    }
+    
+    // KPI VIEWS
+    function renderKpiDayDetailHtml(){
+      if(!hrKpiDayDetail||!hrKpiDayDetail.summary) return '<div class="card"><div class="stat-label">Klik titik chart (line) untuk melihat detail harian KPI.</div></div>';
+      const s=hrKpiDayDetail.summary||{};
+      const attRows=(hrKpiDayDetail.attendance||[]).map(function(r){ return '<tr><td>'+escapeHtml(r.employee_id||'-')+'</td><td>'+escapeHtml(r.nama||'-')+'</td><td>'+escapeHtml(r.divisi||'-')+'</td><td>'+escapeHtml(r.jabatan||'-')+'</td><td>'+escapeHtml(r.jam_masuk||'-')+'</td><td>'+escapeHtml(r.jam_keluar||'-')+'</td><td>'+normalizeStatusBadge(r.status||'-')+'</td><td>'+escapeHtml(r.work_mode||'-')+'</td></tr>'; }).join('') || '<tr><td colspan="8">Tidak ada absensi</td></tr>';
+      const leaveRows=(hrKpiDayDetail.leaves||[]).map(function(r){ return '<tr><td>'+escapeHtml(r.leave_id||'-')+'</td><td>'+escapeHtml(r.employee_id||'-')+'</td><td>'+escapeHtml(r.nama||'-')+'</td><td>'+escapeHtml(r.divisi||'-')+'</td><td>'+escapeHtml(r.jenis_cuti||'-')+'</td><td>'+normalizeStatusBadge(r.status||'-')+'</td></tr>'; }).join('') || '<tr><td colspan="6">Tidak ada pengajuan cuti</td></tr>';
+      const filteredLate=(hrKpiDayDetail.late_rows||[]).filter(function(r){ return !kpiLateFocusEmployee || String(r.employee_id||'')===kpiLateFocusEmployee; });
+      const lateRows=(filteredLate||[]).map(function(r){ return '<tr><td>'+escapeHtml(r.employee_id||'-')+'</td><td>'+escapeHtml(r.nama||'-')+'</td><td>'+escapeHtml(r.divisi||'-')+'</td><td>'+escapeHtml(r.jabatan||'-')+'</td><td>'+escapeHtml(r.jam_masuk||'-')+'</td><td>'+escapeHtml(s.late_after_time||'-')+'</td></tr>'; }).join('') || '<tr><td colspan="6">Tidak ada data keterlambatan</td></tr>';
+      const focusBadge=kpiLateFocusEmployee?'<div class="stat-label" style="margin-bottom:16px;">Filter employee: <b style="color:var(--text-main);">'+escapeHtml(kpiLateFocusEmployee)+'</b></div>':'';
+      return '<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Drill-down Harian: '+escapeHtml(s.date||'-')+'</h3><button class="btn btn-secondary" onclick="clearLateEmployeeFocus()">Reset Focus</button></div>'+focusBadge+'<div class="cards-row" style="margin-bottom:24px;"><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Hadir</div><div class="stat-large">'+escapeHtml(s.attendance_hadir||0)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Terlambat</div><div class="stat-large" style="color:var(--warning);">'+escapeHtml(s.attendance_terlambat||0)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Cuti</div><div class="stat-large" style="color:var(--secondary);">'+escapeHtml(s.leaves_total||0)+'</div></div></div><div class="card" style="box-shadow:none;border:1px solid var(--border);margin-bottom:16px;"><h3 style="font-size:16px;font-weight:600;margin-bottom:16px;">Keterlambatan '+escapeHtml(s.date||'')+'</h3><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Divisi</th><th>Jabatan</th><th>Jam Masuk</th><th>Batas Telat</th></tr></thead><tbody>'+lateRows+'</tbody></table></div></div><div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3 style="font-size:16px;font-weight:600;margin-bottom:16px;">Cuti '+escapeHtml(s.date||'')+'</h3><div class="table-wrap"><table><thead><tr><th>Leave ID</th><th>ID</th><th>Nama</th><th>Divisi</th><th>Jenis</th><th>Status</th></tr></thead><tbody>'+leaveRows+'</tbody></table></div></div></div>';
+    }
+    function renderKpiDayDetailInto(){ const el=document.getElementById('kpi_day_detail'); if(el) el.innerHTML=renderKpiDayDetailHtml(); }
+    async function loadKpiHrDayDetail(date){
+      try{ kpiLateFocusEmployee=''; hrKpiDayDetail=await api('/api/admin/kpi/hr/day?date='+encodeURIComponent(String(date||'')),'GET'); renderKpiDayDetailInto(); }catch(err){ const el=document.getElementById('kpi_day_detail'); if(el) el.innerHTML=renderError(err.message); }
+    }
+    function focusLateEmployee(employeeId){ kpiLateFocusEmployee=String(employeeId||''); renderKpiDayDetailInto(); }
+    function clearLateEmployeeFocus(){ kpiLateFocusEmployee=''; renderKpiDayDetailInto(); }
+    
+    async function loadKpiHrDashboard(){
+      try{
+        setLoading('Memuat KPI HR...');
+        const startDate=String((document.getElementById('kpi_start')||{}).value||'');
+        const endDate=String((document.getElementById('kpi_end')||{}).value||'');
+        const qs=[startDate?('start_date='+encodeURIComponent(startDate)):'',endDate?('end_date='+encodeURIComponent(endDate)):''].filter(Boolean).join('&');
+        const data=await api('/api/admin/kpi/hr'+(qs?('?'+qs):''),'GET');
+        hrKpiData=data; const s=data.summary||{};
+        const dates=(data.trend_attendance||[]).map(function(r){ return String(r.date||''); });
+        const attChart=renderLineChartSvg([
+          { name:'Total', color:'var(--secondary)', values:(data.trend_attendance||[]).map(function(r){ return r.total; }) },
+          { name:'Hadir', color:'var(--success)', values:(data.trend_attendance||[]).map(function(r){ return r.hadir; }) },
+          { name:'Terlambat', color:'var(--warning)', values:(data.trend_attendance||[]).map(function(r){ return r.terlambat; }) }
+        ],dates,{ onPointClick:'loadKpiHrDayDetail' });
+        const leaveChart=renderLineChartSvg([
+          { name:'Total', color:'var(--secondary)', values:(data.trend_leaves||[]).map(function(r){ return r.total; }) },
+          { name:'Pending', color:'var(--warning)', values:(data.trend_leaves||[]).map(function(r){ return r.pending; }) },
+          { name:'Approved', color:'var(--success)', values:(data.trend_leaves||[]).map(function(r){ return r.approved; }) },
+          { name:'Rejected', color:'var(--danger)', values:(data.trend_leaves||[]).map(function(r){ return r.rejected; }) }
+        ],(data.trend_leaves||[]).map(function(r){ return String(r.date||''); }),{ onPointClick:'loadKpiHrDayDetail' });
+        const lateBar=renderBarChartSvg(data.top_late||[]);
+        const punctualRows=(data.top_punctual||[]).map(function(r){
+          return '<tr><td>'+escapeHtml(r.employee_id||'-')+'</td><td>'+escapeHtml(r.nama||'-')+'</td><td>'+escapeHtml(r.divisi||'-')+'</td><td>'+escapeHtml(r.ontime_count||0)+'</td><td>'+escapeHtml(r.present_count||0)+'</td><td>'+escapeHtml(r.punctual_rate||0)+'%</td></tr>';
+        }).join('') || '<tr><td colspan="6">Tidak ada data</td></tr>';
+        const divisionLateRows=(data.late_by_division||[]).map(function(r){
+          return '<tr><td>'+escapeHtml(r.divisi||'-')+'</td><td>'+escapeHtml(r.attendance_records||0)+'</td><td>'+escapeHtml(r.late_records||0)+'</td><td>'+escapeHtml(r.ontime_records||0)+'</td><td>'+escapeHtml(r.late_rate||0)+'%</td></tr>';
+        }).join('') || '<tr><td colspan="5">Tidak ada data</td></tr>';
+        const heatmapHtml=renderLateHeatmapMatrix(data.late_heatmap||[]);
+        const warn=summarizeHeatmapWarnings(data.late_heatmap||[],20);
+        const warnText=warn.divisions.length
+          ? warn.divisions.slice(0,5).map(function(x){ return String(x.divisi)+' ('+String(x.days)+' hari, puncak '+String(x.worst_rate)+'%)'; }).join(' • ')
+          : 'Tidak ada divisi yang melewati ambang warning.';
+        
+        const html = `
+            <div class="card">
+                <div class="team-header">
+                    <h3 style="font-size:20px;font-weight:700;">HR KPI Dashboard</h3>
+                    <div class="actions">
+                        <button class="btn btn-secondary" onclick="loadKpiHrDashboard()"><i class="ph ph-arrows-clockwise"></i> Refresh</button>
+                        <button class="btn btn-primary" onclick="exportKpiHrCsv()"><i class="ph ph-file-csv"></i> Export CSV</button>
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group"><label>Start Date</label><input id="kpi_start" type="date"></div>
+                    <div class="form-group"><label>End Date</label><input id="kpi_end" type="date"></div>
+                </div>
+                <div class="actions" style="margin-bottom:24px;">
+                    <button class="btn btn-primary" onclick="loadKpiHrDashboard()">Apply Filter</button>
+                    <button class="btn btn-secondary" onclick="resetKpiHrFilter()">Reset</button>
+                </div>
+                <div class="cards-row" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom:24px;">
+                    <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Active Employees</div><div class="stat-large">${escapeHtml(s.active_employees||0)}</div></div>
+                    <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Attendance Records</div><div class="stat-large">${escapeHtml(s.attendance_records||0)}</div></div>
+                    <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Late Records</div><div class="stat-large" style="color:var(--warning);">${escapeHtml(s.late_records||0)}</div></div>
+                    <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Pending Leaves</div><div class="stat-large" style="color:var(--danger);">${escapeHtml(s.pending_leaves||0)}</div></div>
+                </div>
+                <div class="card" style="box-shadow:none;border:1px solid var(--border);margin-bottom:24px;">
+                  <div class="team-header"><h3 style="font-size:16px;font-weight:700;">Warning Otomatis (Late Rate ≥ ${escapeHtml(warn.threshold)}%)</h3><span class="status-badge ${warn.divisions.length?'on-leave':'on-time'}">${escapeHtml(warn.divisions.length?('Perlu Tindakan: '+warn.divisions.length+' divisi'):'Aman')}</span></div>
+                  <div class="stat-label">${escapeHtml(warnText)}</div>
+                </div>
+                <div class="grid-2" style="grid-template-columns: 1fr;">
+                    <div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3 style="font-size:16px;font-weight:600;margin-bottom:16px;">Attendance Trend</h3>${attChart}</div>
+                    <div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3 style="font-size:16px;font-weight:600;margin-bottom:16px;">Leave Trend</h3>${leaveChart}</div>
+                    <div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3 style="font-size:16px;font-weight:600;margin-bottom:16px;">Top Lates</h3>${lateBar}</div>
+                    <div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3 style="font-size:16px;font-weight:600;margin-bottom:16px;">Ranking Ketepatan Hadir</h3><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Divisi</th><th>On Time</th><th>Total Hadir</th><th>Rate</th></tr></thead><tbody>${punctualRows}</tbody></table></div></div>
+                    <div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3 style="font-size:16px;font-weight:600;margin-bottom:16px;">Keterlambatan per Divisi</h3><div class="table-wrap"><table><thead><tr><th>Divisi</th><th>Total Absensi</th><th>Terlambat</th><th>On Time</th><th>Late Rate</th></tr></thead><tbody>${divisionLateRows}</tbody></table></div></div>
+                    <div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3 style="font-size:16px;font-weight:600;margin-bottom:16px;">Heatmap Keterlambatan Harian per Divisi (14 hari terakhir)</h3>${heatmapHtml}</div>
+                </div>
+            </div>
+            <div id="kpi_day_detail">${renderKpiDayDetailHtml()}</div>
+        `;
+        setContent(html);
+        if(document.getElementById('kpi_start')) document.getElementById('kpi_start').value=String(s.start_date||startDate||'');
+        if(document.getElementById('kpi_end')) document.getElementById('kpi_end').value=String(s.end_date||endDate||'');
+        const defaultDate=String(s.end_date||''); if(defaultDate){ loadKpiHrDayDetail(defaultDate); }
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    function resetKpiHrFilter(){ const a=document.getElementById('kpi_start'); const b=document.getElementById('kpi_end'); if(a) a.value=''; if(b) b.value=''; loadKpiHrDashboard(); }
+    function exportKpiHrCsv(){
+      if(!hrKpiData) return;
+      const s=hrKpiData.summary||{};
+      const lines=['metric,value','start_date,"'+String(s.start_date||'')+'"','end_date,"'+String(s.end_date||'')+'"','total_employees,"'+String(s.total_employees||0)+'"','active_employees,"'+String(s.active_employees||0)+'"','attendance_records,"'+String(s.attendance_records||0)+'"','late_records,"'+String(s.late_records||0)+'"','leave_requests,"'+String(s.leave_requests||0)+'"','pending_leaves,"'+String(s.pending_leaves||0)+'"','','trend_absensi','','date,total,hadir,terlambat,wfh,office'];
+      (hrKpiData.trend_attendance||[]).forEach(function(r){ lines.push([r.date,r.total,r.hadir,r.terlambat,r.wfh,r.office].join(',')); });
+      lines.push('','trend_cuti','','date,total,pending,approved,rejected');
+      (hrKpiData.trend_leaves||[]).forEach(function(r){ lines.push([r.date,r.total,r.pending,r.approved,r.rejected].join(',')); });
+      lines.push('','top_keterlambatan','','employee_id,nama,divisi,jabatan,late_count');
+      (hrKpiData.top_late||[]).forEach(function(r){ lines.push('"'+String(r.employee_id||'').replace(/"/g,'""')+'","'+String(r.nama||'').replace(/"/g,'""')+'","'+String(r.divisi||'').replace(/"/g,'""')+'","'+String(r.jabatan||'').replace(/"/g,'""')+'",'+String(r.late_count||0)); });
+      lines.push('','ranking_ketepatan_hadir','','employee_id,nama,divisi,ontime_count,present_count,punctual_rate');
+      (hrKpiData.top_punctual||[]).forEach(function(r){ lines.push('"'+String(r.employee_id||'').replace(/"/g,'""')+'","'+String(r.nama||'').replace(/"/g,'""')+'","'+String(r.divisi||'').replace(/"/g,'""')+'",'+String(r.ontime_count||0)+','+String(r.present_count||0)+','+String(r.punctual_rate||0)); });
+      lines.push('','keterlambatan_per_divisi','','divisi,attendance_records,late_records,ontime_records,late_rate');
+      (hrKpiData.late_by_division||[]).forEach(function(r){ lines.push('"'+String(r.divisi||'').replace(/"/g,'""')+'",'+String(r.attendance_records||0)+','+String(r.late_records||0)+','+String(r.ontime_records||0)+','+String(r.late_rate||0)); });
+      lines.push('','heatmap_keterlambatan_harian','','divisi,date,attendance_records,late_records,ontime_records,late_rate');
+      (hrKpiData.late_heatmap||[]).forEach(function(r){ lines.push('"'+String(r.divisi||'').replace(/"/g,'""')+'","'+String(r.date||'').replace(/"/g,'""')+'",'+String(r.attendance_records||0)+','+String(r.late_records||0)+','+String(r.ontime_records||0)+','+String(r.late_rate||0)); });
+      const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='kpi_hr_report.csv'; a.click(); URL.revokeObjectURL(url);
+    }
+    async function exportTodayStatusPdf(){ try{ const tanggal=(new Date().toISOString().slice(0,10)); const d=await api('/api/admin/reports/status/export-pdf','POST',{tanggal:tanggal}); if(d&&d.file_url) window.open(d.file_url,'_blank'); }catch(err){ setContent(renderError(err.message)); } }
+
+    // EMPLOYEES
+    let employeeRowsCache = [];
+    let selectedEmployeeId = '';
+    let selectedEmployeeDetail = null;
+    function employeeFindById(id){ return (employeeRowsCache||[]).find(function(r){ return String(r.employee_id||'')===String(id||''); }) || null; }
+    function employeeFilters(){ return { q:String((document.getElementById('emp_filter_q')||{}).value||'').trim().toLowerCase(), role:String((document.getElementById('emp_filter_role')||{}).value||'').trim().toLowerCase(), status:String((document.getElementById('emp_filter_status')||{}).value||''), divisi:String((document.getElementById('emp_filter_divisi')||{}).value||'').trim().toLowerCase() }; }
+    function employeeFilteredRows(){ const f=employeeFilters(); return (employeeRowsCache||[]).filter(function(r){ const text=(String(r.employee_id||'')+' '+String(r.email||'')+' '+String(r.nama||'')+' '+String(r.nik||'')+' '+String(r.divisi||'')+' '+String(r.jabatan||'')).toLowerCase(); const okQ=!f.q||text.indexOf(f.q)>=0; const okRole=!f.role||String(r.role||'').toLowerCase()===f.role; const active=String(r.is_active).toLowerCase()==='true'; const okStatus=!f.status||(f.status==='active'?active:!active); const okDiv=!f.divisi||String(r.divisi||'').toLowerCase()===f.divisi; return okQ&&okRole&&okStatus&&okDiv; }); }
+    async function loadAllEmployees(){ try{ setLoading('Memuat data karyawan...'); employeeRowsCache=await api('/api/admin/employees?limit=800'); selectedEmployeeDetail=null; renderEmployeeTable(); }catch(err){ setContent(renderError(err.message)); } }
+    function renderEmployeeTable(){
+      const divisions = Array.from(new Set((employeeRowsCache||[]).map(function(r){ return String(r.divisi||'').trim(); }).filter(Boolean))).sort();
+      const current = employeeFilters();
+      const rows = employeeFilteredRows();
+      const detail = employeeFindById(selectedEmployeeId);
+      const divisionOptions = divisions.map(function(d){
+        const v = String(d||'').toLowerCase();
+        return `<option value="${escapeHtml(v)}" ${current.divisi===v?'selected':''}>${escapeHtml(d)}</option>`;
+      }).join('');
+      const tableRows = (rows||[]).map(function(r){
+        const id = escapeHtml(r.employee_id||'');
+        const isActive = String(r.is_active).toLowerCase()==='true';
+        const actionLabel = isActive ? 'Disable' : 'Enable';
+        const actionClass = isActive ? 'btn-danger' : 'btn-secondary';
+        return `<tr>
+          <td><div style="font-weight:600;color:var(--text-main);">${escapeHtml(r.nama||'')}</div><div style="font-size:12px;color:var(--text-sec);">${id}</div></td>
+          <td>${escapeHtml(r.email||'')}</td>
+          <td>${escapeHtml(r.divisi||'-')}</td>
+          <td>${escapeHtml(r.jabatan||'-')}</td>
+          <td>${normalizeStatusBadge(String(r.is_active))}</td>
+          <td>
+            <div class="actions" style="margin-top:0;">
+              <button class="btn btn-secondary" onclick="showEmployeeDetail('${id}')">Detail</button>
+              <button class="btn btn-primary" onclick="loadEditEmployeeForm('${id}')">Edit</button>
+              <button class="btn ${actionClass}" onclick="toggleEmployeeActive('${id}')">${actionLabel}</button>
+            </div>
+          </td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="6">Tidak ada data</td></tr>';
+      
+      const detailHtml = !detail ? '' : `<div class="card">
+        <div class="team-header"><h3 style="font-size:20px;font-weight:700;">Employee Detail: ${escapeHtml(detail.nama||'-')}</h3><div class="stat-label">${escapeHtml(detail.employee_id||'-')}</div></div>
+        <div class="grid-2">
+            <div class="card" style="box-shadow:none;border:1px solid var(--border);"><p><b>Email:</b> ${escapeHtml(detail.email||'-')}</p><p><b>NIK:</b> ${escapeHtml(detail.nik||'-')}</p><p><b>Role:</b> ${escapeHtml(detail.role||'-')}</p><p><b>Status Aktif:</b> ${normalizeStatusBadge(String(detail.is_active))}</p></div>
+            <div class="card" style="box-shadow:none;border:1px solid var(--border);"><p><b>Divisi:</b> ${escapeHtml(detail.divisi||'-')}</p><p><b>Jabatan:</b> ${escapeHtml(detail.jabatan||'-')}</p><p><b>Tanggal Masuk:</b> ${escapeHtml(detail.tanggal_masuk||'-')}</p><p><b>Sisa Cuti:</b> ${escapeHtml(detail.sisa_cuti||'-')} / ${escapeHtml(detail.jatah_cuti||'-')}</p></div>
+        </div>
+        <div class="actions"><button class="btn btn-primary" onclick="loadEditEmployeeForm('${escapeHtml(detail.employee_id||'')}')"><i class="ph ph-pencil-simple"></i> Edit Data</button></div>
+      </div>`;
+      
+      const detailRichHtml = renderEmployeeDetailRich();
+      
+      setContent(`
+        <div class="card">
+            <div class="team-header">
+                <h3 style="font-size:20px;font-weight:700;">Employees</h3>
+                <div class="actions">
+                    <button class="btn btn-primary" onclick="loadAddEmployeeForm()"><i class="ph ph-plus"></i> Add Employee</button>
+                    <button class="btn btn-secondary" onclick="exportEmployeesCsv()"><i class="ph ph-file-csv"></i> Export</button>
+                </div>
+            </div>
+            <div class="grid-2">
+              <div class="form-group"><label>Search</label><input id="emp_filter_q" placeholder="ID / Name / Email" value="${escapeHtml(current.q)}" oninput="renderEmployeeTable()"></div>
+              <div class="form-group"><label>Division</label><select id="emp_filter_divisi" onchange="renderEmployeeTable()"><option value="">All Divisions</option>${divisionOptions}</select></div>
+            </div>
+            <div class="table-wrap"><table><thead><tr><th>Employee</th><th>Email</th><th>Division</th><th>Position</th><th>Status</th><th>Actions</th></tr></thead><tbody>${tableRows}</tbody></table></div>
+        </div>${detailHtml}${detailRichHtml}
+      `);
+    }
+    async function showEmployeeDetail(id){ try{ selectedEmployeeId=String(id||''); selectedEmployeeDetail=null; renderEmployeeTable(); selectedEmployeeDetail=await api('/api/admin/employees/detail?employee_id='+encodeURIComponent(selectedEmployeeId)+'&limit=10'); renderEmployeeTable(); }catch(err){ selectedEmployeeDetail=null; renderEmployeeTable(); setContent(renderError(err.message)); } }
+    function renderEmployeeDetailRich(){
+      const d=selectedEmployeeDetail; if(!d||!d.employee) return ''; const s=d.summary||{};
+      const att=(d.recent_attendance||[]).map(function(r){ return '<tr><td>'+escapeHtml(r.tanggal||'-')+'</td><td>'+escapeHtml(r.jam_masuk||'-')+'</td><td>'+escapeHtml(r.jam_keluar||'-')+'</td><td>'+normalizeStatusBadge(r.status||'-')+'</td><td>'+escapeHtml(r.work_mode||'-')+'</td></tr>'; }).join('') || '<tr><td colspan="5">Tidak ada riwayat</td></tr>';
+      const lv=(d.recent_leaves||[]).map(function(r){ return '<tr><td>'+escapeHtml(r.leave_id||'-')+'</td><td>'+escapeHtml(r.jenis_cuti||'-')+'</td><td>'+escapeHtml(r.tanggal_mulai||'-')+'</td><td>'+escapeHtml(r.tanggal_selesai||'-')+'</td><td>'+normalizeStatusBadge(r.status||'-')+'</td></tr>'; }).join('') || '<tr><td colspan="5">Tidak ada riwayat</td></tr>';
+      return `<div class="cards-row" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom:24px;">
+                <div class="card"><div class="stat-label">Attendance (Sample)</div><div class="stat-large">${escapeHtml(s.attendance_total||0)}</div></div>
+                <div class="card"><div class="stat-label">Leaves (Sample)</div><div class="stat-large">${escapeHtml(s.leave_total||0)}</div></div>
+              </div>
+              <div class="card"><h3 style="font-size:16px;font-weight:600;margin-bottom:16px;">Recent Attendance</h3><div class="table-wrap"><table><thead><tr><th>Date</th><th>In</th><th>Out</th><th>Status</th><th>Mode</th></tr></thead><tbody>${att}</tbody></table></div></div>
+              <div class="card"><h3 style="font-size:16px;font-weight:600;margin-bottom:16px;">Recent Leaves</h3><div class="table-wrap"><table><thead><tr><th>ID</th><th>Type</th><th>Start</th><th>End</th><th>Status</th></tr></thead><tbody>${lv}</tbody></table></div></div>`;
+    }
+    function exportEmployeesCsv(){
+      const rows=employeeFilteredRows(); const header=['employee_id','email','nama','role','divisi','jabatan','is_active','status_karyawan','jatah_cuti','sisa_cuti'];
+      const lines=[header.join(',')].concat(rows.map(function(r){ return header.map(function(k){ const val=String(r[k]===undefined||r[k]===null?'':r[k]).replace(/"/g,'""'); return '"'+val+'"'; }).join(','); }));
+      const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='employees_export.csv'; a.click(); URL.revokeObjectURL(url);
+    }
+    async function toggleEmployeeActive(id){ try{ const row=employeeFindById(id); if(!row) throw new Error('Not found'); const next=String(row.is_active).toLowerCase()!=='true'; await api('/api/admin/employees','PATCH',{employee_id:row.employee_id,is_active:next}); await loadAllEmployees(); selectedEmployeeId=row.employee_id; }catch(err){ setContent(renderError(err.message)); } }
+    let employeeMasterData={ divisions:[], positions:[] };
+    async function loadEmployeeMasterData(){
+      const [divisions,positions]=await Promise.all([
+        api('/api/admin/master/divisions'),
+        api('/api/admin/master/positions')
+      ]);
+      employeeMasterData={
+        divisions:(divisions||[]).filter(function(d){ return String(d.is_active).toLowerCase()==='true'; }),
+        positions:(positions||[]).filter(function(p){ return String(p.is_active).toLowerCase()==='true'; })
+      };
+      return employeeMasterData;
+    }
+    function positionOptionsForDivision(divisionName, selectedPosition){
+      const divisionId=((employeeMasterData.divisions||[]).find(function(d){ return String(d.nama_divisi||'')===String(divisionName||''); })||{}).division_id||'';
+      return (employeeMasterData.positions||[])
+        .filter(function(p){ return !divisionId || String(p.division_id||'')===String(divisionId); })
+        .map(function(p){
+          const val=String(p.nama_jabatan||'');
+          return '<option value="'+escapeHtml(val)+'" '+(String(selectedPosition||'')===val?'selected':'')+'>'+escapeHtml(val)+'</option>';
+        }).join('');
+    }
+    function syncEmployeePositionOptions(divisionElId, positionElId, selectedPosition){
+      const divEl=document.getElementById(divisionElId);
+      const posEl=document.getElementById(positionElId);
+      if(!divEl||!posEl) return;
+      const opts=positionOptionsForDivision(divEl.value, selectedPosition||posEl.value||'');
+      posEl.innerHTML='<option value="">-- Pilih Jabatan --</option>'+opts;
+      if(selectedPosition) posEl.value=selectedPosition;
+    }
+    async function loadAddEmployeeForm(){
+      try{
+        await loadEmployeeMasterData();
+        const divOptions=(employeeMasterData.divisions||[]).map(function(d){ const v=String(d.nama_divisi||''); return '<option value="'+escapeHtml(v)+'">'+escapeHtml(v)+'</option>'; }).join('');
+        setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Add New Employee</h3></div><div class="grid-2"><div class="form-group"><label>Employee ID</label><input id="emp_id"></div><div class="form-group"><label>Email</label><input id="emp_email"></div><div class="form-group"><label>Nama</label><input id="emp_nama"></div><div class="form-group"><label>NIK</label><input id="emp_nik"></div><div class="form-group"><label>Role</label><select id="emp_role"><option value="employee">employee</option><option value="admin">admin</option><option value="superadmin">superadmin</option></select></div><div class="form-group"><label>Status Karyawan</label><select id="emp_status"><option value="Tetap">Tetap</option><option value="Kontrak">Kontrak</option><option value="Magang">Magang</option><option value="Probation">Probation</option><option value="Outsource">Outsource</option></select></div><div class="form-group"><label>Tanggal Masuk</label><input id="emp_tanggal_masuk" type="date"></div><div class="form-group"><label>Divisi</label><select id="emp_divisi" onchange="syncEmployeePositionOptions(\'emp_divisi\',\'emp_jabatan\')"><option value="">-- Pilih Divisi --</option>'+divOptions+'</select></div><div class="form-group"><label>Jabatan</label><select id="emp_jabatan"><option value="">-- Pilih Jabatan --</option></select></div></div><div class="actions"><button class="btn btn-primary" onclick="submitAddEmployee()"><i class="ph ph-check"></i> Save</button><button class="btn btn-secondary" onclick="loadAllEmployees()">Cancel</button></div></div>');
+        syncEmployeePositionOptions('emp_divisi','emp_jabatan');
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    async function submitAddEmployee(){ try{ await api('/api/admin/employees','POST',{employee_id:(document.getElementById('emp_id')||{}).value||'',email:(document.getElementById('emp_email')||{}).value||'',nama:(document.getElementById('emp_nama')||{}).value||'',nik:(document.getElementById('emp_nik')||{}).value||'',role:(document.getElementById('emp_role')||{}).value||'employee',status_karyawan:(document.getElementById('emp_status')||{}).value||'Tetap',tanggal_masuk:(document.getElementById('emp_tanggal_masuk')||{}).value||'',is_active:true,divisi:(document.getElementById('emp_divisi')||{}).value||'',jabatan:(document.getElementById('emp_jabatan')||{}).value||'',jatah_cuti:12,sisa_cuti:12}); await loadAllEmployees(); }catch(err){ setContent(renderError(err.message)); } }
+    async function loadEditEmployeeForm(id){
+      const row=employeeFindById(id);
+      if(!row) return setContent(renderError('Not found'));
+      try{
+        await loadEmployeeMasterData();
+        const divOptions=(employeeMasterData.divisions||[]).map(function(d){ const v=String(d.nama_divisi||''); return '<option value="'+escapeHtml(v)+'" '+(String(row.divisi||'')===v?'selected':'')+'>'+escapeHtml(v)+'</option>'; }).join('');
+        setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Edit Employee</h3></div><div class="grid-2"><div class="form-group"><label>Employee ID</label><input id="edit_emp_id" value="'+escapeHtml(row.employee_id||'')+'" readonly></div><div class="form-group"><label>Email</label><input id="edit_emp_email" value="'+escapeHtml(row.email||'')+'"></div><div class="form-group"><label>Nama</label><input id="edit_emp_nama" value="'+escapeHtml(row.nama||'')+'"></div><div class="form-group"><label>NIK</label><input id="edit_emp_nik" value="'+escapeHtml(row.nik||'')+'"></div><div class="form-group"><label>Role</label><select id="edit_emp_role"><option value="employee" '+(String(row.role||'')==='employee'?'selected':'')+'>employee</option><option value="admin" '+(String(row.role||'')==='admin'?'selected':'')+'>admin</option><option value="superadmin" '+(String(row.role||'')==='superadmin'?'selected':'')+'>superadmin</option></select></div><div class="form-group"><label>Status Aktif</label><select id="edit_emp_active"><option value="true" '+(String(row.is_active).toLowerCase()==='true'?'selected':'')+'>true</option><option value="false" '+(String(row.is_active).toLowerCase()!=='true'?'selected':'')+'>false</option></select></div><div class="form-group"><label>Status Karyawan</label><select id="edit_emp_status"><option value="Tetap" '+(String(row.status_karyawan||'Tetap')==='Tetap'?'selected':'')+'>Tetap</option><option value="Kontrak" '+(String(row.status_karyawan||'')==='Kontrak'?'selected':'')+'>Kontrak</option><option value="Magang" '+(String(row.status_karyawan||'')==='Magang'?'selected':'')+'>Magang</option><option value="Probation" '+(String(row.status_karyawan||'')==='Probation'?'selected':'')+'>Probation</option><option value="Outsource" '+(String(row.status_karyawan||'')==='Outsource'?'selected':'')+'>Outsource</option></select></div><div class="form-group"><label>Tanggal Masuk</label><input id="edit_emp_tanggal_masuk" type="date" value="'+escapeHtml(row.tanggal_masuk||'')+'"></div><div class="form-group"><label>Divisi</label><select id="edit_emp_divisi" onchange="syncEmployeePositionOptions(\'edit_emp_divisi\',\'edit_emp_jabatan\')"><option value="">-- Pilih Divisi --</option>'+divOptions+'</select></div><div class="form-group"><label>Jabatan</label><select id="edit_emp_jabatan"><option value="">-- Pilih Jabatan --</option></select></div><div class="form-group"><label>Sisa Cuti</label><input id="edit_emp_sisa" type="number" value="'+escapeHtml(row.sisa_cuti||0)+'"></div><div class="form-group"><label>Jatah Cuti</label><input id="edit_emp_jatah" type="number" value="'+escapeHtml(row.jatah_cuti||0)+'"></div></div><div class="actions"><button class="btn btn-primary" onclick="submitUpdateEmployee()"><i class="ph ph-check"></i> Update</button><button class="btn btn-secondary" onclick="loadAllEmployees()">Cancel</button></div></div>');
+        syncEmployeePositionOptions('edit_emp_divisi','edit_emp_jabatan',String(row.jabatan||''));
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    async function submitUpdateEmployee(){ try{ const id=(document.getElementById('edit_emp_id')||{}).value||''; await api('/api/admin/employees','PATCH',{employee_id:id,email:(document.getElementById('edit_emp_email')||{}).value||'',nama:(document.getElementById('edit_emp_nama')||{}).value||'',nik:(document.getElementById('edit_emp_nik')||{}).value||'',role:(document.getElementById('edit_emp_role')||{}).value||'employee',status_karyawan:(document.getElementById('edit_emp_status')||{}).value||'Tetap',tanggal_masuk:(document.getElementById('edit_emp_tanggal_masuk')||{}).value||'',is_active:String((document.getElementById('edit_emp_active')||{}).value||'true')==='true',divisi:(document.getElementById('edit_emp_divisi')||{}).value||'',jabatan:(document.getElementById('edit_emp_jabatan')||{}).value||'',jatah_cuti:Number((document.getElementById('edit_emp_jatah')||{}).value||0),sisa_cuti:Number((document.getElementById('edit_emp_sisa')||{}).value||0)}); await loadAllEmployees(); selectedEmployeeId=id; }catch(err){ setContent(renderError(err.message)); } }
+
+    // LEAVES
     let leaveStatusFilter = 'pending';
-    async function loadLeaveManagement(status){ try{ leaveStatusFilter = status || leaveStatusFilter || 'pending'; setLoading('Memuat manajemen cuti...'); const endpoint = leaveStatusFilter==='pending' ? '/api/admin/leaves/pending' : ('/api/admin/leaves?status='+encodeURIComponent(leaveStatusFilter)); const rows=await api(endpoint); const tabs='<div class="actions"><button class="btn '+(leaveStatusFilter==='pending'?'btn-primary':'btn-secondary')+'" onclick="loadLeaveManagement(\'pending\')">Pending</button><button class="btn '+(leaveStatusFilter==='approved'?'btn-primary':'btn-secondary')+'" onclick="loadLeaveManagement(\'approved\')">Approved</button><button class="btn '+(leaveStatusFilter==='rejected'?'btn-primary':'btn-secondary')+'" onclick="loadLeaveManagement(\'rejected\')">Rejected</button><button class="btn btn-secondary" onclick="loadLeaveManagement(leaveStatusFilter)">Refresh</button></div>'; setContent('<div class="card"><h3>Manajemen Cuti ('+escapeHtml(leaveStatusFilter)+')</h3>'+tabs+'<div class="table-wrap"><table><thead><tr><th>Leave ID</th><th>Email</th><th>Jenis</th><th>Mulai</th><th>Selesai</th><th>Status</th><th>Aksi</th></tr></thead><tbody>'+((rows||[]).map(function(r){ const action = leaveStatusFilter==='pending' ? ('<div class="actions"><button class="btn btn-primary" data-id="'+escapeHtml(r.leave_id)+'" onclick="approveLeave(this.dataset.id)">Approve</button><button class="btn btn-danger" data-id="'+escapeHtml(r.leave_id)+'" onclick="rejectLeave(this.dataset.id)">Reject</button></div>') : '-'; return '<tr><td>'+escapeHtml(r.leave_id)+'</td><td>'+escapeHtml(r.email)+'</td><td>'+escapeHtml(r.jenis_cuti)+'</td><td>'+escapeHtml(r.tanggal_mulai)+'</td><td>'+escapeHtml(r.tanggal_selesai)+'</td><td>'+normalizeStatusBadge(r.status)+'</td><td>'+action+'</td></tr>';}).join('')||'<tr><td colspan="7">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
-    async function approveLeave(id){ try{ await api('/api/admin/leaves/approve','POST',{leave_id:id,catatan_approver:'Approved by admin'}); await loadLeaveManagement(); }catch(err){ setContent(renderError(err.message)); } }
-    async function rejectLeave(id){ try{ await api('/api/admin/leaves/reject','POST',{leave_id:id,catatan_approver:'Rejected by admin'}); await loadLeaveManagement(); }catch(err){ setContent(renderError(err.message)); } }
+    let leaveKeywordFilter = '';
+    async function loadLeaveManagement(status){ try{ leaveStatusFilter = status || leaveStatusFilter || 'pending'; setLoading('Memuat manajemen cuti...'); const endpoint = leaveStatusFilter==='pending' ? '/api/admin/leaves/pending' : (leaveStatusFilter==='all' ? '/api/admin/leaves?limit=500' : '/api/admin/leaves?status='+encodeURIComponent(leaveStatusFilter)); const rows=await api(endpoint); const filtered=(rows||[]).filter(function(r){ if(!leaveKeywordFilter) return true; const txt=(String(r.leave_id||'')+' '+String(r.email||'')+' '+String(r.jenis_cuti||'')).toLowerCase(); return txt.indexOf(leaveKeywordFilter)>=0; }); 
+      const tabs='<div class="actions" style="margin-bottom:24px;"><button class="btn '+(leaveStatusFilter==='pending'?'btn-primary':'btn-secondary')+'" onclick="loadLeaveManagement(\'pending\')">Pending</button><button class="btn '+(leaveStatusFilter==='approved'?'btn-primary':'btn-secondary')+'" onclick="loadLeaveManagement(\'approved\')">Approved</button><button class="btn '+(leaveStatusFilter==='rejected'?'btn-primary':'btn-secondary')+'" onclick="loadLeaveManagement(\'rejected\')">Rejected</button><button class="btn '+(leaveStatusFilter==='all'?'btn-primary':'btn-secondary')+'" onclick="loadLeaveManagement(\'all\')">All</button></div>'; 
+      const tbody = (filtered||[]).map(function(r){ const actio = (String(r.status||'').toLowerCase()==='pending') ? '<button class="btn btn-primary" onclick="approveLeave(\''+escapeHtml(r.leave_id)+'\')">Approve</button> <button class="btn btn-danger" onclick="rejectLeave(\''+escapeHtml(r.leave_id)+'\')">Reject</button>' : '-'; return '<tr><td><div style="font-weight:600;color:var(--text-main);">'+escapeHtml(r.nama||r.email||r.employee_id||'')+'</div><div style="font-size:12px;color:var(--text-sec);">'+escapeHtml(r.leave_id||'-')+'</div></td><td>'+escapeHtml(r.jenis_cuti||'-')+'</td><td>'+escapeHtml(formatDateDisplay(r.tanggal_mulai))+' to '+escapeHtml(formatDateDisplay(r.tanggal_selesai))+'</td><td>'+renderAttachmentThumb(r.lampiran_url)+'</td><td>'+normalizeStatusBadge(r.status)+'</td><td><div class="actions" style="margin-top:0;">'+actio+'</div></td></tr>'; }).join('') || '<tr><td colspan="6">Tidak ada data</td></tr>';
+      setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Leave Approvals ('+escapeHtml(leaveStatusFilter)+')</h3><div class="stat-label">Total: '+escapeHtml(filtered.length)+'</div></div>'+tabs+'<div class="form-group"><label>Filter</label><input id="leave_keyword" value="'+escapeHtml(leaveKeywordFilter)+'" placeholder="Search ID / Email / Type" oninput="leaveKeywordFilter=this.value.toLowerCase(); loadLeaveManagement(leaveStatusFilter);"></div><div class="table-wrap"><table><thead><tr><th>Employee</th><th>Type</th><th>Dates</th><th>Attachment</th><th>Status</th><th>Action</th></tr></thead><tbody>'+tbody+'</tbody></table></div></div>'); 
+    }catch(err){ setContent(renderError(err.message)); } }
+    async function approveLeave(id){ try{ const note=prompt('Catatan approver (opsional):','Approved by admin'); await api('/api/admin/leaves/approve','POST',{leave_id:id,catatan_approver:String(note===null?'Approved by admin':note||'Approved by admin')}); await loadLeaveManagement(); }catch(err){ setContent(renderError(err.message)); } }
+    async function rejectLeave(id){ try{ const note=prompt('Alasan reject:','Rejected by admin'); await api('/api/admin/leaves/reject','POST',{leave_id:id,catatan_approver:String(note===null?'Rejected by admin':note||'Rejected by admin')}); await loadLeaveManagement(); }catch(err){ setContent(renderError(err.message)); } }
 
-    async function loadTodayAttendance(){ try{ setLoading('Memuat absensi hari ini...'); const rows=await api('/api/admin/attendance/today?tanggal='+(new Date().toISOString().slice(0,10))); setContent('<div class="card"><h3>Rekap Absensi Hari Ini</h3><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>ID</th><th>Email</th><th>Masuk</th><th>Keluar</th><th>Status</th><th>Lokasi</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.tanggal)+'</td><td>'+escapeHtml(r.employee_id)+'</td><td>'+escapeHtml(r.email)+'</td><td>'+escapeHtml(r.jam_masuk||'-')+'</td><td>'+escapeHtml(r.jam_keluar||'-')+'</td><td>'+normalizeStatusBadge(r.status)+'</td><td>'+escapeHtml(r.lokasi||'-')+'</td></tr>';}).join('')||'<tr><td colspan="7">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+    // SCHEDULE
+    let scheduleMonthValue=''; let scheduleEmployees=[]; let scheduleTemplates={};
+    function templateOf(empId){ return scheduleTemplates[empId] || { shift_code:'PAGI', off_saturday:false, off_sunday:false }; }
+    function setTemplate(empId,key,val){ if(!scheduleTemplates[empId]) scheduleTemplates[empId]={ shift_code:'PAGI', off_saturday:false, off_sunday:false }; scheduleTemplates[empId][key]=val; }
+    async function loadMonthlyScheduleAdmin(){ try{ const picked=String((document.getElementById('sched_month')||{}).value||''); scheduleMonthValue=picked||new Date().toISOString().slice(0,7); setLoading('Memuat jadwal bulanan...'); const d=await api('/api/admin/schedules/monthly?month='+encodeURIComponent(scheduleMonthValue)); scheduleMonthValue=d.month||scheduleMonthValue; scheduleEmployees=d.employees||[]; scheduleTemplates=d.templates||{}; renderMonthlyScheduleAdmin(d.published_at||'', d.notes||''); }catch(err){ setContent(renderError(err.message)); } }
+    function renderMonthlyScheduleAdmin(publishedAt,notes){
+      const body=(scheduleEmployees||[]).map(function(e){ const t=templateOf(e.employee_id); return '<tr><td><div style="font-weight:600;color:var(--text-main);">'+escapeHtml(e.nama||'-')+'</div><div style="font-size:12px;color:var(--text-sec);">'+escapeHtml(e.employee_id||'-')+'</div></td><td><select onchange="setTemplate(\''+escapeHtml(e.employee_id)+'\',\'shift_code\',this.value)"><option value="PAGI" '+(t.shift_code==='PAGI'?'selected':'')+'>Pagi</option><option value="SORE" '+(t.shift_code==='SORE'?'selected':'')+'>Sore</option><option value="MALAM" '+(t.shift_code==='MALAM'?'selected':'')+'>Malam</option><option value="FLX" '+(t.shift_code==='FLX'?'selected':'')+'>FLX</option></select></td><td style="text-align:center;"><input type="checkbox" '+(t.off_saturday?'checked':'')+' onchange="setTemplate(\''+escapeHtml(e.employee_id)+'\',\'off_saturday\',this.checked)"></td><td style="text-align:center;"><input type="checkbox" '+(t.off_sunday?'checked':'')+' onchange="setTemplate(\''+escapeHtml(e.employee_id)+'\',\'off_sunday\',this.checked)"></td></tr>'; }).join('') || '<tr><td colspan="4">Tidak ada data karyawan</td></tr>';
+      setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Monthly Schedule</h3><div class="actions"><button class="btn btn-secondary" onclick="saveMonthlyScheduleAdmin()"><i class="ph ph-floppy-disk"></i> Save Draft</button><button class="btn btn-primary" onclick="publishMonthlyScheduleAdmin()"><i class="ph ph-paper-plane-tilt"></i> Publish & Notify</button></div></div><div class="grid-2"><div class="form-group"><label>Month</label><input id="sched_month" type="month" value="'+escapeHtml(scheduleMonthValue)+'" onchange="loadMonthlyScheduleAdmin()"></div><div class="form-group"><label>Notes (Optional)</label><input id="sched_notes" value="'+escapeHtml(notes||'')+'"></div></div><div class="stat-label" style="margin-bottom:16px;">Published at: '+escapeHtml(formatDateTimeDisplay(publishedAt)||'-')+'</div><div class="table-wrap"><table><thead><tr><th>Employee</th><th>Shift</th><th style="text-align:center;">Off Sat</th><th style="text-align:center;">Off Sun</th></tr></thead><tbody>'+body+'</tbody></table></div></div>');
+    }
+    async function saveMonthlyScheduleAdmin(){ try{ const month=String((document.getElementById('sched_month')||{}).value||scheduleMonthValue||new Date().toISOString().slice(0,7)); const notes=String((document.getElementById('sched_notes')||{}).value||''); await api('/api/admin/schedules/monthly','POST',{month:month,notes:notes,templates:scheduleTemplates}); scheduleMonthValue=month; await loadMonthlyScheduleAdmin(); }catch(err){ setContent(renderError(err.message)); } }
+    async function publishMonthlyScheduleAdmin(){ try{ const month=String((document.getElementById('sched_month')||{}).value||scheduleMonthValue||new Date().toISOString().slice(0,7)); await api('/api/admin/schedules/monthly/publish','POST',{month:month}); scheduleMonthValue=month; await loadMonthlyScheduleAdmin(); }catch(err){ setContent(renderError(err.message)); } }
 
-    async function loadPayrollDocs(){ try{ setLoading('Memuat payroll docs...'); const rows=await api('/api/admin/payroll-docs?limit=200'); setContent('<div class="card"><h3>Payroll Docs</h3><div class="table-wrap"><table><thead><tr><th>Doc ID</th><th>Employee ID</th><th>Bulan</th><th>Tahun</th><th>Nama File</th><th>Aksi</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.doc_id)+'</td><td>'+escapeHtml(r.employee_id)+'</td><td>'+escapeHtml(r.bulan||'-')+'</td><td>'+escapeHtml(r.tahun||'-')+'</td><td>'+escapeHtml(r.nama_file||'-')+'</td><td><a class="btn btn-primary" href="'+escapeHtml(r.file_url||'#')+'" target="_blank">Buka</a></td></tr>';}).join('')||'<tr><td colspan="6">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
-    function loadAddPayrollForm(){ setContent('<div class="card"><h3>Tambah Payroll Doc</h3><div class="grid-2"><div class="form-group"><label>Employee ID</label><input id="pay_emp"></div><div class="form-group"><label>Email</label><input id="pay_email"></div><div class="form-group"><label>Bulan</label><input id="pay_bulan"></div><div class="form-group"><label>Tahun</label><input id="pay_tahun"></div><div class="form-group"><label>Nama File</label><input id="pay_nama"></div><div class="form-group"><label>File URL</label><input id="pay_url"></div></div><div class="actions"><button class="btn btn-primary" onclick="submitAddPayroll()">Simpan</button></div></div>'); }
-    async function submitAddPayroll(){ try{ await api('/api/admin/payroll-docs','POST',{employee_id:(document.getElementById('pay_emp')||{}).value||'',email:(document.getElementById('pay_email')||{}).value||'',bulan:(document.getElementById('pay_bulan')||{}).value||'',tahun:(document.getElementById('pay_tahun')||{}).value||'',nama_file:(document.getElementById('pay_nama')||{}).value||'',file_url:(document.getElementById('pay_url')||{}).value||''}); await loadPayrollDocs(); }catch(err){ setContent(renderError(err.message)); } }
+    // REPORTS
+    let employeeReportRows = []; let employeeReportSummary = null;
+    async function loadEmployeeReports(){
+      try{
+        setLoading('Memuat laporan...');
+        const filters = {
+          role: String((document.getElementById('rep_role')||{}).value||''),
+          divisi: String((document.getElementById('rep_divisi')||{}).value||''),
+          is_active: String((document.getElementById('rep_active')||{}).value||''),
+          start_date: String((document.getElementById('rep_start')||{}).value||''),
+          end_date: String((document.getElementById('rep_end')||{}).value||'')
+        };
+        const qs = Object.keys(filters).filter(function(k){ return filters[k]!==''; }).map(function(k){ return encodeURIComponent(k)+'='+encodeURIComponent(filters[k]); }).join('&');
+        const data = await api('/api/admin/reports/employees'+(qs?('?'+qs):''),'GET');
+        employeeReportRows = data.rows||[];
+        employeeReportSummary = data.summary||null;
+        const divisions = Array.from(new Set((employeeRowsCache||[]).map(function(r){ return String(r.divisi||'').trim(); }).filter(Boolean))).sort();
+        const roles = ['employee','admin','superadmin'];
+        const rows = employeeReportRows.map(function(r){
+          return '<tr><td>'+escapeHtml(r.employee_id||'-')+'</td><td>'+escapeHtml(r.nama||'-')+'</td><td>'+escapeHtml(r.email||'-')+'</td><td>'+escapeHtml(r.role||'-')+'</td><td>'+escapeHtml(r.divisi||'-')+'</td><td>'+escapeHtml(r.jabatan||'-')+'</td><td>'+normalizeStatusBadge(String(r.is_active))+'</td><td>'+escapeHtml(r.tanggal_masuk||'-')+'</td></tr>';
+        }).join('') || '<tr><td colspan="8">Tidak ada data</td></tr>';
+        const s = employeeReportSummary || { total:0, active:0, inactive:0, employee:0, admin:0, superadmin:0 };
+        const divisionStatsMap = {};
+        (employeeReportRows||[]).forEach(function(r){
+          const key = String(r.divisi||'Tanpa Divisi');
+          if(!divisionStatsMap[key]) divisionStatsMap[key] = { divisi:key, total:0, active:0, inactive:0 };
+          divisionStatsMap[key].total += 1;
+          if(String(r.is_active).toLowerCase()==='true') divisionStatsMap[key].active += 1; else divisionStatsMap[key].inactive += 1;
+        });
+        const divisionStatsRows = Object.values(divisionStatsMap).sort(function(a,b){ return b.total-a.total; }).map(function(x){
+          return '<tr><td>'+escapeHtml(x.divisi)+'</td><td>'+escapeHtml(x.total)+'</td><td style="color:var(--success);">'+escapeHtml(x.active)+'</td><td style="color:var(--danger);">'+escapeHtml(x.inactive)+'</td></tr>';
+        }).join('') || '<tr><td colspan="4">Tidak ada data</td></tr>';
+        setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Employee Reports</h3><div class="actions"><button class="btn btn-secondary" onclick="exportEmployeeReportCsv()"><i class="ph ph-file-csv"></i> Export CSV</button></div></div><div class="grid-2"><div class="form-group"><label>Role</label><select id="rep_role"><option value="">All Roles</option>'+roles.map(function(r){ return '<option value="'+escapeHtml(r)+'">'+escapeHtml(r)+'</option>'; }).join('')+'</select></div><div class="form-group"><label>Division</label><select id="rep_divisi"><option value="">All Divisions</option>'+divisions.map(function(d){ return '<option value="'+escapeHtml(d)+'">'+escapeHtml(d)+'</option>'; }).join('')+'</select></div><div class="form-group"><label>Status Aktif</label><select id="rep_active"><option value="">All</option><option value="true">Active</option><option value="false">Inactive</option></select></div><div class="form-group"><label>Start Date</label><input type="date" id="rep_start"></div><div class="form-group"><label>End Date</label><input type="date" id="rep_end"></div></div><div class="actions" style="margin-bottom:24px;"><button class="btn btn-primary" onclick="loadEmployeeReports()">Apply Filter</button></div><div class="cards-row" style="margin-bottom:24px;"><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Total Data</div><div class="stat-large">'+escapeHtml(s.total)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Active</div><div class="stat-large" style="color:var(--success);">'+escapeHtml(s.active)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Inactive</div><div class="stat-large" style="color:var(--danger);">'+escapeHtml(s.inactive)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Admin + Superadmin</div><div class="stat-large">'+escapeHtml(Number(s.admin||0)+Number(s.superadmin||0))+'</div></div></div><div class="grid-2" style="margin-bottom:24px;"><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Employee Role</div><div class="stat-large">'+escapeHtml(s.employee||0)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Admin Role</div><div class="stat-large">'+escapeHtml(s.admin||0)+'</div></div></div><div class="card" style="box-shadow:none;background:var(--bg);margin-bottom:24px;"><h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">Komposisi Divisi</h3><div class="table-wrap"><table><thead><tr><th>Divisi</th><th>Total</th><th>Active</th><th>Inactive</th></tr></thead><tbody>'+divisionStatsRows+'</tbody></table></div></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Email</th><th>Role</th><th>Divisi</th><th>Jabatan</th><th>Status</th><th>Tanggal Masuk</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>');
+        if (document.getElementById('rep_role')) document.getElementById('rep_role').value = filters.role;
+        if (document.getElementById('rep_divisi')) document.getElementById('rep_divisi').value = filters.divisi;
+        if (document.getElementById('rep_active')) document.getElementById('rep_active').value = filters.is_active;
+        if (document.getElementById('rep_start')) document.getElementById('rep_start').value = filters.start_date;
+        if (document.getElementById('rep_end')) document.getElementById('rep_end').value = filters.end_date;
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    function exportEmployeeReportCsv(){ const rows=employeeReportRows||[]; const header=['employee_id','nama','email','role','divisi','jabatan','is_active','tanggal_masuk']; const lines=[header.join(',')].concat(rows.map(function(r){ return header.map(function(k){ const val=String(r[k]===undefined||r[k]===null?'':r[k]).replace(/"/g,'""'); return '"'+val+'"'; }).join(','); })); const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='employee_report.csv'; a.click(); URL.revokeObjectURL(url); }
 
-    async function loadAnnouncements(){ try{ setLoading('Memuat pengumuman...'); const rows=await api('/api/admin/announcements?limit=200'); setContent('<div class="card"><h3>Pemberitahuan</h3><div class="table-wrap"><table><thead><tr><th>ID</th><th>Judul</th><th>Target</th><th>Published</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.announcement_id)+'</td><td>'+escapeHtml(r.judul)+'</td><td>'+escapeHtml(r.target_role||'all')+'</td><td>'+escapeHtml(r.published_at||'-')+'</td></tr>';}).join('')||'<tr><td colspan="4">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
-    function loadAddAnnouncementForm(){ setContent('<div class="card"><h3>Tambah Pemberitahuan</h3><div class="form-group"><label>Judul</label><input id="ann_judul"></div><div class="form-group"><label>Target Role</label><select id="ann_target"><option value="all">all</option><option value="employee">employee</option><option value="admin">admin</option></select></div><div class="form-group"><label>Isi</label><textarea id="ann_isi"></textarea></div><div class="actions"><button class="btn btn-primary" onclick="submitAddAnnouncement()">Simpan</button></div></div>'); }
+    // ATTENDANCE LOG
+    async function loadTodayAttendance(){ try{ setLoading('Memuat absensi hari ini...'); const tanggal=(new Date().toISOString().slice(0,10)); const [rows,emps]=await Promise.all([api('/api/admin/attendance/today?tanggal='+tanggal),api('/api/admin/employees?limit=1000').catch(()=>[])]); const nameMap={}; (emps||[]).forEach(function(e){ nameMap[String(e.employee_id||'')]=String(e.nama||''); }); setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Attendance Log (Today)</h3></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Masuk</th><th>Keluar</th><th>Jam Kerja</th><th>Status</th><th>Lokasi</th></tr></thead><tbody>'+((rows||[]).map(function(r){ const nama=nameMap[String(r.employee_id||'')]||r.nama||r.email||'-'; return '<tr><td>'+escapeHtml(r.employee_id)+'</td><td>'+escapeHtml(nama)+'</td><td>'+escapeHtml(r.jam_masuk||'-')+'</td><td>'+escapeHtml(r.jam_keluar||'-')+'</td><td>'+escapeHtml(r.work_duration_digital||'00:00:00')+'</td><td>'+normalizeStatusBadge(r.status)+'</td><td>'+escapeHtml(r.lokasi||'-')+'</td></tr>';}).join('')||'<tr><td colspan="7">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+
+    // MASTER DATA HUB
+    function loadMasterDataHub(){ setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Master Data & Operations</h3></div><div class="cards-row"><div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3>Divisions</h3><p class="muted" style="margin-bottom:16px;">Manage company divisions.</p><div class="actions"><button class="btn btn-secondary" onclick="loadDivisions()">View</button></div></div><div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3>Positions</h3><p class="muted" style="margin-bottom:16px;">Manage job titles.</p><div class="actions"><button class="btn btn-secondary" onclick="loadPositions()">View</button></div></div><div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3>Leave Types</h3><p class="muted" style="margin-bottom:16px;">Manage leave categories.</p><div class="actions"><button class="btn btn-secondary" onclick="loadLeaveTypes()">View</button></div></div><div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3>Payroll Docs</h3><p class="muted" style="margin-bottom:16px;">Upload salary slips.</p><div class="actions"><button class="btn btn-secondary" onclick="loadPayrollDocs()">View</button></div></div><div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3>Announcements</h3><p class="muted" style="margin-bottom:16px;">Broadcast messages.</p><div class="actions"><button class="btn btn-secondary" onclick="loadAnnouncements()">View</button></div></div></div></div>'); }
+
+    // MASTER DATA OPERATIONS
+    async function loadDivisions(){ try{ setLoading(); const rows=await api('/api/admin/master/divisions'); setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Divisions</h3><div class="actions"><button class="btn btn-primary" onclick="addDivisionPrompt()"><i class="ph ph-plus"></i> Add New</button><button class="btn btn-secondary" onclick="loadMasterDataHub()">Back</button></div></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Aktif</th><th>Aksi</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.division_id)+'</td><td>'+escapeHtml(r.nama_divisi)+'</td><td>'+normalizeStatusBadge(String(r.is_active))+'</td><td><div class="actions" style="margin-top:0;"><button class="btn btn-secondary" onclick="editDivisionPrompt(\''+escapeHtml(r.division_id)+'\',\''+escapeHtml(r.nama_divisi)+'\')">Edit</button><button class="btn btn-secondary" onclick="toggleDivisionActive(\''+escapeHtml(r.division_id)+'\','+(String(r.is_active).toLowerCase()==='true'?'true':'false')+')">'+(String(r.is_active).toLowerCase()==='true'?'Nonaktifkan':'Aktifkan')+'</button></div></td></tr>';}).join('')||'<tr><td colspan="4">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+    async function addDivisionPrompt(){ try{ const name=prompt('Nama divisi baru:',''); if(name===null) return; const value=String(name||'').trim(); if(!value) throw new Error('Nama divisi wajib diisi.'); await api('/api/admin/master/divisions','POST',{nama_divisi:value,is_active:true}); await loadDivisions(); }catch(err){ setContent(renderError(err.message)); } }
+    async function editDivisionPrompt(id,currentName){ try{ const name=prompt('Ubah nama divisi:', String(currentName||'')); if(name===null) return; const value=String(name||'').trim(); if(!value) throw new Error('Nama divisi wajib diisi.'); await api('/api/admin/master/divisions','PATCH',{division_id:String(id||''),nama_divisi:value}); await loadDivisions(); }catch(err){ setContent(renderError(err.message)); } }
+    async function toggleDivisionActive(id,currentActive){ try{ await api('/api/admin/master/divisions','PATCH',{division_id:String(id||''),is_active:!currentActive}); await loadDivisions(); }catch(err){ setContent(renderError(err.message)); } }
+
+    async function loadPositions(){ try{ setLoading(); const [rows,divisions]=await Promise.all([api('/api/admin/master/positions'),api('/api/admin/master/divisions')]); const divMap={}; (divisions||[]).forEach(function(d){ divMap[String(d.division_id||'')]=String(d.nama_divisi||''); }); setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Positions</h3><div class="actions"><button class="btn btn-primary" onclick="addPositionPrompt()"><i class="ph ph-plus"></i> Add New</button><button class="btn btn-secondary" onclick="loadMasterDataHub()">Back</button></div></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Division</th><th>Aktif</th><th>Aksi</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.position_id)+'</td><td>'+escapeHtml(r.nama_jabatan)+'</td><td>'+escapeHtml(divMap[String(r.division_id||'')]||r.division_id||'-')+'</td><td>'+normalizeStatusBadge(String(r.is_active))+'</td><td><div class="actions" style="margin-top:0;"><button class="btn btn-secondary" onclick="editPositionPrompt(\''+escapeHtml(r.position_id)+'\',\''+escapeHtml(r.nama_jabatan)+'\',\''+escapeHtml(r.division_id||'')+'\')">Edit</button><button class="btn btn-secondary" onclick="togglePositionActive(\''+escapeHtml(r.position_id)+'\','+(String(r.is_active).toLowerCase()==='true'?'true':'false')+')">'+(String(r.is_active).toLowerCase()==='true'?'Nonaktifkan':'Aktifkan')+'</button></div></td></tr>';}).join('')||'<tr><td colspan="5">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+    async function addPositionPrompt(){ try{ const divisions=await api('/api/admin/master/divisions'); const list=(divisions||[]).filter(function(d){ return String(d.is_active).toLowerCase()==='true'; }); if(!list.length) throw new Error('Belum ada divisi aktif.'); const desc=list.map(function(d){ return String(d.division_id)+'='+String(d.nama_divisi); }).join(', '); const name=prompt('Nama jabatan baru:',''); if(name===null) return; const divisionId=prompt('Pilih division_id untuk jabatan ini:\n'+desc, String(list[0].division_id||'')); if(divisionId===null) return; const n=String(name||'').trim(); const d=String(divisionId||'').trim(); if(!n||!d) throw new Error('Nama jabatan dan division_id wajib diisi.'); await api('/api/admin/master/positions','POST',{nama_jabatan:n,division_id:d,is_active:true}); await loadPositions(); }catch(err){ setContent(renderError(err.message)); } }
+    async function editPositionPrompt(id,currentName,currentDivisionId){ try{ const divisions=await api('/api/admin/master/divisions'); const desc=(divisions||[]).map(function(d){ return String(d.division_id)+'='+String(d.nama_divisi); }).join(', '); const name=prompt('Ubah nama jabatan:', String(currentName||'')); if(name===null) return; const divisionId=prompt('Ubah division_id:\n'+desc, String(currentDivisionId||'')); if(divisionId===null) return; const n=String(name||'').trim(); const d=String(divisionId||'').trim(); if(!n||!d) throw new Error('Nama jabatan dan division_id wajib diisi.'); await api('/api/admin/master/positions','PATCH',{position_id:String(id||''),nama_jabatan:n,division_id:d}); await loadPositions(); }catch(err){ setContent(renderError(err.message)); } }
+    async function togglePositionActive(id,currentActive){ try{ await api('/api/admin/master/positions','PATCH',{position_id:String(id||''),is_active:!currentActive}); await loadPositions(); }catch(err){ setContent(renderError(err.message)); } }
+
+    async function loadLeaveTypes(){ try{ setLoading(); const rows=await api('/api/admin/master/leave-types'); setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Leave Types</h3><div class="actions"><button class="btn btn-primary" onclick="addLeaveTypePrompt()"><i class="ph ph-plus"></i> Add New</button><button class="btn btn-secondary" onclick="loadMasterDataHub()">Back</button></div></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Maks Hari</th><th>Wajib Lampiran</th><th>Aktif</th><th>Aksi</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.leave_type_id)+'</td><td>'+escapeHtml(r.nama_jenis_cuti)+'</td><td>'+escapeHtml(r.maks_hari)+'</td><td>'+normalizeStatusBadge(String(r.requires_attachment))+'</td><td>'+normalizeStatusBadge(String(r.is_active))+'</td><td><div class="actions" style="margin-top:0;"><button class="btn btn-secondary" onclick="editLeaveTypePrompt(\''+escapeHtml(r.leave_type_id)+'\',\''+escapeHtml(r.nama_jenis_cuti)+'\','+Number(r.maks_hari||0)+','+(String(r.requires_attachment).toLowerCase()==='true'?'true':'false')+')">Edit</button><button class="btn btn-secondary" onclick="toggleLeaveTypeActive(\''+escapeHtml(r.leave_type_id)+'\','+(String(r.is_active).toLowerCase()==='true'?'true':'false')+')">'+(String(r.is_active).toLowerCase()==='true'?'Nonaktifkan':'Aktifkan')+'</button></div></td></tr>';}).join('')||'<tr><td colspan="6">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+    async function addLeaveTypePrompt(){ try{ const name=prompt('Nama jenis cuti baru:',''); if(name===null) return; const max=prompt('Maksimal hari cuti:','1'); if(max===null) return; const req=confirm('Apakah cuti ini wajib lampiran?'); const n=String(name||'').trim(); const m=Number(max||0); if(!n||!Number.isFinite(m)||m<0) throw new Error('Nama dan maksimal hari wajib valid.'); await api('/api/admin/master/leave-types','POST',{nama_jenis_cuti:n,maks_hari:m,requires_attachment:req,is_active:true}); await loadLeaveTypes(); }catch(err){ setContent(renderError(err.message)); } }
+    async function editLeaveTypePrompt(id,currentName,currentMax,currentRequires){ try{ const name=prompt('Ubah nama jenis cuti:', String(currentName||'')); if(name===null) return; const max=prompt('Ubah maksimal hari cuti:', String(currentMax||0)); if(max===null) return; const req=confirm('Set wajib lampiran? (OK = wajib, Cancel = tidak)'); const n=String(name||'').trim(); const m=Number(max||0); if(!n||!Number.isFinite(m)||m<0) throw new Error('Nama dan maksimal hari wajib valid.'); await api('/api/admin/master/leave-types','PATCH',{leave_type_id:String(id||''),nama_jenis_cuti:n,maks_hari:m,requires_attachment:req===true?true:false}); await loadLeaveTypes(); }catch(err){ setContent(renderError(err.message)); } }
+    async function toggleLeaveTypeActive(id,currentActive){ try{ await api('/api/admin/master/leave-types','PATCH',{leave_type_id:String(id||''),is_active:!currentActive}); await loadLeaveTypes(); }catch(err){ setContent(renderError(err.message)); } }
+    let payrollEmployeeOptionsCache=[];
+    async function loadPayrollEmployees(){
+      const rows=await api('/api/admin/employees?limit=1000');
+      payrollEmployeeOptionsCache=(rows||[]).filter(function(r){ return String(r.is_active).toLowerCase()==='true'; }).sort(function(a,b){ return String(a.nama||'').localeCompare(String(b.nama||'')); });
+      return payrollEmployeeOptionsCache;
+    }
+    function payrollEmployeeSelectOptions(selectedId){
+      return (payrollEmployeeOptionsCache||[]).map(function(r){
+        const id=String(r.employee_id||'');
+        const label=(String(r.nama||'-')+' ('+id+')');
+        return '<option value="'+escapeHtml(id)+'" '+(String(selectedId||'')===id?'selected':'')+'>'+escapeHtml(label)+'</option>';
+      }).join('');
+    }
+    function payrollEmailByEmployeeId(employeeId){
+      const row=(payrollEmployeeOptionsCache||[]).find(function(r){ return String(r.employee_id||'')===String(employeeId||''); });
+      return String((row&&row.email)||'');
+    }
+    function syncPayrollEmployeeEmail(){
+      const id=String((document.getElementById('pay_emp_id')||{}).value||'');
+      const email=payrollEmailByEmployeeId(id);
+      const input=document.getElementById('pay_email');
+      if(input) input.value=email;
+    }
+    async function loadPayrollDocs(){ try{ setLoading(); const [rows]=await Promise.all([api('/api/admin/payroll-docs?limit=100'),loadPayrollEmployees().catch(function(){ return []; })]); const options=payrollEmployeeSelectOptions(''); setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Payroll Docs</h3><div class="actions"><button class="btn btn-primary" onclick="submitPayrollDoc()"><i class="ph ph-upload-simple"></i> Simpan Payroll</button><button class="btn btn-secondary" onclick="loadMasterDataHub()">Back</button></div></div><div class="grid-2"><div class="form-group"><label>Employee</label><select id="pay_emp_id" onchange="syncPayrollEmployeeEmail()"><option value="">-- Pilih Karyawan --</option>'+options+'</select></div><div class="form-group"><label>Email</label><input id="pay_email" readonly></div><div class="form-group"><label>Bulan</label><input id="pay_bulan" placeholder="Contoh: April"></div><div class="form-group"><label>Tahun</label><input id="pay_tahun" placeholder="Contoh: 2026"></div><div class="form-group"><label>Nama File</label><input id="pay_nama_file" placeholder="Slip Gaji April 2026"></div><div class="form-group"><label>File URL</label><input id="pay_file_url" placeholder="https://..."></div></div><div class="form-group"><label>Keterangan</label><textarea id="pay_keterangan" placeholder="Opsional"></textarea></div><div class="table-wrap"><table><thead><tr><th>Doc ID</th><th>Employee</th><th>Bulan</th><th>Tahun</th><th>Aksi</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.doc_id)+'</td><td>'+escapeHtml((r.employee_id||'-')+' • '+(r.email||'-'))+'</td><td>'+escapeHtml(r.bulan||'-')+'</td><td>'+escapeHtml(r.tahun||'-')+'</td><td><a class="btn btn-secondary" href="'+escapeHtml(r.file_url||'#')+'" target="_blank">Buka</a></td></tr>';}).join('')||'<tr><td colspan="5">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+    async function submitPayrollDoc(){ try{ const employeeId=String((document.getElementById('pay_emp_id')||{}).value||'').trim(); const email=String((document.getElementById('pay_email')||{}).value||'').trim(); const bulan=String((document.getElementById('pay_bulan')||{}).value||'').trim(); const tahun=String((document.getElementById('pay_tahun')||{}).value||'').trim(); const namaFile=String((document.getElementById('pay_nama_file')||{}).value||'').trim(); const fileUrl=String((document.getElementById('pay_file_url')||{}).value||'').trim(); const keterangan=String((document.getElementById('pay_keterangan')||{}).value||'').trim(); if(!employeeId||!namaFile||!fileUrl) throw new Error('Employee, nama file, dan file URL wajib diisi.'); await api('/api/admin/payroll-docs','POST',{employee_id:employeeId,email:email,bulan:bulan,tahun:tahun,nama_file:namaFile,file_url:fileUrl,keterangan:keterangan}); await loadPayrollDocs(); }catch(err){ setContent(renderError(err.message)); } }
+    async function loadAnnouncements(){ try{ setLoading(); const rows=await api('/api/admin/announcements?limit=200'); setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Announcements</h3><div class="actions"><button class="btn btn-primary" onclick="loadAddAnnouncementForm()"><i class="ph ph-plus"></i> Add New</button><button class="btn btn-secondary" onclick="loadMasterDataHub()">Back</button></div></div><div class="table-wrap"><table><thead><tr><th>Judul</th><th>Target</th><th>Published</th><th>Aktif</th><th>Aksi</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td><div style="font-weight:600;color:var(--text-main);">'+escapeHtml(r.judul||'-')+'</div><div style="font-size:12px;color:var(--text-sec);">'+escapeHtml(r.announcement_id||'-')+'</div></td><td>'+escapeHtml(r.target_role||'all')+'</td><td>'+escapeHtml(formatDateTimeDisplay(r.published_at)||'-')+'</td><td>'+normalizeStatusBadge(String(r.is_active))+'</td><td><div class="actions" style="margin-top:0;"><button class="btn btn-secondary" onclick="loadEditAnnouncementForm(\''+escapeHtml(r.announcement_id||'')+'\')">Edit</button><button class="btn btn-secondary" onclick="toggleAnnouncementActive(\''+escapeHtml(r.announcement_id||'')+'\','+(String(r.is_active).toLowerCase()==='true'?'true':'false')+')">'+(String(r.is_active).toLowerCase()==='true'?'Nonaktifkan':'Aktifkan')+'</button></div></td></tr>';}).join('')||'<tr><td colspan="5">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+    function loadAddAnnouncementForm(){ setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Tambah Pemberitahuan</h3></div><div class="form-group"><label>Judul</label><input id="ann_judul"></div><div class="form-group"><label>Target Role</label><select id="ann_target"><option value="all">all</option><option value="employee">employee</option><option value="admin">admin</option></select></div><div class="form-group"><label>Isi</label><textarea id="ann_isi"></textarea></div><div class="actions"><button class="btn btn-primary" onclick="submitAddAnnouncement()">Simpan</button><button class="btn btn-secondary" onclick="loadAnnouncements()">Batal</button></div></div>'); }
     async function submitAddAnnouncement(){ try{ await api('/api/admin/announcements','POST',{judul:(document.getElementById('ann_judul')||{}).value||'',target_role:(document.getElementById('ann_target')||{}).value||'all',isi:(document.getElementById('ann_isi')||{}).value||''}); await loadAnnouncements(); }catch(err){ setContent(renderError(err.message)); } }
+    async function loadEditAnnouncementForm(id){ try{ setLoading(); const rows=await api('/api/admin/announcements?limit=500'); const row=(rows||[]).find(function(x){ return String(x.announcement_id||'')===String(id||''); }); if(!row) throw new Error('Announcement tidak ditemukan.'); setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Edit Pemberitahuan</h3></div><div class="form-group"><label>ID</label><input id="ann_edit_id" value="'+escapeHtml(row.announcement_id||'')+'" readonly></div><div class="form-group"><label>Judul</label><input id="ann_edit_judul" value="'+escapeHtml(row.judul||'')+'"></div><div class="form-group"><label>Target Role</label><select id="ann_edit_target"><option value="all" '+(String(row.target_role||'all')==='all'?'selected':'')+'>all</option><option value="employee" '+(String(row.target_role||'')==='employee'?'selected':'')+'>employee</option><option value="admin" '+(String(row.target_role||'')==='admin'?'selected':'')+'>admin</option></select></div><div class="form-group"><label>Isi</label><textarea id="ann_edit_isi">'+escapeHtml(row.isi||'')+'</textarea></div><div class="form-group"><label>Status Aktif</label><select id="ann_edit_active"><option value="true" '+(String(row.is_active).toLowerCase()==='true'?'selected':'')+'>true</option><option value="false" '+(String(row.is_active).toLowerCase()!=='true'?'selected':'')+'>false</option></select></div><div class="actions"><button class="btn btn-primary" onclick="submitEditAnnouncement()"><i class="ph ph-check"></i> Update</button><button class="btn btn-secondary" onclick="loadAnnouncements()">Batal</button></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+    async function submitEditAnnouncement(){ try{ await api('/api/admin/announcements','PATCH',{announcement_id:(document.getElementById('ann_edit_id')||{}).value||'',judul:(document.getElementById('ann_edit_judul')||{}).value||'',target_role:(document.getElementById('ann_edit_target')||{}).value||'all',isi:(document.getElementById('ann_edit_isi')||{}).value||'',is_active:String((document.getElementById('ann_edit_active')||{}).value||'true')==='true'}); await loadAnnouncements(); }catch(err){ setContent(renderError(err.message)); } }
+    async function toggleAnnouncementActive(id,currentActive){ try{ await api('/api/admin/announcements','PATCH',{announcement_id:String(id||''),is_active:!currentActive}); await loadAnnouncements(); }catch(err){ setContent(renderError(err.message)); } }
 
-    async function loadDivisions(){ try{ setLoading('Memuat divisions...'); const rows=await api('/api/admin/master/divisions'); setContent('<div class="card"><h3>Divisions</h3><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Kepala</th><th>Aktif</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.division_id)+'</td><td>'+escapeHtml(r.nama_divisi)+'</td><td>'+escapeHtml(r.kepala_divisi_email||'-')+'</td><td>'+normalizeStatusBadge(String(r.is_active))+'</td></tr>';}).join('')||'<tr><td colspan="4">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
-    function loadAddDivisionForm(){ setContent('<div class="card"><h3>Tambah Division</h3><div class="form-group"><label>Division ID</label><input id="div_id"></div><div class="form-group"><label>Nama Division</label><input id="div_nama"></div><div class="form-group"><label>Kepala Email</label><input id="div_head"></div><div class="actions"><button class="btn btn-primary" onclick="submitAddDivision()">Simpan</button></div></div>'); }
-    async function submitAddDivision(){ try{ await api('/api/admin/master/divisions','POST',{division_id:(document.getElementById('div_id')||{}).value||'',nama_divisi:(document.getElementById('div_nama')||{}).value||'',kepala_divisi_email:(document.getElementById('div_head')||{}).value||'',is_active:true}); await loadDivisions(); }catch(err){ setContent(renderError(err.message)); } }
-
-    async function loadPositions(){ try{ setLoading('Memuat positions...'); const rows=await api('/api/admin/master/positions'); setContent('<div class="card"><h3>Positions</h3><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Division ID</th><th>Aktif</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.position_id)+'</td><td>'+escapeHtml(r.nama_jabatan)+'</td><td>'+escapeHtml(r.division_id||'-')+'</td><td>'+normalizeStatusBadge(String(r.is_active))+'</td></tr>';}).join('')||'<tr><td colspan="4">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
-    function loadAddPositionForm(){ setContent('<div class="card"><h3>Tambah Position</h3><div class="form-group"><label>Position ID</label><input id="pos_id"></div><div class="form-group"><label>Nama Jabatan</label><input id="pos_nama"></div><div class="form-group"><label>Division ID</label><input id="pos_division"></div><div class="actions"><button class="btn btn-primary" onclick="submitAddPosition()">Simpan</button></div></div>'); }
-    async function submitAddPosition(){ try{ await api('/api/admin/master/positions','POST',{position_id:(document.getElementById('pos_id')||{}).value||'',nama_jabatan:(document.getElementById('pos_nama')||{}).value||'',division_id:(document.getElementById('pos_division')||{}).value||'',is_active:true}); await loadPositions(); }catch(err){ setContent(renderError(err.message)); } }
-
-    async function loadLeaveTypes(){ try{ setLoading('Memuat leave types...'); const rows=await api('/api/admin/master/leave-types'); setContent('<div class="card"><h3>Leave Types</h3><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Maks Hari</th><th>Paid</th><th>Aktif</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.leave_type_id)+'</td><td>'+escapeHtml(r.nama_jenis_cuti)+'</td><td>'+escapeHtml(r.maks_hari)+'</td><td>'+escapeHtml(String(r.is_paid))+'</td><td>'+normalizeStatusBadge(String(r.is_active))+'</td></tr>';}).join('')||'<tr><td colspan="5">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
-    function loadAddLeaveTypeForm(){ setContent('<div class="card"><h3>Tambah Leave Type</h3><div class="grid-2"><div class="form-group"><label>Leave Type ID</label><input id="lt_id"></div><div class="form-group"><label>Nama Jenis Cuti</label><input id="lt_nama"></div><div class="form-group"><label>Maks Hari</label><input id="lt_maks" type="number" value="12"></div><div class="form-group"><label>Paid</label><select id="lt_paid"><option value="true">true</option><option value="false">false</option></select></div></div><div class="actions"><button class="btn btn-primary" onclick="submitAddLeaveType()">Simpan</button></div></div>'); }
-    async function submitAddLeaveType(){ try{ await api('/api/admin/master/leave-types','POST',{leave_type_id:(document.getElementById('lt_id')||{}).value||'',nama_jenis_cuti:(document.getElementById('lt_nama')||{}).value||'',maks_hari:Number((document.getElementById('lt_maks')||{}).value||0),is_paid:String((document.getElementById('lt_paid')||{}).value||'true')==='true',requires_attachment:false,is_active:true}); await loadLeaveTypes(); }catch(err){ setContent(renderError(err.message)); } }
-
-    async function loadAdminNotifications(){ try{ setLoading('Memuat notifikasi admin...'); const summary=await api('/api/admin/notifications/leave/summary'); const rows=await api('/api/admin/notifications/leave'); setContent('<div class="card"><h3>Notifikasi Admin</h3><p><b>Unread Leave Requests:</b> '+escapeHtml(summary.unread_leave_requests)+'</p><div class="table-wrap"><table><thead><tr><th>Tipe</th><th>Judul</th><th>Pesan</th><th>Tanggal</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.notification_type)+'</td><td>'+escapeHtml(r.title)+'</td><td>'+escapeHtml(r.message)+'</td><td>'+escapeHtml(r.date_value||'-')+'</td></tr>';}).join('')||'<tr><td colspan="4">Tidak ada notifikasi</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+    async function loadAdminNotifications(){ try{ setLoading(); const summary=await api('/api/admin/notifications/leave/summary'); const rows=await api('/api/admin/notifications/leave'); setContent('<div class="cards-row" style="margin-bottom:24px;"><div class="card"><div class="stat-label">Leave Request Baru</div><div class="stat-large" style="color:var(--warning);">'+escapeHtml(summary.unread_leave_requests||0)+'</div></div><div class="card"><div class="stat-label">Total Unread</div><div class="stat-large">'+escapeHtml(summary.total_unread||0)+'</div></div></div><div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Notifikasi Admin</h3><div class="actions"><button class="btn btn-secondary" onclick="markAllAdminNotificationsSeen()"><i class="ph ph-check-double"></i> Mark All Read</button></div></div><ul class="clean-list">'+((rows||[]).map(function(r){return '<li><div class="icon-box" style="background:var(--warning-bg);color:var(--warning);"><i class="ph ph-bell"></i></div><div class="list-text"><span class="list-title">'+escapeHtml(r.title||'Notifikasi')+'</span><span class="list-desc">'+escapeHtml(formatDateTimeDisplay(r.date_value||''))+' - '+escapeHtml(r.message||'')+'</span></div></li>';}).join('')||'<li>Tidak ada notifikasi</li>')+'</ul></div>'); }catch(err){ setContent(renderError(err.message)); } }
+    async function markAllAdminNotificationsSeen(){ try{ await api('/api/admin/notifications/leave/mark-seen','POST',{}); await loadAdminNotifications(); }catch(err){ setContent(renderError(err.message)); } }
 
     loadSummary();
   </script>

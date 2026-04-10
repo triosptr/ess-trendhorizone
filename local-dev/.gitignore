@@ -1,2 +1,6 @@
 .vercel
+.env
+.env.*
 .env*.local
+.npm
+Library

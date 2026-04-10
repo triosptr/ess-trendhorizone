@@ -25,6 +25,17 @@
           <h1 class="page-title">Halo, <?= user.nama ?></h1>
           <div class="muted"><?= user.email ?> • <?= user.divisi ?> • <?= user.jabatan ?></div>
         </div>
+        <? if (newDashboardUrl) { ?>
+        <div class="card">
+          <div class="section-title">
+            <h3 class="mb-0">Tema Baru Siap Digunakan</h3>
+            <div class="actions">
+              <a class="btn btn-primary" href="<?= newDashboardUrl ?>" target="_blank">Buka Dashboard V2</a>
+              <a class="btn btn-secondary" href="?theme=v2" target="_top">Gunakan Jalur V2</a>
+            </div>
+          </div>
+        </div>
+        <? } ?>
 
         <div id="content"></div>
       </div>

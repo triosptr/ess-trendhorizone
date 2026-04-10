@@ -5,120 +5,787 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ESS Karyawan</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <style>
-    * { box-sizing: border-box; }
-    :root { --bg:#f3f6fb; --panel:#fff; --panel-2:#f8fafc; --text:#0f172a; --muted:#64748b; --line:#e2e8f0; --accent:#2563eb; --success:#15803d; --danger:#b91c1c; --warning:#b45309; --shadow:0 8px 24px rgba(15,23,42,.08); --radius:18px; }
-    html,body { margin:0; padding:0; font-family:Arial,sans-serif; background:var(--bg); color:var(--text); }
-    .layout { display:flex; min-height:100vh; }
-    .sidebar { width:270px; background:linear-gradient(180deg,#081223 0%,#0b1b34 100%); color:#fff; padding:20px 16px; min-height:100vh; }
-    .sidebar h2 { font-size:22px; margin-bottom:24px; padding:0 6px; }
-    .sidebar button { width:100%; margin-bottom:12px; padding:14px 16px; border:0; border-radius:14px; background:rgba(255,255,255,.08); color:#fff; cursor:pointer; text-align:left; font-size:15px; font-weight:600; }
-    .sidebar button:hover { background:rgba(255,255,255,.16); }
-    .main { flex:1; padding:28px; }
-    .page-title { margin-bottom:16px; }
-    .card { background:var(--panel); border-radius:var(--radius); padding:22px 24px; box-shadow:var(--shadow); margin-bottom:18px; }
-    .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:16px; margin-bottom:20px; }
-    .stat { font-size:30px; font-weight:700; margin-top:10px; }
-    .muted { color:var(--muted); font-size:14px; }
-    .error { color:var(--danger); font-weight:700; }
-    .success { color:var(--success); font-weight:700; }
-    .table-wrap { width:100%; overflow-x:auto; border-radius:14px; border:1px solid var(--line); }
-    table { width:100%; min-width:760px; border-collapse:collapse; background:#fff; }
-    th,td { border-bottom:1px solid var(--line); padding:12px 14px; text-align:left; font-size:14px; vertical-align:top; }
-    th { background:var(--panel-2); font-weight:700; white-space:nowrap; }
-    .badge { display:inline-block; padding:6px 10px; border-radius:999px; font-size:12px; font-weight:700; line-height:1; }
-    .badge-success { background:#dcfce7; color:#166534; }
-    .badge-danger { background:#fee2e2; color:#991b1b; }
-    .badge-warning { background:#fef3c7; color:#92400e; }
-    .badge-neutral { background:#e2e8f0; color:#334155; }
-    .section-title { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
-    .actions { display:flex; gap:10px; flex-wrap:wrap; }
-    .btn { display:inline-block; border:0; border-radius:12px; padding:10px 14px; font-size:14px; font-weight:700; cursor:pointer; text-decoration:none; }
-    .btn-primary { background:var(--accent); color:#fff; }
-    .btn-secondary { background:#e2e8f0; color:#0f172a; }
-    .form-group { margin-bottom:14px; }
-    label { display:block; margin-bottom:6px; font-size:14px; font-weight:700; }
-    input,select,textarea { width:100%; padding:11px 12px; border:1px solid #cbd5e1; border-radius:12px; font-size:14px; background:#fff; color:var(--text); outline:none; }
-    textarea { min-height:110px; resize:vertical; }
-    .grid-2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
-    .mb-0 { margin-bottom:0; }
-    @media (max-width:960px){ .layout{flex-direction:column;} .sidebar{width:100%;min-height:auto;} .main{padding:16px;} .grid-2,.cards{grid-template-columns:1fr;} }
+    :root {
+      --primary: #4F46E5; --secondary: #6366F1; --primary-light: #EEF2FF;
+      --bg: #F9FAFB; --card: #FFFFFF; --sidebar-bg: #F8FAFC; --border: #E5E7EB;
+      --text-main: #111827; --text-sec: #6B7280;
+      --success: #10B981; --success-bg: #D1FAE5;
+      --warning: #F59E0B; --warning-bg: #FEF3C7; --danger: #EF4444; --danger-bg: #FEE2E2;
+      --radius-lg: 20px; --radius-md: 16px; --radius-sm: 12px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+      --shadow-lg: 0 10px 25px -3px rgba(0,0,0,0.04), 0 4px 10px -2px rgba(0,0,0,0.02);
+      --shadow-hover: 0 14px 30px -4px rgba(79, 70, 229, 0.15);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background-color: var(--bg); color: var(--text-main); line-height: 1.5; -webkit-font-smoothing: antialiased; overflow: hidden; }
+    .layout { display: flex; height: 100vh; }
+    .sidebar { width: 240px; background-color: var(--sidebar-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 24px 20px; transition: transform 0.3s ease; z-index: 50; }
+    .sidebar-header { display: flex; align-items: center; gap: 12px; margin-bottom: 40px; padding: 0 8px; }
+    .logo img { height: 32px; width: auto; }
+    .logo-text { font-weight: 700; font-size: 18px; letter-spacing: -0.02em; }
+    .sidebar-menu { display: flex; flex-direction: column; gap: 6px; flex: 1; overflow-y: auto; }
+    .menu-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; text-decoration: none; color: var(--text-sec); border-radius: var(--radius-sm); font-weight: 500; font-size: 14px; transition: all 0.2s ease; cursor:pointer; border:none; background:transparent; width:100%; text-align:left; }
+    .menu-item i { font-size: 20px; }
+    .menu-item:hover { background-color: var(--border); color: var(--text-main); }
+    .menu-item.active { background-color: var(--primary-light); color: var(--primary); }
+    .main-wrapper { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .header { height: 80px; display: flex; justify-content: space-between; align-items: center; padding: 0 32px; background-color: var(--card); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .header-left { display: flex; align-items: center; gap: 16px; }
+    .search-bar { display: flex; align-items: center; gap: 10px; background-color: var(--bg); padding: 10px 16px; border-radius: 99px; border: 1px solid var(--border); width: 320px; transition: all 0.2s; }
+    .search-bar:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); background-color: var(--card); }
+    .search-bar i { color: var(--text-sec); font-size: 18px; }
+    .search-bar input { border: none; background: transparent; outline: none; width: 100%; font-size: 14px; font-family: inherit; }
+    .header-right { display: flex; align-items: center; gap: 24px; }
+    .date-display { display: flex; align-items: center; gap: 8px; color: var(--text-sec); font-size: 14px; font-weight: 500; }
+    .icon-btn { background: none; border: none; font-size: 22px; color: var(--text-sec); cursor: pointer; position: relative; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; transition: background 0.2s; }
+    .icon-btn:hover { background-color: var(--bg); color: var(--text-main); }
+    .badge { position: absolute; top: 6px; right: 6px; background-color: #EF4444; color: white; font-size: 10px; font-weight: 700; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 2px solid var(--card); }
+    .user-profile { display: flex; align-items: center; gap: 12px; cursor: pointer; padding: 6px; border-radius: var(--radius-sm); transition: background 0.2s; }
+    .user-profile:hover { background-color: var(--bg); }
+    .avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background:var(--primary); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:16px; }
+    .user-info { display: flex; flex-direction: column; }
+    .user-name { font-weight: 600; font-size: 14px; }
+    .user-role { font-size: 12px; color: var(--text-sec); }
+    
+    .content-grid { display: grid; grid-template-columns: 1fr 340px; gap: 24px; padding: 32px; overflow-y: auto; height: calc(100vh - 80px); }
+    .content-grid.full-width { grid-template-columns: 1fr; }
+    .middle-col { display: flex; flex-direction: column; gap: 24px; }
+    
+    .greeting h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }
+    .greeting p { color: var(--text-sec); font-size: 15px; }
+    .cards-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    
+    .card { background-color: var(--card); border-radius: var(--radius-lg); border: 1px solid var(--border); box-shadow: var(--shadow-sm); padding: 24px; transition: box-shadow 0.3s ease, transform 0.3s ease; }
+    .card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+    
+    /* Shift Progress Card (adapted from payslip) */
+    .payslip-content { display: flex; align-items: center; gap: 24px; height: 100%; }
+    .donut-chart-dummy { width: 90px; height: 90px; flex-shrink: 0; }
+    .circular-chart { display: block; margin: 0 auto; max-width: 100%; max-height: 250px; }
+    .circle-bg { fill: none; stroke: var(--primary-light); stroke-width: 3.8; }
+    .circle { fill: none; stroke-width: 2.8; stroke-linecap: round; stroke: var(--primary); animation: progress 1s ease-out forwards; }
+    .percentage { fill: var(--text-main); font-family: 'Inter', sans-serif; font-size: 8px; font-weight: 700; text-anchor: middle; }
+    .payslip-info { flex: 1; display: flex; flex-direction: column; }
+    .salary-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .salary-label { font-size: 13px; color: var(--text-sec); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+    .salary-amount { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 12px; color: var(--text-main); }
+    .salary-meta { display: flex; gap: 16px; font-size: 13px; color: var(--text-sec); margin-bottom: 16px; }
+    .salary-meta span { display: flex; align-items: center; gap: 6px; }
+    .salary-meta i { color: var(--primary); font-size: 16px; }
+    
+    .action-card { background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%); color: white; border: none; display: flex; align-items: center; justify-content: space-between; }
+    .action-text { flex: 1; }
+    .action-text h3 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+    .action-text p { font-size: 14px; color: rgba(255,255,255,0.8); margin-bottom: 20px; line-height: 1.4; }
+    .btn-white { background-color: white; color: var(--primary); border: none; padding: 10px 20px; border-radius: 99px; font-weight: 600; font-size: 14px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+    .btn-white:hover { transform: translateY(-2px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); }
+    .action-illustration { font-size: 80px; color: rgba(255,255,255,0.2); margin-left: 16px; }
+    
+    .bottom-row { grid-template-columns: 3fr 2fr; }
+    
+    .tab-nav { display: flex; gap: 24px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+    .tab-btn { background: none; border: none; padding: 8px 0 12px; font-size: 15px; font-weight: 600; color: var(--text-sec); cursor: pointer; position: relative; transition: color 0.2s; }
+    .tab-btn:hover { color: var(--text-main); }
+    .tab-btn.active { color: var(--primary); }
+    .tab-btn.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background-color: var(--primary); border-radius: 2px 2px 0 0; }
+    .tab-content { display: none; animation: fadeIn 0.3s ease; }
+    .tab-content.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    
+    .clean-list { list-style: none; display: flex; flex-direction: column; gap: 16px; }
+    .clean-list li { display: flex; align-items: center; gap: 16px; }
+    .avatar-sm { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background:var(--primary-light); color:var(--primary); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:16px; }
+    .icon-box { width: 44px; height: 44px; border-radius: var(--radius-sm); background-color: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 22px; }
+    .list-text { flex: 1; display: flex; flex-direction: column; }
+    .list-title { font-weight: 600; font-size: 14px; color: var(--text-main); }
+    .list-desc { font-size: 13px; color: var(--text-sec); }
+    .btn-icon { background: var(--bg); border: 1px solid var(--border); width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--text-sec); cursor: pointer; transition: all 0.2s; }
+    .btn-icon:hover { background: var(--primary); color: white; border-color: var(--primary); }
+    
+    .team-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+    .team-stat { display: flex; flex-direction: column; }
+    .stat-large { font-size: 42px; font-weight: 800; color: var(--primary); line-height: 1; margin-bottom: 4px; letter-spacing: -0.02em; }
+    .stat-label { font-size: 14px; color: var(--text-sec); font-weight: 500; }
+    .status-badge { padding: 4px 12px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+    .status-badge.on-time { background-color: var(--success-bg); color: var(--success); }
+    .status-badge.on-leave { background-color: var(--warning-bg); color: var(--warning); }
+    
+    /* RIGHT COLUMN (ATTENDANCE) */
+    .right-col { display:flex; flex-direction:column; }
+    .attendance-widget { background: linear-gradient(180deg, var(--primary-light) 0%, var(--card) 100%); border-radius: var(--radius-lg); padding: 32px 24px; box-shadow: var(--shadow-sm); height: 100%; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+    .attendance-widget::before { content: ''; position: absolute; top: -50px; right: -50px; width: 200px; height: 200px; background: radial-gradient(circle, rgba(79, 70, 229, 0.1) 0%, rgba(255,255,255,0) 70%); border-radius: 50%; z-index: 0; }
+    .attendance-widget > * { position: relative; z-index: 1; }
+    .widget-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; }
+    .widget-header h2 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    .widget-header p { font-size: 13px; color: var(--text-sec); }
+    .btn-icon-light { background: rgba(255,255,255,0.5); border: none; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--primary); font-size: 18px; cursor: pointer; transition: background 0.2s; }
+    .btn-icon-light:hover { background: white; }
+    .timer-display { text-align: center; margin-bottom: 40px; }
+    .timer-value { font-family: 'Inter', monospace; font-size: 48px; font-weight: 800; color: var(--primary); letter-spacing: -0.02em; margin-bottom: 8px; font-variant-numeric: tabular-nums; }
+    .timer-label { font-size: 14px; font-weight: 500; color: var(--text-sec); text-transform: uppercase; letter-spacing: 0.05em; }
+    
+    .status-animation-box { text-align:center; margin-bottom:24px; padding:16px; background:rgba(255,255,255,0.5); border-radius:var(--radius-sm); border:1px dashed var(--border); }
+    .anim-icon { font-size:48px; color:var(--primary); margin-bottom:8px; display:inline-block; }
+    .anim-working { animation: pulse-soft 2s infinite; }
+    .anim-break { animation: rock 2s infinite; color: var(--warning); }
+    .anim-done { color: var(--success); }
+    .anim-idle { color: var(--text-sec); opacity:0.5; }
+    @keyframes pulse-soft { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+    @keyframes rock { 0%, 100% { transform: rotate(-10deg); } 50% { transform: rotate(10deg); } }
+
+    .tracker-info { display: flex; flex-direction: column; gap: 16px; margin-bottom: 32px; }
+    .info-box { display: flex; align-items: center; gap: 16px; background-color: var(--card); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); }
+    .info-box i { font-size: 24px; color: var(--primary); background-color: var(--primary-light); padding: 10px; border-radius: 10px; }
+    .info-text { display: flex; flex-direction: column; }
+    .info-text span { font-size: 12px; color: var(--text-sec); margin-bottom: 2px; }
+    .info-text strong { font-size: 15px; color: var(--text-main); font-weight: 600; }
+    .break-box { display: flex; align-items: center; justify-content: space-between; background-color: var(--card); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); margin-bottom: auto; }
+    .break-text { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 14px; }
+    .break-text i { color: var(--warning); font-size: 20px; }
+    .btn-outline-light { background: white; border: 1px solid var(--border); padding: 8px 16px; border-radius: 99px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+    .btn-outline-light:hover { background: var(--bg); border-color: var(--text-sec); }
+    .btn-signout { width: 100%; background: linear-gradient(135deg, #111827 0%, #374151 100%); color: white; border: none; padding: 16px; border-radius: var(--radius-md); font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 24px; margin-bottom: 16px; transition: transform 0.2s, box-shadow 0.2s; }
+    .btn-signout:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(17, 24, 39, 0.15); }
+    .btn-signout:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+    .widget-footer { text-align: center; }
+    .view-link { color: var(--text-sec); text-decoration: none; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; transition: color 0.2s; cursor:pointer;}
+    .view-link:hover { color: var(--primary); }
+
+    /* Other pages / Generic Forms / Tables */
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 600; color: var(--text-main); }
+    input, select, textarea { width: 100%; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: #fff; color: var(--text-main); outline: none; font-family: inherit; transition: border-color 0.2s; }
+    input:focus, select:focus, textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+    .table-wrap { width: 100%; overflow-x: auto; border-radius: var(--radius-md); border: 1px solid var(--border); background: #fff; margin-top: 16px; }
+    table { width: 100%; min-width: 760px; border-collapse: collapse; background: #fff; }
+    th, td { border-bottom: 1px solid var(--border); padding: 14px 16px; text-align: left; font-size: 14px; vertical-align: middle; }
+    th { background: var(--bg); font-weight: 600; color: var(--text-sec); text-transform: uppercase; letter-spacing: 0.05em; font-size: 12px; }
+    .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 99px; padding: 10px 20px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; transition: .2s ease; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--secondary); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(79,70,229,.2); }
+    .btn-secondary { background: var(--primary-light); color: var(--primary); }
+    .btn-secondary:hover { background: #E0E7FF; transform: translateY(-1px); }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .file-hint { font-size: 12px; margin-top: 8px; color: var(--text-sec); }
+    .muted { color: var(--text-sec); font-size: 14px; }
+    .error { background: var(--danger-bg); color: var(--danger); border: 1px solid #fecaca; border-radius: var(--radius-sm); padding: 12px 14px; font-size: 14px; font-weight: 600; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(17,24,39,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; backdrop-filter: blur(4px); }
+    .modal-card { width: min(860px, 96vw); max-height: 92vh; overflow: auto; background: #fff; border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-lg); }
+
+    @media (max-width: 1200px) { .content-grid { grid-template-columns: 1fr 300px; } .cards-row, .bottom-row { grid-template-columns: 1fr; } }
+    @media (max-width: 992px) { .sidebar { position: fixed; transform: translateX(-100%); height: 100vh; box-shadow: var(--shadow-lg); } .sidebar.open { transform: translateX(0); } .header { padding: 0 24px; } .search-bar { display: none; } }
+    @media (max-width: 768px) { .content-grid { grid-template-columns: 1fr; padding: 20px; } .right-col { order: -1; margin-bottom:24px; } .header-right .date-display { display: none; } }
   </style>
 </head>
 <body>
   <div class="layout">
-    <div class="sidebar">
-      <h2>ESS Karyawan</h2>
-      <button onclick="loadEmployeeHome()">Dashboard</button>
-      <button onclick="loadNotificationCenter()">Notifikasi</button>
-      <button onclick="loadMyProfile()">Profil Saya</button>
-      <button onclick="loadAttendancePage()">Absensi Hari Ini</button>
-      <button onclick="loadMyAttendanceHistory()">Riwayat Absensi</button>
-      <button onclick="loadLeaveForm()">Ajukan Cuti</button>
-      <button onclick="loadMyLeaveHistory()">Riwayat Cuti</button>
-      <button onclick="loadMyPayrollDocs()">Slip Gaji</button>
-      <button onclick="loadAnnouncements()">Pengumuman</button>
-    </div>
-    <div class="main">
-      <div class="card">
-        <h1 class="page-title" id="greeting_name">Halo, -</h1>
-        <div class="muted" id="greeting_meta">-</div>
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo"><img src="https://trendhorizone.id/wp-content/uploads/2024/07/174135616958657596.png" alt="Logo"></div>
+        <button class="mobile-close" onclick="document.getElementById('sidebar').classList.remove('open')" style="display:none;"><i class="ph ph-x"></i></button>
       </div>
-      <div id="content"></div>
+      <nav class="sidebar-menu">
+        <button class="menu-item active" onclick="navTo('home', this); loadEmployeeHome()"><i class="ph ph-squares-four"></i><span>Home</span></button>
+        <button class="menu-item" onclick="navTo('leave', this); loadLeaveForm()"><i class="ph ph-calendar-blank"></i><span>Leave</span></button>
+        <button class="menu-item" onclick="navTo('history', this); loadMyAttendanceHistory()"><i class="ph ph-clock"></i><span>Attendance History</span></button>
+        <button class="menu-item" onclick="navTo('payroll', this); loadMyPayrollDocs()"><i class="ph ph-wallet"></i><span>Salary</span></button>
+        <button class="menu-item" onclick="navTo('schedule', this); loadMyMonthlySchedule()"><i class="ph ph-calendar-check"></i><span>Schedule</span></button>
+        <button class="menu-item" onclick="navTo('notif', this); loadNotificationCenter()"><i class="ph ph-bell"></i><span>Notifications</span></button>
+        <button class="menu-item" onclick="navTo('profile', this); loadMyProfile()"><i class="ph ph-user"></i><span>Profile</span></button>
+      </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <div class="main-wrapper">
+      <header class="header">
+        <div class="header-left">
+          <button class="icon-btn" onclick="document.getElementById('sidebar').classList.add('open')" style="display:none;" id="mobileToggle"><i class="ph ph-list"></i></button>
+          <div class="search-bar"><i class="ph ph-magnifying-glass"></i><input type="text" placeholder="Search anything..."></div>
+        </div>
+        <div class="header-right">
+          <div class="date-display"><i class="ph ph-calendar"></i><span id="header_date">Today</span></div>
+          <button class="icon-btn" onclick="loadNotificationCenter()"><i class="ph ph-bell"></i><span class="badge" id="notif_badge" style="display:none;">0</span></button>
+          <div class="user-profile" onclick="loadMyProfile()">
+            <div class="avatar" id="header_avatar">U</div>
+            <div class="user-info"><span class="user-name" id="header_name">User</span><span class="user-role" id="header_role">Employee</span></div>
+          </div>
+        </div>
+      </header>
+
+      <div class="content-grid" id="main_content_grid">
+        <!-- Injected by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Camera Modal -->
+  <div id="checkin_camera_modal" class="modal-backdrop" style="display:none;">
+    <div class="modal-card" style="width:min(500px, 96vw);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="font-size:20px; font-weight:700;">Take a Selfie</h3>
+        <button class="btn-icon" onclick="closeCheckInModal()"><i class="ph ph-x"></i></button>
+      </div>
+      <div style="background:var(--bg); padding:12px; border-radius:var(--radius-sm); margin-bottom:16px; font-size:14px; color:var(--text-sec);" id="attendance_camera_hint">Please look at the camera.</div>
+      <video id="attendance_camera_video" autoplay playsinline muted style="width:100%; height:auto; border-radius:var(--radius-md); background:#000; margin-bottom:16px;"></video>
+      <img id="checkin_selfie_preview" style="display:none; width:100%; border-radius:var(--radius-md); margin-bottom:16px;">
+      <div class="actions" style="justify-content:flex-end;">
+        <button class="btn btn-secondary" onclick="captureCheckInSelfie()"><i class="ph ph-camera"></i> Capture</button>
+        <button id="btn_final_checkin" class="btn btn-primary" style="display:none;" onclick="finalCheckInSubmit()"><i class="ph ph-check-circle"></i> Submit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CheckOut Modal -->
+  <div id="checkout_modal" class="modal-backdrop" style="display:none;">
+    <div class="modal-card" style="width:min(500px, 96vw);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="font-size:20px; font-weight:700;">Check Out</h3>
+        <button class="btn-icon" onclick="document.getElementById('checkout_modal').style.display='none'"><i class="ph ph-x"></i></button>
+      </div>
+      <div class="form-group"><label>Location / Notes</label><input id="co_lokasi" placeholder="e.g. Office / WFH" value=""></div>
+      <div class="form-group"><label>Activity Summary</label><textarea id="co_catatan" placeholder="What did you do today?"></textarea></div>
+      <div class="actions" style="justify-content:flex-end;">
+        <button class="btn btn-primary" onclick="submitCheckOutSimple()"><i class="ph ph-sign-out"></i> Confirm Check Out</button>
+      </div>
     </div>
   </div>
 
   <script>
+    function navTo(id, el){ document.querySelectorAll('.menu-item').forEach(e=>e.classList.remove('active')); el.classList.add('active'); if(window.innerWidth<=992) document.getElementById('sidebar').classList.remove('open'); }
+    if(window.innerWidth<=992) { document.getElementById('mobileToggle').style.display='block'; document.querySelector('.mobile-close').style.display='block'; }
+    document.getElementById('header_date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long', day:'2-digit', month:'short'});
+
+    let workDurationTimer=null;
+    let leaveAttachmentPayload=null;
     function safe(v){ return v===null||v===undefined?'':v; }
     function escapeHtml(v){ return String(safe(v)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
-    function setContent(html){ const el=document.getElementById('content'); if(el) el.innerHTML=html; }
-    function setLoading(t){ setContent('<div class="card"><h3>'+escapeHtml(t||'Memuat data...')+'</h3><p class="muted">Mohon tunggu sebentar.</p></div>'); }
-    function renderError(m){ return '<div class="card"><div class="error">'+escapeHtml(m||'Terjadi kesalahan.')+'</div></div>'; }
+    function clearWorkDurationTicker(){ if(workDurationTimer){ clearInterval(workDurationTimer); workDurationTimer=null; } }
+    
+    function setContentLayout(middleHtml, rightHtml){
+        clearWorkDurationTicker();
+        const grid = document.getElementById('main_content_grid');
+        if(rightHtml) {
+            grid.className = 'content-grid';
+            grid.innerHTML = `<main class="middle-col">${middleHtml}</main><aside class="right-col">${rightHtml}</aside>`;
+        } else {
+            grid.className = 'content-grid full-width';
+            grid.innerHTML = `<main class="middle-col">${middleHtml}</main>`;
+        }
+    }
+    
+    function setLoading(t){ setContentLayout(`<div class="card"><h3>${escapeHtml(t||'Loading...')}</h3><p class="muted">Please wait a moment.</p></div>`, ''); }
+    function renderError(m){ return `<div class="card"><div class="error">${escapeHtml(m||'Error occurred.')}</div></div>`; }
     function formatDateTimeDisplay(value){ if(!value) return ''; const d=new Date(value); if(isNaN(d.getTime())) return String(value); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0'); }
-    function normalizeStatusBadge(status){ const s=String(safe(status)).trim().toLowerCase(); if(s==='approved'||s==='active'||s==='true'||s==='hadir') return '<span class="badge badge-success">'+escapeHtml(status)+'</span>'; if(s==='rejected'||s==='inactive'||s==='false') return '<span class="badge badge-danger">'+escapeHtml(status)+'</span>'; if(s==='pending'||s==='terlambat') return '<span class="badge badge-warning">'+escapeHtml(status)+'</span>'; return '<span class="badge badge-neutral">'+escapeHtml(status||'-')+'</span>'; }
-    function hdr(){ return {'Content-Type':'application/json','x-user-email':localStorage.getItem('ess_user_email')||'demo@contoh.com','x-employee-id':localStorage.getItem('ess_employee_id')||'EMP_DEMO_001','x-user-role':localStorage.getItem('ess_user_role')||'employee'}; }
+    function formatDateDisplay(value){ if(!value) return ''; const d=new Date(value); if(isNaN(d.getTime())) return String(value); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+    function nowHmsWIB(){ const p=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jakarta',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).formatToParts(new Date()).reduce(function(a,x){ if(x&&x.type) a[x.type]=x.value; return a; },{}); return String(p.hour||'00')+':'+String(p.minute||'00')+':'+String(p.second||'00'); }
+    function hmsToSec(v){ const s=String(v||'').trim(); const m=s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/); if(!m) return 0; return Number(m[1]||0)*3600+Number(m[2]||0)*60+Number(m[3]||0); }
+    function isValidHms(v){ return /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.test(String(v||'').trim()); }
+    function diffSecClock(a,b){ if(!isValidHms(a)||!isValidHms(b)) return 0; const x=hmsToSec(a), y=hmsToSec(b); return y>=x?(y-x):((24*3600-x)+y); }
+    function secToDigital(total){ const t=Math.max(0,Math.floor(Number(total||0))); const h=Math.floor(t/3600), m=Math.floor((t%3600)/60), s=t%60; return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'); }
+    function fileToAttachmentObject(file){
+      return new Promise(function(resolve,reject){
+        if(!file) return resolve(null);
+        const reader=new FileReader();
+        reader.onload=function(){
+          const dataUrl=String(reader.result||'');
+          const parts=dataUrl.split(',');
+          const base64Data=parts[1]||'';
+          if(!base64Data) return reject(new Error('File tidak valid.'));
+          resolve({
+            fileName:String(file.name||('lampiran_'+Date.now())),
+            mimeType:String(file.type||'application/octet-stream'),
+            base64Data:base64Data
+          });
+        };
+        reader.onerror=function(){ reject(new Error('Gagal membaca file lampiran.')); };
+        reader.readAsDataURL(file);
+      });
+    }
+    function selectedLeaveTypeRequiresAttachment(){
+      const typeEl=document.getElementById('lv_type');
+      const selected=String((typeEl&&typeEl.value)||'').trim().toLowerCase();
+      const ref=(leaveTypesCache||[]).find(function(t){
+        return String(t.nama_jenis_cuti||'').trim().toLowerCase()===selected;
+      })||null;
+      if(ref&&(ref.requires_attachment===true||String(ref.requires_attachment).toLowerCase()==='true')) return true;
+      return /sakit/.test(selected);
+    }
+    function updateLeaveAttachmentVisibility(){
+      const box=document.getElementById('leave_attachment_wrap');
+      const req=document.getElementById('leave_attachment_required');
+      if(!box||!req) return;
+      const required=selectedLeaveTypeRequiresAttachment();
+      req.textContent=required?'Wajib untuk jenis cuti ini':'Opsional';
+      req.style.color=required?'var(--danger)':'var(--text-sec)';
+    }
+    async function onLeaveAttachmentChange(input){
+      try{
+        const file=input&&input.files&&input.files[0]?input.files[0]:null;
+        const info=document.getElementById('leave_attachment_info');
+        if(!file){
+          leaveAttachmentPayload=null;
+          if(info) info.textContent='Belum ada file dipilih';
+          return;
+        }
+        leaveAttachmentPayload=await fileToAttachmentObject(file);
+        if(info) info.textContent='File siap: '+String(file.name||'-')+' ('+Math.ceil(Number(file.size||0)/1024)+' KB)';
+      }catch(err){
+        leaveAttachmentPayload=null;
+        alert(err.message);
+        if(input) input.value='';
+      }
+    }
+    
+    function startWorkDurationTicker(data){
+      const el=document.getElementById('digitalTimer');
+      if(!el) return;
+      const baseBreakSec=Math.max(0,Number(data&&data.break_total_seconds||0));
+      const masuk=String(data&&data.jam_masuk||'');
+      const keluar=String(data&&data.jam_keluar||'');
+      const breakActive=!!(data&&data.break_active);
+      const breakStart=String(data&&data.break_active_start||'');
+      const tick=function(){
+        if(!masuk){ el.textContent='00:00:00'; return; }
+        const nowHms=nowHmsWIB();
+        let gross=keluar?diffSecClock(masuk,keluar):diffSecClock(masuk,nowHms);
+        let breakSec=baseBreakSec;
+        if(!keluar && breakActive && breakStart){ breakSec += diffSecClock(breakStart,nowHms); }
+        const eff=Math.max(0,gross-breakSec);
+        el.textContent=secToDigital(eff);
+      };
+      tick();
+      if(!keluar){ workDurationTimer=setInterval(tick,1000); }
+    }
+
+    function resolveIdentity(){
+      const q=new URLSearchParams(window.location.search||'');
+      const email=q.get('email')||q.get('user_email')||'';
+      const emp=q.get('employee_id')||q.get('emp_id')||'';
+      if(email){ localStorage.setItem('ess_demo_email',email); localStorage.setItem('ess_user_email',email); }
+      if(emp){ localStorage.setItem('ess_demo_employee_id',emp); localStorage.setItem('ess_employee_id',emp); }
+      if(localStorage.getItem('ess_user_email')&&!localStorage.getItem('ess_demo_email')) localStorage.setItem('ess_demo_email',localStorage.getItem('ess_user_email'));
+      if(localStorage.getItem('ess_employee_id')&&!localStorage.getItem('ess_demo_employee_id')) localStorage.setItem('ess_demo_employee_id',localStorage.getItem('ess_employee_id'));
+      if(!localStorage.getItem('ess_user_role')) localStorage.setItem('ess_user_role','employee');
+    }
+    function hdr(){
+      resolveIdentity();
+      return { 'Content-Type':'application/json', 'x-user-email':localStorage.getItem('ess_user_email')||localStorage.getItem('ess_demo_email')||'demo@contoh.com', 'x-employee-id':localStorage.getItem('ess_employee_id')||localStorage.getItem('ess_demo_employee_id')||'EMP_DEMO_001', 'x-user-role':localStorage.getItem('ess_user_role')||'employee' };
+    }
     function base(){ return localStorage.getItem('ess_api_base') || 'https://ess-2026-trendhorizone-id.vercel.app'; }
-    async function api(path,method,body){ const r=await fetch(base()+path,{method:method||'GET',headers:hdr(),body:body?JSON.stringify(body):undefined}); const tx=await r.text(); let d=tx; try{d=JSON.parse(tx);}catch(e){} if(!r.ok) throw new Error((d&&d.message)||'Request gagal'); return d; }
-    async function bootGreeting(){ const p=await api('/api/me/profile'); document.getElementById('greeting_name').textContent='Halo, '+(p.nama||'-'); document.getElementById('greeting_meta').textContent=(p.email||'-')+' • '+(p.divisi||'-')+' • '+(p.jabatan||'-'); }
+    async function api(path,method,body){ const r=await fetch(base()+path,{method:method||'GET',headers:hdr(),body:body?JSON.stringify(body):undefined}); const tx=await r.text(); let d=tx; try{d=JSON.parse(tx);}catch(e){} if(!r.ok) throw new Error((d&&d.message)||'Request failed'); return d; }
+    
+    async function bootGreeting(){ 
+        const p=await api('/api/me/profile'); 
+        const n = p.nama||'User';
+        document.getElementById('header_name').textContent=n; 
+        document.getElementById('header_role').textContent=p.jabatan||'Employee'; 
+        document.getElementById('header_avatar').textContent=n.charAt(0).toUpperCase();
+        return p;
+    }
 
-    async function loadEmployeeHome(){ try{ setLoading('Memuat dashboard karyawan...'); const data=await api('/api/me/dashboard-summary'); const today=await api('/api/me/attendance/today'); const notif=await api('/api/me/notifications/summary'); setContent(''
-      +'<div class="cards">'
-      +'<div class="card"><div>Jatah Cuti</div><div class="stat">'+escapeHtml(data.jatah_cuti)+'</div></div>'
-      +'<div class="card"><div>Sisa Cuti</div><div class="stat">'+escapeHtml(data.sisa_cuti)+'</div></div>'
-      +'<div class="card"><div>Pengajuan Pending</div><div class="stat">'+escapeHtml(data.pendingLeaves)+'</div></div>'
-      +'<div class="card"><div>Absensi Hari Ini</div><div class="stat">'+escapeHtml(today.status)+'</div></div>'
-      +'</div>'
-      +'<div class="cards">'
-      +'<div class="card"><div>Pengumuman Baru</div><div class="stat">'+escapeHtml(notif.unread_announcements)+'</div></div>'
-      +'<div class="card"><div>Payroll Baru</div><div class="stat">'+escapeHtml(notif.unread_payroll_docs)+'</div></div>'
-      +'<div class="card"><div>Total Notifikasi Baru</div><div class="stat">'+escapeHtml(notif.total_unread)+'</div></div>'
-      +'</div>'
-      +'<div class="card"><h3>Status Absensi Hari Ini</h3><p><b>Tanggal:</b> '+escapeHtml(today.tanggal)+'</p><p><b>Jam Masuk:</b> '+escapeHtml(today.jam_masuk||'-')+'</p><p><b>Jam Keluar:</b> '+escapeHtml(today.jam_keluar||'-')+'</p><p><b>Status:</b> '+normalizeStatusBadge(today.status)+'</p></div>'
-    ); }catch(err){ setContent(renderError(err.message)); } }
+    window.switchTab = function(btn, targetId) {
+        const card = btn.closest('.todo-card');
+        card.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        card.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(targetId).classList.add('active');
+    };
 
-    async function loadNotificationCenter(){ try{ setLoading('Memuat notifikasi...'); const rows=await api('/api/me/notifications'); setContent('<div class="card"><div class="section-title"><h3 class="mb-0">Notifikasi</h3><div class="actions"><button class="btn btn-secondary" onclick="markAllNotif()">Tandai Dibaca</button></div></div><div class="table-wrap"><table><thead><tr><th>Tipe</th><th>Judul</th><th>Pesan</th><th>Tanggal</th><th>Status</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.notification_type)+'</td><td>'+escapeHtml(r.title)+'</td><td>'+escapeHtml(r.message)+'</td><td>'+escapeHtml(formatDateTimeDisplay(r.date_value))+'</td><td>'+normalizeStatusBadge(String(r.is_unread)==='TRUE'?'pending':'seen')+'</td></tr>';}).join('')||'<tr><td colspan="5">Tidak ada notifikasi</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
-    async function markAllNotif(){ try{ await api('/api/me/notifications/mark-seen','POST',{type:'all'}); await loadNotificationCenter(); }catch(err){ setContent(renderError(err.message)); } }
+    function renderNotifRows(rows, icon){ 
+        if(!rows||rows.length===0) return '<li><div class="list-text"><span class="list-desc">No new items.</span></div></li>';
+        return rows.map(r=>`
+            <li>
+                <div class="icon-box"><i class="ph ${icon}"></i></div>
+                <div class="list-text">
+                    <span class="list-title">${escapeHtml(r.title||r.judul||'Notification')}</span>
+                    <span class="list-desc">${escapeHtml(formatDateDisplay(r.date_value||r.published_at||new Date()))}</span>
+                </div>
+            </li>
+        `).join('');
+    }
 
-    async function loadMyProfile(){ try{ setLoading('Memuat profil...'); const p=await api('/api/me/profile'); setContent('<div class="card"><h3>Profil Saya</h3><div class="grid-2"><div><p><b>Nama:</b> '+escapeHtml(p.nama)+'</p><p><b>Email:</b> '+escapeHtml(p.email)+'</p><p><b>ID:</b> '+escapeHtml(p.employee_id)+'</p><p><b>Role:</b> '+escapeHtml(p.role)+'</p></div><div><p><b>Divisi:</b> '+escapeHtml(p.divisi||'-')+'</p><p><b>Jabatan:</b> '+escapeHtml(p.jabatan||'-')+'</p><p><b>No HP:</b> '+escapeHtml(p.no_hp||'-')+'</p><p><b>Alamat:</b> '+escapeHtml(p.alamat||'-')+'</p></div></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+    async function loadEmployeeHome(){ 
+      try{ 
+        setLoading('Loading dashboard...'); 
+        const profile = await bootGreeting();
+        const data = await api('/api/me/dashboard-summary'); 
+        const today = await api('/api/me/attendance/today'); 
+        const notif = await api('/api/me/notifications/summary'); 
+        const announcements = await api('/api/me/announcements?limit=3');
+        const notifications = await api('/api/me/notifications');
 
-    async function loadAttendancePage(){ try{ setLoading('Memuat absensi...'); const data=await api('/api/me/attendance/today'); setContent('<div class="card"><h3>Absensi Hari Ini</h3><p><b>Tanggal:</b> '+escapeHtml(data.tanggal||'-')+'</p><p><b>Jam Masuk:</b> '+escapeHtml(data.jam_masuk||'-')+'</p><p><b>Jam Keluar:</b> '+escapeHtml(data.jam_keluar||'-')+'</p><p><b>Status:</b> '+normalizeStatusBadge(data.status||'-')+'</p><p><b>Foto Masuk:</b> '+(data.foto_masuk_url?'<a href="'+escapeHtml(data.foto_masuk_url)+'" target="_blank">Lihat</a>':'-')+'</p><p><b>Foto Keluar:</b> '+(data.foto_keluar_url?'<a href="'+escapeHtml(data.foto_keluar_url)+'" target="_blank">Lihat</a>':'-')+'</p><div class="grid-2"><div class="form-group"><label>Mode Kerja</label><select id="attendance_work_mode"><option value="office">Office</option><option value="wfh">WFH</option></select></div><div class="form-group"><label>Lokasi</label><input id="lokasi_absen" placeholder="Office/WFH"></div></div><div class="grid-2"><div class="form-group"><label>Upload Foto Check In</label><input id="foto_checkin" type="file" accept="image/*"></div><div class="form-group"><label>Upload Foto Check Out</label><input id="foto_checkout" type="file" accept="image/*"></div></div><div class="form-group"><label>Catatan</label><input id="catatan_absen"></div><div class="actions"><button class="btn btn-primary" onclick="submitCheckIn()">Check In</button><button class="btn btn-secondary" onclick="submitCheckOut()">Check Out</button></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
-    async function fileToDataUrl(inputId){ const el=document.getElementById(inputId); const file=el&&el.files&&el.files[0]?el.files[0]:null; if(!file) return ''; return await new Promise(function(resolve,reject){ const r=new FileReader(); r.onload=function(e){ resolve(String(e.target.result||'')); }; r.onerror=function(){ reject(new Error('Gagal membaca file foto')); }; r.readAsDataURL(file); }); }
-    async function submitCheckIn(){ try{ const photo=await fileToDataUrl('foto_checkin'); await api('/api/me/attendance/check-in','POST',{work_mode:(document.getElementById('attendance_work_mode')||{}).value||'office',lokasi:(document.getElementById('lokasi_absen')||{}).value||'',catatan:(document.getElementById('catatan_absen')||{}).value||'',status:'Hadir',foto_masuk_url:photo}); await loadAttendancePage(); }catch(err){ setContent(renderError(err.message)); } }
-    async function submitCheckOut(){ try{ const photo=await fileToDataUrl('foto_checkout'); await api('/api/me/attendance/check-out','POST',{lokasi:(document.getElementById('lokasi_absen')||{}).value||'',catatan:(document.getElementById('catatan_absen')||{}).value||'',status:'Hadir',foto_keluar_url:photo}); await loadAttendancePage(); }catch(err){ setContent(renderError(err.message)); } }
+        const pct = Math.min(100, Math.max(0, Number(data.shift_progress_percent_today||0)));
+        const strokeDash = `${pct}, 100`;
 
-    async function loadMyAttendanceHistory(){ try{ setLoading('Memuat riwayat absensi...'); const rows=await api('/api/me/attendance/history?limit=90'); setContent('<div class="card"><h3>Riwayat Absensi</h3><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Masuk</th><th>Keluar</th><th>Status</th><th>Lokasi</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.tanggal)+'</td><td>'+escapeHtml(r.jam_masuk||'-')+'</td><td>'+escapeHtml(r.jam_keluar||'-')+'</td><td>'+normalizeStatusBadge(r.status)+'</td><td>'+escapeHtml(r.lokasi||'-')+'</td></tr>';}).join('')||'<tr><td colspan="5">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+        const canCheckIn = !today.jam_masuk;
+        const canCheckOut = !!today.jam_masuk && !today.jam_keluar;
+        const canStartBreak = !!today.jam_masuk && !today.jam_keluar && !today.break_active;
+        const canEndBreak = !!today.jam_masuk && !today.jam_keluar && !!today.break_active;
 
-    async function loadLeaveForm(){ try{ setLoading('Memuat form cuti...'); const types=await api('/api/leave-types/active'); const opts=(types||[]).map(function(t){ return '<option value="'+escapeHtml(t.nama_jenis_cuti)+'" data-need="'+escapeHtml(String(t.requires_attachment))+'">'+escapeHtml(t.nama_jenis_cuti)+'</option>'; }).join(''); setContent('<div class="card"><h3>Ajukan Cuti</h3><div class="grid-2"><div class="form-group"><label>Jenis Cuti</label><select id="jenis_cuti" onchange="toggleLeaveAttachment()">'+opts+'</select></div><div class="form-group"><label>Jumlah Hari</label><input id="jumlah_hari" type="number" value="1"></div><div class="form-group"><label>Tanggal Mulai</label><input id="tanggal_mulai" type="date"></div><div class="form-group"><label>Tanggal Selesai</label><input id="tanggal_selesai" type="date"></div></div><div id="attach_wrap" class="form-group hidden"><label>Lampiran (jika diwajibkan)</label><input id="lampiran_cuti" type="file" accept="image/*,.pdf"></div><div class="form-group"><label>Alasan</label><textarea id="alasan_cuti"></textarea></div><div class="actions"><button class="btn btn-primary" onclick="submitLeave()">Kirim Pengajuan</button></div></div>'); toggleLeaveAttachment(); }catch(err){ setContent(renderError(err.message)); } }
-    function toggleLeaveAttachment(){ const sel=document.getElementById('jenis_cuti'); const wrap=document.getElementById('attach_wrap'); if(!sel||!wrap) return; const need=(sel.options[sel.selectedIndex]||{}).dataset ? (sel.options[sel.selectedIndex].dataset.need||'false') : 'false'; if(String(need).toLowerCase()==='true') wrap.classList.remove('hidden'); else wrap.classList.add('hidden'); }
-    async function submitLeave(){ try{ const lampiran=await fileToDataUrl('lampiran_cuti'); await api('/api/me/leaves','POST',{jenis_cuti:(document.getElementById('jenis_cuti')||{}).value||'',tanggal_mulai:(document.getElementById('tanggal_mulai')||{}).value||'',tanggal_selesai:(document.getElementById('tanggal_selesai')||{}).value||'',jumlah_hari:Number((document.getElementById('jumlah_hari')||{}).value||0),alasan:(document.getElementById('alasan_cuti')||{}).value||'',lampiran_url:lampiran}); setContent('<div class="card"><div class="success">Pengajuan cuti berhasil dikirim.</div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+        let animHtml = '';
+        if (today.jam_keluar) {
+            animHtml = '<i class="ph-fill ph-house-line anim-icon anim-done"></i><div style="font-weight:600;font-size:14px;color:var(--success);">Resting / Done</div>';
+        } else if (today.break_active) {
+            animHtml = '<i class="ph-fill ph-coffee anim-icon anim-break"></i><div style="font-weight:600;font-size:14px;color:var(--warning);">Taking a Break</div>';
+        } else if (today.jam_masuk) {
+            animHtml = '<i class="ph-fill ph-laptop anim-icon anim-working"></i><div style="font-weight:600;font-size:14px;color:var(--primary);">Working</div>';
+        } else {
+            if (today.status === 'On Leave' || today.status === 'Cuti') {
+                animHtml = '<i class="ph-fill ph-airplane-tilt anim-icon anim-done"></i><div style="font-weight:600;font-size:14px;color:var(--success);">On Leave</div>';
+            } else {
+                animHtml = '<i class="ph-fill ph-bed anim-icon anim-idle"></i><div style="font-weight:600;font-size:14px;color:var(--text-sec);">Not Started</div>';
+            }
+        }
 
-    async function loadMyLeaveHistory(){ try{ setLoading('Memuat riwayat cuti...'); const rows=await api('/api/me/leaves?limit=100'); setContent('<div class="card"><h3>Riwayat Cuti</h3><div class="table-wrap"><table><thead><tr><th>Jenis</th><th>Mulai</th><th>Selesai</th><th>Hari</th><th>Status</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.jenis_cuti)+'</td><td>'+escapeHtml(r.tanggal_mulai)+'</td><td>'+escapeHtml(r.tanggal_selesai)+'</td><td>'+escapeHtml(r.jumlah_hari)+'</td><td>'+normalizeStatusBadge(r.status)+'</td></tr>';}).join('')||'<tr><td colspan="5">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+        const middleHtml = `
+            <div class="greeting">
+                <h1>Hello, ${escapeHtml(profile.nama||'User')}</h1>
+                <p>Welcome back! Here's your summary for today.</p>
+            </div>
 
-    async function loadMyPayrollDocs(){ try{ setLoading('Memuat slip gaji...'); const rows=await api('/api/me/payroll-docs?limit=24'); setContent('<div class="card"><h3>Slip Gaji</h3><div class="table-wrap"><table><thead><tr><th>Bulan</th><th>Tahun</th><th>Nama File</th><th>Aksi</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.bulan||'-')+'</td><td>'+escapeHtml(r.tahun||'-')+'</td><td>'+escapeHtml(r.nama_file||'-')+'</td><td><a class="btn btn-primary" href="'+escapeHtml(r.file_url||'#')+'" target="_blank">Buka</a></td></tr>';}).join('')||'<tr><td colspan="4">Belum ada slip gaji</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+            <div class="cards-row">
+                <!-- Shift Progress -->
+                <div class="card payslip-card">
+                    <div class="payslip-content">
+                        <div class="donut-chart-dummy">
+                            <svg viewBox="0 0 36 36" class="circular-chart">
+                                <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                <path class="circle" stroke-dasharray="${strokeDash}" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                <text x="18" y="20.35" class="percentage">${pct}%</text>
+                            </svg>
+                        </div>
+                        <div class="payslip-info">
+                            <div class="salary-header">
+                                <span class="salary-label">Shift Progress</span>
+                            </div>
+                            <div class="salary-amount">${escapeHtml(data.shift_code_today||'PAGI')}</div>
+                            <div class="salary-meta">
+                                <span><i class="ph ph-target"></i> Target: ${escapeHtml(data.shift_target_today||'8h')}</span>
+                            </div>
+                            <a href="#" class="download-link" onclick="navTo('schedule', document.querySelectorAll('.menu-item')[4]); loadMyMonthlySchedule()"><i class="ph ph-calendar-check"></i> View Schedule</a>
+                        </div>
+                    </div>
+                </div>
 
-    async function loadAnnouncements(){ try{ setLoading('Memuat pengumuman...'); const rows=await api('/api/me/announcements?limit=30'); setContent('<div class="card"><h3>Pengumuman</h3>'+((rows||[]).map(function(r){return '<div class="card" style="margin-bottom:10px;background:#f8fafc;"><h3 class="mb-0">'+escapeHtml(r.judul)+'</h3><div class="muted">'+escapeHtml(formatDateTimeDisplay(r.published_at))+'</div><p>'+escapeHtml(r.isi)+'</p></div>';}).join('')||'<div class="muted">Belum ada pengumuman.</div>')+'</div>'); }catch(err){ setContent(renderError(err.message)); } }
+                <!-- Action Card -->
+                <div class="card action-card">
+                    <div class="action-text">
+                        <h3>Need time off?</h3>
+                        <p>Available Leave: ${escapeHtml(data.sisa_cuti||0)} days</p>
+                        <button class="btn-white" onclick="navTo('leave', document.querySelectorAll('.menu-item')[1]); loadLeaveForm()">Apply Leave</button>
+                    </div>
+                    <div class="action-illustration">
+                        <i class="ph-fill ph-calendar-star"></i>
+                    </div>
+                </div>
+            </div>
 
-    async function init(){ try{ await bootGreeting(); await loadEmployeeHome(); }catch(err){ setContent(renderError(err.message)); } }
+            <div class="cards-row bottom-row">
+                <!-- Activity Tabs -->
+                <div class="card todo-card">
+                    <div class="tab-nav">
+                        <button class="tab-btn active" onclick="switchTab(this, 'tab-announcements')">Announcements</button>
+                        <button class="tab-btn" onclick="switchTab(this, 'tab-notifs')">Notifications <span style="background:var(--danger);color:#fff;border-radius:10px;padding:2px 6px;font-size:10px;">${notif.total_unread||0}</span></button>
+                    </div>
+                    <div class="tab-content active" id="tab-announcements">
+                        <ul class="clean-list">${renderNotifRows(announcements, 'ph-megaphone')}</ul>
+                    </div>
+                    <div class="tab-content" id="tab-notifs">
+                        <ul class="clean-list">${renderNotifRows(notifications.slice(0,3), 'ph-bell')}</ul>
+                    </div>
+                </div>
+
+                <!-- Recent Attendance -->
+                <div class="card team-card">
+                    <div class="team-header">
+                        <div class="team-stat">
+                            <div class="stat-large"><i class="ph ph-clock-counter-clockwise"></i></div>
+                            <div class="stat-label">Recent Activity</div>
+                        </div>
+                    </div>
+                    <ul class="clean-list team-list">
+                        <li>
+                            <div class="icon-box" style="width:36px;height:36px;font-size:16px;"><i class="ph ph-sign-in"></i></div>
+                            <div class="list-text"><span class="list-title">Last Login</span><span class="list-desc">Today</span></div>
+                            <span class="status-badge on-time">Active</span>
+                        </li>
+                        <li>
+                            <div class="icon-box" style="width:36px;height:36px;font-size:16px;background:var(--warning-bg);color:var(--warning);"><i class="ph ph-coffee"></i></div>
+                            <div class="list-text"><span class="list-title">Total Break</span><span class="list-desc">${escapeHtml(today.break_duration_digital||'00:00:00')}</span></div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        `;
+
+        const rightHtml = `
+            <div class="attendance-widget">
+                <div class="widget-header">
+                    <div>
+                        <h2>Attendance Tracker</h2>
+                        <p>${escapeHtml(today.tanggal||'Today')}</p>
+                    </div>
+                    <button class="btn-icon-light" onclick="navTo('history', document.querySelectorAll('.menu-item')[2]); loadMyAttendanceHistory()"><i class="ph ph-clock-counter-clockwise"></i></button>
+                </div>
+                
+                <div class="timer-display">
+                    <div class="timer-value" id="digitalTimer">00:00:00</div>
+                    <div class="timer-label">Active Working Hours</div>
+                </div>
+
+                <div class="status-animation-box" id="statusAnimationBox">
+                    ${animHtml}
+                </div>
+
+                <div class="tracker-info">
+                    <div class="info-box">
+                        <i class="ph ph-sign-in"></i>
+                        <div class="info-text">
+                            <span>Check In</span>
+                            <strong>${escapeHtml(today.jam_masuk||'--:--')}</strong>
+                        </div>
+                    </div>
+                    <div class="info-box" style="${today.jam_keluar ? '' : 'display:none;'}">
+                        <i class="ph ph-sign-out"></i>
+                        <div class="info-text">
+                            <span>Check Out</span>
+                            <strong>${escapeHtml(today.jam_keluar||'--:--')}</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="break-box">
+                    <div class="break-text">
+                        <i class="ph ph-coffee"></i>
+                        <span>Break Time</span>
+                    </div>
+                    ${canStartBreak ? '<button class="btn-outline-light" onclick="startBreak()">Start Break</button>' : ''}
+                    ${canEndBreak ? '<button class="btn-outline-light" onclick="endBreak()" style="background:var(--warning);color:#fff;border:none;">End Break</button>' : ''}
+                    ${(!canStartBreak && !canEndBreak) ? '<span style="font-weight:600;font-size:14px;">'+escapeHtml(today.break_duration_digital||'00:00:00')+'</span>' : ''}
+                </div>
+
+                ${canCheckIn ? '<button class="btn-signout" style="background:var(--primary);" onclick="openCheckInCameraFlow()">Check In Now</button>' : ''}
+                ${canCheckOut ? '<button class="btn-signout" onclick="openCheckOutModal()">Check Out</button>' : ''}
+                ${(!canCheckIn && !canCheckOut) ? '<button class="btn-signout" disabled>Completed</button>' : ''}
+            </div>
+        `;
+
+        setContentLayout(middleHtml, rightHtml);
+        startWorkDurationTicker(today);
+        
+        const badge = document.getElementById('notif_badge');
+        if(notif.total_unread>0) { badge.style.display='flex'; badge.textContent=notif.total_unread; } else { badge.style.display='none'; }
+
+      } catch(err) { setContentLayout(renderError(err.message), null); } 
+    }
+
+    // Modal & API Functions
+    let attendanceCameraStream=null;
+    let checkInCapturedPhoto=null;
+
+    function dataUrlToPhotoObject(dataUrl){
+      const parts=String(dataUrl||'').split(',');
+      return { fileName:'attendance_'+Date.now()+'.jpg', mimeType:(parts[0].match(/data:(.*?);base64/i)||[])[1]||'image/jpeg', base64Data:parts[1]||'' };
+    }
+    
+    async function captureSelfiePayload(){
+      const video=document.getElementById('attendance_camera_video');
+      if(!video||!video.videoWidth) throw new Error('Camera not ready.');
+      const full=document.createElement('canvas'); full.width=video.videoWidth; full.height=video.videoHeight;
+      full.getContext('2d').drawImage(video,0,0,full.width,full.height);
+      const dataUrl=full.toDataURL('image/jpeg',0.92);
+      return { photo:dataUrlToPhotoObject(dataUrl), dataUrl:dataUrl };
+    }
+
+    async function openCheckInCameraFlow(){
+      try{
+        checkInCapturedPhoto=null;
+        document.getElementById('attendance_camera_hint').textContent='Please look at the camera.';
+        document.getElementById('btn_final_checkin').style.display='none';
+        document.getElementById('checkin_selfie_preview').style.display='none';
+        document.getElementById('checkin_camera_modal').style.display='flex';
+        
+        attendanceCameraStream=await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user' } });
+        const video=document.getElementById('attendance_camera_video');
+        video.srcObject=attendanceCameraStream; 
+        await video.play();
+      }catch(err){ alert('Camera access failed: '+err.message); }
+    }
+
+    function closeCheckInModal(){
+      document.getElementById('checkin_camera_modal').style.display='none';
+      if(attendanceCameraStream){ attendanceCameraStream.getTracks().forEach(t=>t.stop()); attendanceCameraStream=null; }
+    }
+
+    async function captureCheckInSelfie(){
+      try{
+        if(!attendanceCameraStream) throw new Error('Camera is off.');
+        const payload=await captureSelfiePayload();
+        checkInCapturedPhoto=payload.photo;
+        const preview=document.getElementById('checkin_selfie_preview');
+        preview.src=payload.dataUrl; preview.style.display='block';
+        document.getElementById('attendance_camera_hint').textContent='Photo captured. Ready to submit.';
+        document.getElementById('btn_final_checkin').style.display='inline-flex';
+      }catch(err){ alert(err.message); }
+    }
+
+    async function finalCheckInSubmit(){
+      try{
+        if(!checkInCapturedPhoto) throw new Error('Capture photo first.');
+        await api('/api/me/attendance/check-in','POST',{ work_mode:'office', shift_karyawan:'PAGI', lokasi:'', catatan:'', status:'Hadir', photo:checkInCapturedPhoto });
+        closeCheckInModal();
+        await loadEmployeeHome();
+      }catch(err){ alert(err.message); }
+    }
+
+    function openCheckOutModal() {
+        document.getElementById('checkout_modal').style.display='flex';
+        document.getElementById('co_lokasi').value='';
+        document.getElementById('co_catatan').value='';
+    }
+
+    async function submitCheckOutSimple(){
+      try{
+        await api('/api/me/attendance/check-out','POST',{ lokasi:document.getElementById('co_lokasi').value, catatan:document.getElementById('co_catatan').value, status:'Hadir' });
+        document.getElementById('checkout_modal').style.display='none';
+        await loadEmployeeHome();
+      }catch(err){ alert(err.message); }
+    }
+
+    async function startBreak(){ try{ await api('/api/me/attendance/break/start','POST',{}); await loadEmployeeHome(); }catch(err){ alert(err.message); } }
+    async function endBreak(){ try{ await api('/api/me/attendance/break/end','POST',{}); await loadEmployeeHome(); }catch(err){ alert(err.message); } }
+
+    // --- OTHER PAGES (Generic Views) ---
+    function statusBadge(s) { const st=String(s).toLowerCase(); if(st==='approved'||st==='hadir') return `<span class="status-badge on-time">${escapeHtml(s)}</span>`; if(st==='pending') return `<span class="status-badge on-leave">${escapeHtml(s)}</span>`; return `<span class="status-badge" style="background:var(--border);">${escapeHtml(s)}</span>`; }
+
+    async function loadMyAttendanceHistory(){ 
+        try { setLoading(); const rows=await api('/api/me/attendance/history?limit=30'); 
+        const html = `
+            <div class="card">
+                <div class="team-header"><h3 style="font-size:20px;font-weight:700;">Attendance History</h3></div>
+                <div class="table-wrap"><table>
+                    <thead><tr><th>Date</th><th>In</th><th>Out</th><th>Status</th><th>Notes</th></tr></thead>
+                    <tbody>${rows.length?rows.map(r=>`<tr><td>${escapeHtml(r.tanggal)}</td><td>${escapeHtml(r.jam_masuk||'-')}</td><td>${escapeHtml(r.jam_keluar||'-')}</td><td>${statusBadge(r.status)}</td><td>${escapeHtml(r.catatan||'-')}</td></tr>`).join(''):'<tr><td colspan="5">No data</td></tr>'}</tbody>
+                </table></div>
+            </div>`;
+        setContentLayout(html, null); } catch(e){ setContentLayout(renderError(e.message), null); }
+    }
+
+    async function loadMyPayrollDocs(){ 
+        try { setLoading(); const rows=await api('/api/me/payroll-docs?limit=24'); 
+        const html = `
+            <div class="card">
+                <div class="team-header"><h3 style="font-size:20px;font-weight:700;">Salary Slips</h3></div>
+                <div class="table-wrap"><table>
+                    <thead><tr><th>Period</th><th>Description</th><th>Action</th></tr></thead>
+                    <tbody>${rows.length?rows.map(r=>`<tr><td>${escapeHtml(r.bulan)} ${escapeHtml(r.tahun)}</td><td>${escapeHtml(r.keterangan||'-')}</td><td><a href="${escapeHtml(r.file_url)}" target="_blank" class="btn btn-secondary"><i class="ph ph-download-simple"></i> Download</a></td></tr>`).join(''):'<tr><td colspan="3">No records</td></tr>'}</tbody>
+                </table></div>
+            </div>`;
+        setContentLayout(html, null); } catch(e){ setContentLayout(renderError(e.message), null); }
+    }
+
+    let leaveTypesCache=[];
+    async function loadLeaveForm(){ 
+        try { setLoading(); leaveAttachmentPayload=null; leaveTypesCache=await api('/api/leave-types/active')||[]; 
+        const opts = '<option value="">-- Select Type --</option>' + leaveTypesCache.map(t=>`<option value="${escapeHtml(t.nama_jenis_cuti)}">${escapeHtml(t.nama_jenis_cuti)}</option>`).join('');
+        const rows = await api('/api/me/leaves?limit=10')||[];
+        const html = `
+            <div class="grid-2">
+                <div class="card">
+                    <h3 style="font-size:20px;font-weight:700;margin-bottom:24px;">Apply Leave</h3>
+                    <div class="form-group"><label>Leave Type</label><select id="lv_type" onchange="updateLeaveAttachmentVisibility()">${opts}</select></div>
+                    <div class="grid-2">
+                        <div class="form-group"><label>Start Date</label><input type="date" id="lv_start"></div>
+                        <div class="form-group"><label>End Date</label><input type="date" id="lv_end"></div>
+                    </div>
+                    <div class="form-group"><label>Reason</label><textarea id="lv_reason"></textarea></div>
+                    <div class="form-group" id="leave_attachment_wrap">
+                      <label>Medical Letter / Attachment</label>
+                      <input type="file" id="lv_attachment" accept=".jpg,.jpeg,.png,.webp,.pdf" onchange="onLeaveAttachmentChange(this)">
+                      <div id="leave_attachment_required" class="file-hint">Opsional</div>
+                      <div id="leave_attachment_info" class="file-hint">Belum ada file dipilih</div>
+                    </div>
+                    <button class="btn btn-primary" onclick="submitLeave()"><i class="ph ph-paper-plane-right"></i> Submit Request</button>
+                </div>
+                <div class="card">
+                    <h3 style="font-size:20px;font-weight:700;margin-bottom:24px;">Recent Requests</h3>
+                    <ul class="clean-list">${rows.length?rows.map(r=>`<li><div class="list-text"><span class="list-title">${escapeHtml(r.jenis_cuti)}</span><span class="list-desc">${formatDateDisplay(r.tanggal_mulai)} to ${formatDateDisplay(r.tanggal_selesai)}</span></div>${statusBadge(r.status)}</li>`).join(''):'<li>No recent requests</li>'}</ul>
+                </div>
+            </div>`;
+        setContentLayout(html, null); updateLeaveAttachmentVisibility(); } catch(e){ setContentLayout(renderError(e.message), null); }
+    }
+    async function submitLeave(){ 
+        try { 
+          const jenis=String((document.getElementById('lv_type')||{}).value||'').trim();
+          const mulai=String((document.getElementById('lv_start')||{}).value||'').trim();
+          const selesai=String((document.getElementById('lv_end')||{}).value||'').trim();
+          const alasan=String((document.getElementById('lv_reason')||{}).value||'').trim();
+          if(!jenis||!mulai||!selesai) throw new Error('Jenis cuti dan rentang tanggal wajib diisi.');
+          if(mulai>selesai) throw new Error('Tanggal mulai tidak boleh lebih besar dari tanggal selesai.');
+          if(selectedLeaveTypeRequiresAttachment() && !leaveAttachmentPayload) throw new Error('Cuti sakit wajib upload surat sakit.');
+          await api('/api/me/leaves','POST',{jenis_cuti:jenis, tanggal_mulai:mulai, tanggal_selesai:selesai, alasan:alasan, attachment:leaveAttachmentPayload||undefined});
+          alert('Leave submitted!');
+          loadLeaveForm();
+        } catch(e){ alert(e.message); }
+    }
+
+    async function loadMyMonthlySchedule(){ 
+        try { setLoading(); const m=new Date().toISOString().slice(0,7); const d=await api('/api/me/schedule/monthly?month='+m); 
+        const html = `
+            <div class="card action-card" style="margin-bottom:24px;">
+                <div class="action-text"><h3>Schedule: ${escapeHtml(d.month||m)}</h3><p>${escapeHtml(d.summary_text||'No schedule published yet.')}</p></div>
+                <div class="action-illustration"><i class="ph-fill ph-calendar-check"></i></div>
+            </div>
+            <div class="cards-row">
+                <div class="card"><div class="stat-label">Main Shift</div><div class="stat-large" style="font-size:32px;">${escapeHtml(d.shift_code||'-')}</div></div>
+                <div class="card"><div class="stat-label">Off Saturday</div><div class="stat-large" style="font-size:32px;">${d.off_saturday?'Yes':'No'}</div></div>
+                <div class="card"><div class="stat-label">Off Sunday</div><div class="stat-large" style="font-size:32px;">${d.off_sunday?'Yes':'No'}</div></div>
+            </div>`;
+        setContentLayout(html, null); } catch(e){ setContentLayout(renderError(e.message), null); }
+    }
+
+    async function loadNotificationCenter(){ 
+        try { setLoading(); const rows=await api('/api/me/notifications'); 
+        const html = `
+            <div class="card">
+                <div class="team-header">
+                    <h3 style="font-size:20px;font-weight:700;">Notifications</h3>
+                    <button class="btn btn-secondary" onclick="api('/api/me/notifications/mark-seen','POST',{type:'all'}).then(()=>loadNotificationCenter())"><i class="ph ph-check-double"></i> Mark all read</button>
+                </div>
+                <ul class="clean-list" style="gap:24px;">${rows.length?rows.map(r=>{ const unread=String(r.is_unread).toLowerCase()==='true'||r.is_unread===true; return `<li style="align-items:flex-start;"><div class="icon-box" style="background:${unread?'var(--primary-light)':'var(--bg)'};"><i class="ph ph-bell"></i></div><div class="list-text"><span class="list-title" style="font-size:16px;">${escapeHtml(r.title)} ${unread?'<span class="badge" style="position:relative;display:inline-block;top:0;right:0;margin-left:8px;padding:2px 6px;width:auto;height:auto;">New</span>':''}</span><span class="list-desc" style="margin-bottom:8px;">${escapeHtml(formatDateTimeDisplay(r.date_value))}</span><p style="font-size:14px;color:var(--text-sec);">${escapeHtml(r.message)}</p></div></li>`; }).join(''):'<li>No notifications</li>'}</ul>
+            </div>`;
+        setContentLayout(html, null); } catch(e){ setContentLayout(renderError(e.message), null); }
+    }
+
+    async function loadMyProfile(){ 
+        try { setLoading(); const p=await api('/api/me/profile'); 
+        const html = `
+            <div class="card payslip-card" style="margin-bottom:24px; padding:32px;">
+                <div class="payslip-content">
+                    <div class="avatar" style="width:100px;height:100px;font-size:40px;">${(p.nama||'U').charAt(0).toUpperCase()}</div>
+                    <div class="payslip-info">
+                        <div class="salary-amount" style="margin-bottom:4px;">${escapeHtml(p.nama||'-')}</div>
+                        <div class="salary-label" style="margin-bottom:16px;">${escapeHtml(p.jabatan||'-')} • ${escapeHtml(p.divisi||'-')}</div>
+                        <div class="salary-meta" style="margin-bottom:0;"><span><i class="ph ph-identification-card"></i> ${escapeHtml(p.employee_id||'-')}</span><span><i class="ph ph-envelope"></i> ${escapeHtml(p.email||'-')}</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="card"><h3 style="font-size:16px;font-weight:700;margin-bottom:16px;">Contact Info</h3><div class="form-group"><label>Phone</label><div class="list-desc">${escapeHtml(p.no_hp||'-')}</div></div><div class="form-group"><label>Address</label><div class="list-desc">${escapeHtml(p.alamat||'-')}</div></div></div>
+                <div class="card"><h3 style="font-size:16px;font-weight:700;margin-bottom:16px;">Employment</h3><div class="form-group"><label>Join Date</label><div class="list-desc">${escapeHtml(formatDateDisplay(p.tanggal_masuk)||'-')}</div></div><div class="form-group"><label>Status</label><div class="list-desc">${statusBadge(p.status_karyawan||'-')}</div></div></div>
+            </div>`;
+        setContentLayout(html, null); } catch(e){ setContentLayout(renderError(e.message), null); }
+    }
+
+    async function init(){ try { await bootGreeting(); await loadEmployeeHome(); } catch(e){ document.getElementById('main_content_grid').innerHTML = renderError(e.message); } }
     init();
   </script>
 </body>
