@@ -1484,9 +1484,16 @@ module.exports = async function handler(req, res) {
 
     if (path === 'admin/leaves/pending' && method === 'GET') {
       const a = requireAdmin(req, res); if (!a) return;
-      const r = await db('GET', 'leave_requests', { select: '*', status: 'eq.pending', order: 'created_at.asc', limit: Math.min(Number(req.query.limit || 300), 1000) });
-      if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil cuti pending.', error: r.error });
+      const [r, rCfg] = await Promise.all([
+        db('GET', 'leave_requests', { select: '*', status: 'eq.pending', order: 'created_at.asc', limit: Math.min(Number(req.query.limit || 300), 1000) }),
+        db('GET', 'config', { select: 'key,value', key: 'in.(OPS_LEAVE_SLA_WARN_HOURS,OPS_LEAVE_SLA_CRITICAL_HOURS)', limit: 10 })
+      ]);
+      if (!r.ok || !rCfg.ok) return json(res, 500, { ok: false, message: 'Gagal ambil cuti pending.', error: (!r.ok ? r.error : rCfg.error) });
       const rows = r.data || [];
+      const cfgMap = {};
+      (rCfg.data || []).forEach(function(x) { cfgMap[String(x.key || '')] = Number(x.value || 0); });
+      const warnH = Number(cfgMap.OPS_LEAVE_SLA_WARN_HOURS || 24);
+      const criticalH = Number(cfgMap.OPS_LEAVE_SLA_CRITICAL_HOURS || 72);
       const ids = Array.from(new Set(rows.map(function(x) { return String(x.employee_id || '').trim(); }).filter(Boolean)));
       const empMap = {};
       if (ids.length > 0) {
@@ -1497,12 +1504,49 @@ module.exports = async function handler(req, res) {
       }
       const enriched = rows.map(function(x) {
         const e = empMap[String(x.employee_id || '')] || {};
+        const ageHours = x.created_at ? Math.max(0, Math.floor((Date.now() - new Date(String(x.created_at)).getTime()) / 3600000)) : 0;
+        let slaPriority = 'normal';
+        if (ageHours >= criticalH) slaPriority = 'critical';
+        else if (ageHours >= warnH) slaPriority = 'high';
         return Object.assign({}, x, {
           nama: String(e.nama || ''),
-          email: String(x.email || e.email || '')
+          email: String(x.email || e.email || ''),
+          sla_age_hours: ageHours,
+          sla_priority: slaPriority,
+          sla_warn_hours: warnH,
+          sla_critical_hours: criticalH
         });
       });
+      enriched.sort(function(a1, b1) {
+        const rank = function(v) { return v === 'critical' ? 3 : (v === 'high' ? 2 : 1); };
+        if (rank(String(a1.sla_priority || 'normal')) !== rank(String(b1.sla_priority || 'normal'))) return rank(String(b1.sla_priority || 'normal')) - rank(String(a1.sla_priority || 'normal'));
+        return Number(b1.sla_age_hours || 0) - Number(a1.sla_age_hours || 0);
+      });
       return json(res, 200, enriched);
+    }
+
+    if (path === 'admin/leaves/escalation-matrix' && method === 'GET') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const pend = await db('GET', 'leave_requests', { select: 'leave_id,employee_id,created_at,status', status: 'eq.pending', order: 'created_at.asc', limit: 2000 });
+      const cfg = await db('GET', 'config', { select: 'key,value', key: 'in.(OPS_LEAVE_SLA_WARN_HOURS,OPS_LEAVE_SLA_CRITICAL_HOURS)', limit: 10 });
+      if (!pend.ok || !cfg.ok) return json(res, 500, { ok: false, message: 'Gagal ambil escalation matrix.', error: (!pend.ok ? pend.error : cfg.error) });
+      const cfgMap = {};
+      (cfg.data || []).forEach(function(x) { cfgMap[String(x.key || '')] = Number(x.value || 0); });
+      const warnH = Number(cfgMap.OPS_LEAVE_SLA_WARN_HOURS || 24);
+      const criticalH = Number(cfgMap.OPS_LEAVE_SLA_CRITICAL_HOURS || 72);
+      const rows = (pend.data || []).map(function(x) {
+        const age = x.created_at ? Math.max(0, Math.floor((Date.now() - new Date(String(x.created_at)).getTime()) / 3600000)) : 0;
+        return { leave_id: x.leave_id, employee_id: x.employee_id, age_hours: age, priority: age >= criticalH ? 'critical' : (age >= warnH ? 'high' : 'normal') };
+      });
+      const summary = {
+        pending_total: rows.length,
+        pending_normal: rows.filter(function(x) { return x.priority === 'normal'; }).length,
+        pending_high: rows.filter(function(x) { return x.priority === 'high'; }).length,
+        pending_critical: rows.filter(function(x) { return x.priority === 'critical'; }).length,
+        sla_warn_hours: warnH,
+        sla_critical_hours: criticalH
+      };
+      return json(res, 200, { ok: true, summary: summary, top_overdue: rows.sort(function(a1, b1) { return Number(b1.age_hours || 0) - Number(a1.age_hours || 0); }).slice(0, 20) });
     }
 
     if (path === 'admin/leaves' && method === 'GET') {
