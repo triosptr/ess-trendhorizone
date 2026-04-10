@@ -124,6 +124,7 @@
         <button class="menu-item" onclick="navTo('att', this); loadTodayAttendance()"><i class="ph ph-clock"></i><span>Attendance Log</span></button>
         <button class="menu-item" onclick="navTo('rep', this); loadEmployeeReports()"><i class="ph ph-chart-bar"></i><span>Reports</span></button>
         <button class="menu-item" onclick="navTo('ops', this); loadOperationsIntelligenceCenter()"><i class="ph ph-brain"></i><span>Operations</span></button>
+        <button class="menu-item" onclick="navTo('tower', this); loadWorkforceControlTower()"><i class="ph ph-command"></i><span>Control Tower</span></button>
         <button class="menu-item" onclick="navTo('master', this); loadMasterDataHub()"><i class="ph ph-database"></i><span>Master Data</span></button>
       </nav>
     </aside>
@@ -363,6 +364,27 @@
       try{
         await api('/api/admin/operations-intelligence/escalation-digest/publish','POST',{ title:String(title||''), detail:String(detail||'') });
         loadOperationsIntelligenceCenter();
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    async function loadWorkforceControlTower(){
+      try{
+        setLoading('Memuat Workforce Control Tower...');
+        const s=await api('/api/admin/control-tower/summary');
+        const m=(s&&s.metrics)||{};
+        const t=(s&&s.thresholds)||{};
+        const over=((s&&s.top_overdue)||[]).map(function(x){ return '<tr><td>'+escapeHtml(x.leave_id||'-')+'</td><td>'+escapeHtml(x.age_hours||0)+'h</td><td>'+slaPriorityBadge(x.priority||'normal')+'</td></tr>'; }).join('') || '<tr><td colspan="3">Tidak ada data overdue.</td></tr>';
+        const html='<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Workforce Control Tower</h3><div class="actions"><button class="btn btn-secondary" onclick="loadSummary()">Back Dashboard</button></div></div><div class="cards-row" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));"><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Health Score</div><div class="stat-large">'+escapeHtml(s.health_score||0)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">No Check-in</div><div class="stat-large" style="color:var(--warning);">'+escapeHtml(m.not_checked_in_today||0)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Pending High SLA</div><div class="stat-large" style="color:var(--warning);">'+escapeHtml(m.pending_high_sla||0)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Pending Critical SLA</div><div class="stat-large" style="color:var(--danger);">'+escapeHtml(m.pending_critical_sla||0)+'</div></div></div><div class="grid-2" style="margin-top:24px;"><div class="card" style="box-shadow:none;background:var(--bg);"><h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">Execution Controls</h3><div class="form-group"><label><input id="ct_ops_digest" type="checkbox" checked> Publish Ops Digest</label></div><div class="form-group"><label><input id="ct_leave_digest" type="checkbox" checked> Publish Leave SLA Digest</label></div><div class="actions"><button class="btn btn-primary" onclick="runControlTowerExecution()"><i class="ph ph-rocket-launch"></i> Execute Workflow</button><button class="btn btn-secondary" onclick="loadWorkforceControlTower()">Refresh</button></div><div class="stat-label" style="margin-top:12px;">Thresholds: Checkin Critical '+escapeHtml(t.checkin_gap_critical||25)+'% • Leave SLA '+escapeHtml(t.leave_sla_warn_hours||24)+'h/'+escapeHtml(t.leave_sla_critical_hours||72)+'h</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">Top Overdue Queue</h3><div class="table-wrap"><table><thead><tr><th>Leave ID</th><th>Age</th><th>SLA</th></tr></thead><tbody>'+over+'</tbody></table></div></div></div></div>';
+        setContent(html);
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    async function runControlTowerExecution(){
+      try{
+        const publishOps=!!((document.getElementById('ct_ops_digest')||{}).checked);
+        const publishLeave=!!((document.getElementById('ct_leave_digest')||{}).checked);
+        const r=await api('/api/admin/control-tower/execute','POST',{ publish_ops_digest:publishOps, publish_leave_digest:publishLeave });
+        const x=(r&&r.result)||{};
+        alert('Control Tower selesai. Pending='+String(x.pending_leaves||0)+' | OpsDigest='+(x.ops_digest_published?'yes':'no')+' | LeaveDigest='+(x.leave_digest_published?'yes':'no'));
+        loadWorkforceControlTower();
       }catch(err){ setContent(renderError(err.message)); }
     }
 

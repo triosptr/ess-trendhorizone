@@ -1600,6 +1600,111 @@ module.exports = async function handler(req, res) {
       return json(res, 200, { ok: true, summary: summary, actions: actions, top_overdue: rows.sort(function(a1, b1) { return Number(b1.age_hours || 0) - Number(a1.age_hours || 0); }).slice(0, 30), digest_published: !!announcement, announcement: announcement });
     }
 
+    if (path === 'admin/control-tower/summary' && method === 'GET') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const today = ymd();
+      const [cfg, emp, att, leaves] = await Promise.all([
+        db('GET', 'config', { select: 'key,value', key: 'in.(OPS_CHECKIN_GAP_HIGH,OPS_CHECKIN_GAP_CRITICAL,OPS_PENDING_LEAVES_MEDIUM,OPS_PENDING_LEAVES_CRITICAL,OPS_LEAVE_SLA_WARN_HOURS,OPS_LEAVE_SLA_CRITICAL_HOURS)', limit: 20 }),
+        db('GET', 'employees', { select: 'employee_id,is_active', limit: 5000 }),
+        db('GET', 'attendance', { select: 'employee_id', tanggal: 'eq.' + today, limit: 10000 }),
+        db('GET', 'leave_requests', { select: 'leave_id,created_at,status', status: 'eq.pending', limit: 3000 })
+      ]);
+      if (!cfg.ok || !emp.ok || !att.ok || !leaves.ok) return json(res, 500, { ok: false, message: 'Gagal ambil control tower summary.', error: (!cfg.ok ? cfg.error : (!emp.ok ? emp.error : (!att.ok ? att.error : leaves.error))) });
+      const map = {};
+      (cfg.data || []).forEach(function(x) { map[String(x.key || '')] = Number(x.value || 0); });
+      const activeEmployees = (emp.data || []).filter(function(e) { return String(e.is_active).toLowerCase() === 'true'; }).length;
+      const checkedInToday = new Set((att.data || []).map(function(x) { return String(x.employee_id || ''); }).filter(Boolean)).size;
+      const notCheckedIn = Math.max(0, activeEmployees - checkedInToday);
+      const checkinRateGap = activeEmployees > 0 ? Math.round((notCheckedIn / activeEmployees) * 10000) / 100 : 0;
+      const warnH = Number(map.OPS_LEAVE_SLA_WARN_HOURS || 24);
+      const criticalH = Number(map.OPS_LEAVE_SLA_CRITICAL_HOURS || 72);
+      const leaveRows = (leaves.data || []).map(function(x) {
+        const age = x.created_at ? Math.max(0, Math.floor((Date.now() - new Date(String(x.created_at)).getTime()) / 3600000)) : 0;
+        return { leave_id: x.leave_id, age_hours: age, priority: age >= criticalH ? 'critical' : (age >= warnH ? 'high' : 'normal') };
+      });
+      const sla = {
+        pending_total: leaveRows.length,
+        pending_high: leaveRows.filter(function(x) { return x.priority === 'high'; }).length,
+        pending_critical: leaveRows.filter(function(x) { return x.priority === 'critical'; }).length
+      };
+      const healthScore = Math.max(0, 100 - Math.min(70, Math.round(checkinRateGap)) - Math.min(30, sla.pending_critical * 3));
+      return json(res, 200, {
+        ok: true,
+        date: today,
+        health_score: healthScore,
+        metrics: {
+          active_employees: activeEmployees,
+          checked_in_today: checkedInToday,
+          not_checked_in_today: notCheckedIn,
+          no_checkin_rate: checkinRateGap,
+          pending_leaves: sla.pending_total,
+          pending_high_sla: sla.pending_high,
+          pending_critical_sla: sla.pending_critical
+        },
+        thresholds: {
+          checkin_gap_high: Number(map.OPS_CHECKIN_GAP_HIGH || 10),
+          checkin_gap_critical: Number(map.OPS_CHECKIN_GAP_CRITICAL || 25),
+          pending_leaves_medium: Number(map.OPS_PENDING_LEAVES_MEDIUM || 5),
+          pending_leaves_critical: Number(map.OPS_PENDING_LEAVES_CRITICAL || 15),
+          leave_sla_warn_hours: warnH,
+          leave_sla_critical_hours: criticalH
+        },
+        top_overdue: leaveRows.sort(function(a1, b1) { return Number(b1.age_hours || 0) - Number(a1.age_hours || 0); }).slice(0, 10)
+      });
+    }
+
+    if (path === 'admin/control-tower/execute' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const publishOpsDigest = String(b.publish_ops_digest || '').toLowerCase() === 'true' || b.publish_ops_digest === true;
+      const publishLeaveDigest = String(b.publish_leave_digest || '').toLowerCase() === 'true' || b.publish_leave_digest === true;
+      const today = ymd();
+      const summaryReq = await db('GET', 'leave_requests', { select: 'leave_id,created_at,status', status: 'eq.pending', limit: 3000 });
+      if (!summaryReq.ok) return json(res, 500, { ok: false, message: 'Gagal eksekusi control tower.', error: summaryReq.error });
+      const pendingCount = (summaryReq.data || []).length;
+      let opsAnnouncement = null;
+      let leaveAnnouncement = null;
+      if (publishOpsDigest) {
+        const p = {
+          announcement_id: rid('ANN'),
+          judul: '[OPS CT] Daily Ops Digest ' + today,
+          isi: 'Control Tower menjalankan orkestrasi harian. Pending leave saat ini: ' + pendingCount + '.',
+          target_role: 'admin',
+          published_at: nowIso(),
+          expired_at: null,
+          is_active: true,
+          created_by: a.email
+        };
+        const ins = await db('POST', 'announcements', null, p, { Prefer: 'return=representation' });
+        if (ins.ok) opsAnnouncement = (ins.data && ins.data[0]) || null;
+      }
+      if (publishLeaveDigest) {
+        const p2 = {
+          announcement_id: rid('ANN'),
+          judul: '[OPS CT] Leave SLA Digest ' + today,
+          isi: 'Control Tower mengeksekusi SLA leave digest. Total pending: ' + pendingCount + '.',
+          target_role: 'admin',
+          published_at: nowIso(),
+          expired_at: null,
+          is_active: true,
+          created_by: a.email
+        };
+        const ins2 = await db('POST', 'announcements', null, p2, { Prefer: 'return=representation' });
+        if (ins2.ok) leaveAnnouncement = (ins2.data && ins2.data[0]) || null;
+      }
+      await auditLog(a.email, 'RUN', 'control_tower', 'Execute workforce control tower workflow', String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, {
+        ok: true,
+        message: 'Control Tower workflow selesai.',
+        result: {
+          pending_leaves: pendingCount,
+          ops_digest_published: !!opsAnnouncement,
+          leave_digest_published: !!leaveAnnouncement
+        },
+        announcements: [opsAnnouncement, leaveAnnouncement].filter(Boolean)
+      });
+    }
+
     if (path === 'admin/leaves' && method === 'GET') {
       const a = requireAdmin(req, res); if (!a) return;
       const q = { select: '*', order: 'created_at.desc', limit: Math.min(Number(req.query.limit || 500), 2000) };
