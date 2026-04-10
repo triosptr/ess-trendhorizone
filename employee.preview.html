@@ -15,7 +15,8 @@
   </style>
   <script>
     window.addEventListener('DOMContentLoaded', function() {
-      window.location.replace('./local-dev/employee.preview.html');
+      var isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+      window.location.replace(isLocal ? './local-dev/employee.preview.html' : '/employee');
     });
   </script>
 </head>
@@ -23,7 +24,7 @@
   <div class="card">
     <h1>Employee Preview Dipindahkan</h1>
     <p>Halaman preview karyawan sekarang menggunakan tema baru di folder local-dev.</p>
-    <a href="./local-dev/employee.preview.html">Buka Employee Preview Baru</a>
+    <a href="/employee">Buka Employee Preview Baru</a>
   </div>
 </body>
 </html>
