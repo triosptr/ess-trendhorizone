@@ -4,3 +4,5 @@
 .vercel
 node_modules
 .vercel-global
+.npm
+Library
