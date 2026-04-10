@@ -1549,6 +1549,57 @@ module.exports = async function handler(req, res) {
       return json(res, 200, { ok: true, summary: summary, top_overdue: rows.sort(function(a1, b1) { return Number(b1.age_hours || 0) - Number(a1.age_hours || 0); }).slice(0, 20) });
     }
 
+    if (path === 'admin/leaves/sla-escalate' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const publishDigest = String(b.publish_digest || '').toLowerCase() === 'true' || b.publish_digest === true;
+      const [pend, cfg] = await Promise.all([
+        db('GET', 'leave_requests', { select: 'leave_id,employee_id,created_at,status', status: 'eq.pending', order: 'created_at.asc', limit: 3000 }),
+        db('GET', 'config', { select: 'key,value', key: 'in.(OPS_LEAVE_SLA_WARN_HOURS,OPS_LEAVE_SLA_CRITICAL_HOURS)', limit: 10 })
+      ]);
+      if (!pend.ok || !cfg.ok) return json(res, 500, { ok: false, message: 'Gagal menjalankan SLA escalation.', error: (!pend.ok ? pend.error : cfg.error) });
+      const cfgMap = {};
+      (cfg.data || []).forEach(function(x) { cfgMap[String(x.key || '')] = Number(x.value || 0); });
+      const warnH = Number(cfgMap.OPS_LEAVE_SLA_WARN_HOURS || 24);
+      const criticalH = Number(cfgMap.OPS_LEAVE_SLA_CRITICAL_HOURS || 72);
+      const rows = (pend.data || []).map(function(x) {
+        const age = x.created_at ? Math.max(0, Math.floor((Date.now() - new Date(String(x.created_at)).getTime()) / 3600000)) : 0;
+        return { leave_id: x.leave_id, employee_id: x.employee_id, age_hours: age, priority: age >= criticalH ? 'critical' : (age >= warnH ? 'high' : 'normal') };
+      });
+      const summary = {
+        pending_total: rows.length,
+        pending_normal: rows.filter(function(x) { return x.priority === 'normal'; }).length,
+        pending_high: rows.filter(function(x) { return x.priority === 'high'; }).length,
+        pending_critical: rows.filter(function(x) { return x.priority === 'critical'; }).length,
+        sla_warn_hours: warnH,
+        sla_critical_hours: criticalH
+      };
+      const actions = [];
+      if (summary.pending_critical > 0) actions.push({ priority: 1, type: 'critical', title: 'Tangani seluruh pending kritikal', detail: summary.pending_critical + ' pengajuan melewati SLA kritikal. Jalankan batch approval/reject segera.' });
+      if (summary.pending_high > 0) actions.push({ priority: 2, type: 'high', title: 'Kurangi backlog high SLA', detail: summary.pending_high + ' pengajuan melewati SLA warning. Prioritaskan dalam 1 siklus review berikutnya.' });
+      if (summary.pending_total > 0) actions.push({ priority: 3, type: 'normal', title: 'Sinkronkan jadwal reviewer', detail: 'Atur slot review berkala agar antrian tidak menumpuk kembali.' });
+      if (!actions.length) actions.push({ priority: 1, type: 'stable', title: 'SLA Stabil', detail: 'Tidak ada pending leave yang melewati threshold SLA.' });
+      let announcement = null;
+      if (publishDigest) {
+        const title = summary.pending_critical > 0 ? 'SLA Leave Escalation: Critical Queue' : (summary.pending_high > 0 ? 'SLA Leave Escalation: Warning Queue' : 'SLA Leave Escalation: Stable');
+        const detail = 'Pending=' + summary.pending_total + ' | Critical=' + summary.pending_critical + ' | High=' + summary.pending_high + ' | Threshold=' + warnH + 'h/' + criticalH + 'h';
+        const payload = {
+          announcement_id: rid('ANN'),
+          judul: '[OPS SLA] ' + title,
+          isi: detail + '\n\nSumber: Leave SLA Escalation Workflow',
+          target_role: 'admin',
+          published_at: nowIso(),
+          expired_at: null,
+          is_active: true,
+          created_by: a.email
+        };
+        const ins = await db('POST', 'announcements', null, payload, { Prefer: 'return=representation' });
+        if (ins.ok) announcement = (ins.data && ins.data[0]) || null;
+      }
+      await auditLog(a.email, 'RUN', 'leave_sla_escalation', 'Run leave SLA escalation workflow', String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, { ok: true, summary: summary, actions: actions, top_overdue: rows.sort(function(a1, b1) { return Number(b1.age_hours || 0) - Number(a1.age_hours || 0); }).slice(0, 30), digest_published: !!announcement, announcement: announcement });
+    }
+
     if (path === 'admin/leaves' && method === 'GET') {
       const a = requireAdmin(req, res); if (!a) return;
       const q = { select: '*', order: 'created_at.desc', limit: Math.min(Number(req.query.limit || 500), 2000) };
