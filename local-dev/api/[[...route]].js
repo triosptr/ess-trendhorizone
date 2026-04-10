@@ -633,7 +633,19 @@ module.exports = async function handler(req, res) {
       const r = await db('GET', 'employees', { select: '*', employee_id: 'eq.' + u.employee_id, limit: 1 });
       if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil profile.', error: r.error });
       const row = (r.data && r.data[0]) || null;
-      if (!row) return json(res, 404, { ok: false, message: 'Profile tidak ditemukan.' });
+      if (!row) {
+        return json(res, 200, {
+          employee_id: u.employee_id,
+          email: u.email,
+          nama: 'Karyawan',
+          role: u.role || 'employee',
+          divisi: '-',
+          jabatan: '-',
+          is_active: true,
+          jatah_cuti: 12,
+          sisa_cuti: 12
+        });
+      }
       return json(res, 200, row);
     }
 
@@ -716,7 +728,14 @@ module.exports = async function handler(req, res) {
       const p = await db('GET', 'employees', { select: 'employee_id,nama,divisi,jabatan,jatah_cuti,sisa_cuti', employee_id: 'eq.' + u.employee_id, limit: 1 });
       if (!p.ok) return json(res, 500, { ok: false, message: 'Gagal ambil summary.', error: p.error });
       const row = (p.data && p.data[0]) || null;
-      if (!row) return json(res, 404, { ok: false, message: 'Karyawan tidak ditemukan.' });
+      const profile = row || {
+        employee_id: u.employee_id,
+        nama: 'Karyawan',
+        divisi: '-',
+        jabatan: '-',
+        jatah_cuti: 12,
+        sisa_cuti: 12
+      };
       const leaves = await db('GET', 'leave_requests', { select: 'leave_id', employee_id: 'eq.' + u.employee_id, status: 'eq.pending' });
       if (!leaves.ok) return json(res, 500, { ok: false, message: 'Gagal ambil pending leaves.', error: leaves.error });
       const att = await db('GET', 'attendance', { select: 'attendance_id,jam_masuk,jam_keluar', employee_id: 'eq.' + u.employee_id, tanggal: 'eq.' + ymd(), order: 'created_at.desc', limit: 1 });
@@ -726,7 +745,7 @@ module.exports = async function handler(req, res) {
       const workSecondsToday = arow ? effectiveWorkSeconds(arow.jam_masuk, arow.jam_keluar, meta, hms()) : 0;
       const workMinutesToday = Math.floor(workSecondsToday / 60);
       const progress = shiftProgress(workMinutesToday, meta.shift_code || 'PAGI');
-      return json(res, 200, Object.assign({}, row, {
+      return json(res, 200, Object.assign({}, profile, {
         pendingLeaves: Array.isArray(leaves.data) ? leaves.data.length : 0,
         work_seconds_today: workSecondsToday,
         work_minutes_today: workMinutesToday,
