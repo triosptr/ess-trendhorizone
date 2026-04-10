@@ -266,19 +266,27 @@
     let employeeTodayShiftCode='PAGI';
     let employeeShiftWatchTimer=null;
     let employeeShiftWatchVersion='';
+    let employeeHomeLoading=false;
+    let employeeLastHomeLoadedAt=0;
     function navTo(id, el){ employeeCurrentSection=String(id||'home'); document.querySelectorAll('.menu-item').forEach(e=>e.classList.remove('active')); el.classList.add('active'); if(window.innerWidth<=992) document.getElementById('sidebar').classList.remove('open'); }
     if(window.innerWidth<=992) { document.getElementById('mobileToggle').style.display='block'; document.querySelector('.mobile-close').style.display='block'; }
     document.getElementById('header_date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long', day:'2-digit', month:'short'});
 
     let workDurationTimer=null;
     let leaveAttachmentPayload=null;
+    async function safeRefreshHome(trigger){
+      if(employeeCurrentSection!=='home') return;
+      if(employeeHomeLoading) return;
+      const now=Date.now();
+      if(trigger==='focus' && now-employeeLastHomeLoadedAt<120000) return;
+      await loadEmployeeHome();
+    }
     function ensureEmployeeResponsiveSchedule(){
       if(employeeScheduleRefreshTimer) return;
       employeeScheduleRefreshTimer=setInterval(async function(){
-        if(employeeCurrentSection!=='home') return;
-        try{ await loadEmployeeHome(); }catch(_){}
-      }, 45000);
-      window.addEventListener('focus', async function(){ if(employeeCurrentSection==='home'){ try{ await loadEmployeeHome(); }catch(_){} } });
+        try{ await safeRefreshHome('interval'); }catch(_){}
+      }, 300000);
+      window.addEventListener('focus', async function(){ try{ await safeRefreshHome('focus'); }catch(_){} });
     }
     function showShiftToast(message){
       const id='shift_change_toast';
@@ -550,6 +558,8 @@
     }
 
     async function loadEmployeeHome(){ 
+      if(employeeHomeLoading) return;
+      employeeHomeLoading=true;
       try{ 
         setLoading('Loading dashboard...'); 
         const profile = await bootGreeting();
@@ -790,11 +800,11 @@
 
         setContentLayout(middleHtml, rightHtml);
         startWorkDurationTicker(today);
+        employeeLastHomeLoadedAt=Date.now();
         
         const badge = document.getElementById('notif_badge');
         if(notif.total_unread>0) { badge.style.display='flex'; badge.textContent=notif.total_unread; } else { badge.style.display='none'; }
-
-      } catch(err) { setContentLayout(renderError(err.message), null); } 
+      } catch(err) { setContentLayout(renderError(err.message), null); } finally { employeeHomeLoading=false; } 
     }
 
     // Modal & API Functions
