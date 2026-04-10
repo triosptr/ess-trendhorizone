@@ -1316,14 +1316,20 @@ module.exports = async function handler(req, res) {
 
     if (path === 'me/payroll-docs' && method === 'GET') {
       const u = requireUser(req, res); if (!u) return;
-      const r = await db('GET', 'payroll_docs', { select: '*', employee_id: 'eq.' + u.employee_id, order: 'uploaded_at.desc', limit: Math.min(Number(req.query.limit || 24), 100) });
+      let r = await db('GET', 'payroll_docs', { select: '*', employee_id: 'eq.' + u.employee_id, order: 'uploaded_at.desc', limit: Math.min(Number(req.query.limit || 24), 100) });
+      if (r.ok && (!Array.isArray(r.data) || r.data.length === 0) && String(u.email || '').trim()) {
+        r = await db('GET', 'payroll_docs', { select: '*', email: 'eq.' + String(u.email || '').trim().toLowerCase(), order: 'uploaded_at.desc', limit: Math.min(Number(req.query.limit || 24), 100) });
+      }
       if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil payroll docs.', error: r.error });
       return json(res, 200, (r.data || []).map(enrichPayrollDoc));
     }
 
     if (path === 'me/payroll/summary' && method === 'GET') {
       const u = requireUser(req, res); if (!u) return;
-      const rows = await db('GET', 'payroll_docs', { select: 'doc_id,bulan,tahun,nama_file,file_url,keterangan,uploaded_at', employee_id: 'eq.' + u.employee_id, order: 'uploaded_at.desc', limit: 120 });
+      let rows = await db('GET', 'payroll_docs', { select: 'doc_id,bulan,tahun,nama_file,file_url,keterangan,uploaded_at,email,employee_id', employee_id: 'eq.' + u.employee_id, order: 'uploaded_at.desc', limit: 120 });
+      if (rows.ok && (!Array.isArray(rows.data) || rows.data.length === 0) && String(u.email || '').trim()) {
+        rows = await db('GET', 'payroll_docs', { select: 'doc_id,bulan,tahun,nama_file,file_url,keterangan,uploaded_at,email,employee_id', email: 'eq.' + String(u.email || '').trim().toLowerCase(), order: 'uploaded_at.desc', limit: 120 });
+      }
       if (!rows.ok) return json(res, 500, { ok: false, message: 'Gagal ambil payroll summary.', error: rows.error });
       const data = (rows.data || []).map(enrichPayrollDoc);
       const latest = data[0] || null;
@@ -2256,7 +2262,7 @@ module.exports = async function handler(req, res) {
           return txt.indexOf(keyword) >= 0;
         });
       }
-      return json(res, 200, rows);
+      return json(res, 200, rows.map(enrichPayrollDoc));
     }
 
     if (path === 'admin/payroll-docs' && method === 'POST') {
@@ -2361,8 +2367,14 @@ module.exports = async function handler(req, res) {
         const pdf = payrollPdfBuffer(enriched, employeeName || employeeId);
         const pdfName = toSafeFileToken('payslip_' + String(payload.bulan || '') + '_' + String(payload.tahun || '') + '_' + String(employeeName || employeeId || ''), 'payslip') + '.pdf';
         const pdfUrl = await uploadBufferToDrive(pdfName, 'application/pdf', pdf, payrollDriveFolderId());
-        if (pdfUrl) {
-          await db('PATCH', 'payroll_docs', { doc_id: 'eq.' + String(inserted.doc_id || payload.doc_id) }, { file_url: pdfUrl, updated_at: nowIso() }, { Prefer: 'return=representation' });
+        if (!pdfUrl) {
+          await db('DELETE', 'payroll_docs', { doc_id: 'eq.' + String(inserted.doc_id || payload.doc_id) });
+          return json(res, 500, { ok: false, message: 'Gagal generate/upload payslip PDF ke Google Drive. Data payroll dibatalkan agar konsisten.' });
+        }
+        const patchDoc = await db('PATCH', 'payroll_docs', { doc_id: 'eq.' + String(inserted.doc_id || payload.doc_id) }, { file_url: pdfUrl, updated_at: nowIso() }, { Prefer: 'return=representation' });
+        if (!patchDoc.ok) {
+          await db('DELETE', 'payroll_docs', { doc_id: 'eq.' + String(inserted.doc_id || payload.doc_id) });
+          return json(res, 500, { ok: false, message: 'PDF berhasil dibuat tetapi gagal simpan URL ke payroll. Data payroll dibatalkan agar konsisten.', error: patchDoc.error });
         }
       }
       await auditLog(a.email, 'CREATE', 'payroll_docs', 'Tambah payroll doc ' + payload.doc_id + ' untuk ' + payload.employee_id, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
