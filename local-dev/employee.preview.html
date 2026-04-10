@@ -449,6 +449,7 @@
         let insights={ summary:{ late_rate_period:0,pending_leaves:0 }, alerts:[], recommendations:[], quick_actions:[] };
         let reminderPlan={ reminder:{ action_key:'open_attendance_history', label:'Lihat Riwayat Kehadiran', detail:'Kondisi stabil.', urgency:'low' } };
         let incidentTimeline={ timeline:[] };
+        let payrollSummary={ summary:{ total_docs:0, docs_this_year:0, unique_periods:0 }, latest_doc:null };
         try { data = await api('/api/me/dashboard-summary'); } catch(e) {}
         try { today = await api('/api/me/attendance/today'); } catch(e) {}
         try { notif = await api('/api/me/notifications/summary'); } catch(e) {}
@@ -457,6 +458,7 @@
         try { insights = await api('/api/me/operations-intelligence/summary'); } catch(e) {}
         try { reminderPlan = await api('/api/me/operations-intelligence/reminder-plan'); } catch(e) {}
         try { incidentTimeline = await api('/api/me/incidents/timeline?limit=6'); } catch(e) {}
+        try { payrollSummary = await api('/api/me/payroll/summary'); } catch(e) {}
 
         const pct = Math.min(100, Math.max(0, Number(data.shift_progress_percent_today||0)));
         const strokeDash = `${pct}, 100`;
@@ -521,6 +523,21 @@
                     <div class="action-illustration">
                         <i class="ph-fill ph-calendar-star"></i>
                     </div>
+                </div>
+
+                <div class="card team-card">
+                    <div class="team-header">
+                        <div class="team-stat">
+                            <div class="stat-large"><i class="ph ph-wallet"></i></div>
+                            <div class="stat-label">Payroll Snapshot</div>
+                        </div>
+                    </div>
+                    <ul class="clean-list team-list">
+                        <li><div class="list-text"><span class="list-title">Total Slip</span><span class="list-desc">${escapeHtml((payrollSummary.summary||{}).total_docs||0)} dokumen</span></div></li>
+                        <li><div class="list-text"><span class="list-title">Slip Tahun Ini</span><span class="list-desc">${escapeHtml((payrollSummary.summary||{}).docs_this_year||0)} dokumen</span></div></li>
+                        <li><div class="list-text"><span class="list-title">Slip Terbaru</span><span class="list-desc">${escapeHtml((((payrollSummary.latest_doc||{}).bulan)||'-')+' '+(((payrollSummary.latest_doc||{}).tahun)||''))}</span></div><a class="btn btn-secondary" href="${escapeHtml(((payrollSummary.latest_doc||{}).file_url)||'#')}" target="_blank">Open</a></li>
+                    </ul>
+                    <div class="actions"><button class="btn btn-secondary" onclick="navTo('salary', document.querySelectorAll('.menu-item')[3]); loadMyPayrollDocs()">Open Salary Slips</button></div>
                 </div>
             </div>
 
@@ -759,13 +776,18 @@
     }
 
     async function loadMyPayrollDocs(){ 
-        try { setLoading(); const rows=await api('/api/me/payroll-docs?limit=24'); 
+        try { setLoading(); const [rows,sumRes]=await Promise.all([api('/api/me/payroll-docs?limit=24'),api('/api/me/payroll/summary').catch(function(){ return { summary:{} }; })]); 
+        const s=(sumRes&&sumRes.summary)||{};
         const html = `
             <div class="card">
                 <div class="team-header"><h3 style="font-size:20px;font-weight:700;">Salary Slips</h3></div>
+                <div class="cards-row" style="margin-bottom:16px;">
+                    <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Total Slip</div><div class="stat-large" style="font-size:28px;">${escapeHtml(s.total_docs||0)}</div></div>
+                    <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Slip Tahun Ini</div><div class="stat-large" style="font-size:28px;">${escapeHtml(s.docs_this_year||0)}</div></div>
+                </div>
                 <div class="table-wrap"><table>
-                    <thead><tr><th>Period</th><th>Description</th><th>Action</th></tr></thead>
-                    <tbody>${rows.length?rows.map(r=>`<tr><td>${escapeHtml(r.bulan)} ${escapeHtml(r.tahun)}</td><td>${escapeHtml(r.keterangan||'-')}</td><td><a href="${escapeHtml(r.file_url)}" target="_blank" class="btn btn-secondary"><i class="ph ph-download-simple"></i> Download</a></td></tr>`).join(''):'<tr><td colspan="3">No records</td></tr>'}</tbody>
+                    <thead><tr><th>Period</th><th>Description</th><th>Uploaded</th><th>Action</th></tr></thead>
+                    <tbody>${rows.length?rows.map(r=>`<tr><td>${escapeHtml(r.bulan)} ${escapeHtml(r.tahun)}</td><td>${escapeHtml(r.keterangan||'-')}</td><td>${escapeHtml(formatDateTimeDisplay(r.uploaded_at)||'-')}</td><td><a href="${escapeHtml(r.file_url)}" target="_blank" class="btn btn-secondary"><i class="ph ph-download-simple"></i> Download</a></td></tr>`).join(''):'<tr><td colspan="4">No records</td></tr>'}</tbody>
                 </table></div>
             </div>`;
         setContentLayout(html, null); } catch(e){ setContentLayout(renderError(e.message), null); }

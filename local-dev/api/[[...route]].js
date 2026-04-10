@@ -991,6 +991,31 @@ module.exports = async function handler(req, res) {
       return json(res, 200, r.data || []);
     }
 
+    if (path === 'me/payroll/summary' && method === 'GET') {
+      const u = requireUser(req, res); if (!u) return;
+      const rows = await db('GET', 'payroll_docs', { select: 'doc_id,bulan,tahun,nama_file,file_url,keterangan,uploaded_at', employee_id: 'eq.' + u.employee_id, order: 'uploaded_at.desc', limit: 120 });
+      if (!rows.ok) return json(res, 500, { ok: false, message: 'Gagal ambil payroll summary.', error: rows.error });
+      const data = rows.data || [];
+      const latest = data[0] || null;
+      const thisYear = String(new Date().getFullYear());
+      const docsThisYear = data.filter(function(x) { return String(x.tahun || '') === thisYear; }).length;
+      const periodMap = {};
+      data.forEach(function(x) {
+        const k = String(x.bulan || '-') + '-' + String(x.tahun || '-');
+        periodMap[k] = true;
+      });
+      return json(res, 200, {
+        ok: true,
+        summary: {
+          total_docs: data.length,
+          docs_this_year: docsThisYear,
+          unique_periods: Object.keys(periodMap).length,
+          latest_uploaded_at: latest ? latest.uploaded_at : null
+        },
+        latest_doc: latest
+      });
+    }
+
     if (path === 'me/announcements' && method === 'GET') {
       const u = requireUser(req, res); if (!u) return;
       const r = await db('GET', 'announcements', { select: '*', is_active: 'eq.true', or: '(target_role.eq.all,target_role.eq.' + u.role + ')', order: 'published_at.desc', limit: Math.min(Number(req.query.limit || 30), 100) });
@@ -1885,9 +1910,21 @@ module.exports = async function handler(req, res) {
 
     if (path === 'admin/payroll-docs' && method === 'GET') {
       const a = requireAdmin(req, res); if (!a) return;
-      const r = await db('GET', 'payroll_docs', { select: '*', order: 'uploaded_at.desc', limit: Math.min(Number(req.query.limit || 300), 1000) });
+      const q = { select: '*', order: 'uploaded_at.desc', limit: Math.min(Number(req.query.limit || 300), 1000) };
+      if (req.query.employee_id) q.employee_id = 'eq.' + String(req.query.employee_id).trim();
+      if (req.query.bulan) q.bulan = 'eq.' + String(req.query.bulan).trim();
+      if (req.query.tahun) q.tahun = 'eq.' + String(req.query.tahun).trim();
+      const r = await db('GET', 'payroll_docs', q);
       if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil payroll docs.', error: r.error });
-      return json(res, 200, r.data || []);
+      let rows = r.data || [];
+      const keyword = String(req.query.keyword || '').trim().toLowerCase();
+      if (keyword) {
+        rows = rows.filter(function(x) {
+          const txt = (String(x.doc_id || '') + ' ' + String(x.employee_id || '') + ' ' + String(x.email || '') + ' ' + String(x.nama_file || '') + ' ' + String(x.keterangan || '')).toLowerCase();
+          return txt.indexOf(keyword) >= 0;
+        });
+      }
+      return json(res, 200, rows);
     }
 
     if (path === 'admin/payroll-docs' && method === 'POST') {
@@ -1903,10 +1940,66 @@ module.exports = async function handler(req, res) {
       const payload = { doc_id: rid('PAY'), employee_id: String(b.employee_id || '').trim(), email: String(b.email || '').trim().toLowerCase(), bulan: String(b.bulan || '').trim(), tahun: String(b.tahun || '').trim(), nama_file: String(b.nama_file || '').trim(), file_url: String(b.file_url || '').trim(), keterangan: String(b.keterangan || '').trim(), uploaded_at: b.uploaded_at || nowIso() };
       payload.email = resolvedEmail;
       if (!payload.employee_id || !payload.file_url || !payload.nama_file || !payload.email) return json(res, 400, { ok: false, message: 'employee_id, email, nama_file, file_url wajib diisi.' });
+      if (payload.bulan && payload.tahun) {
+        const dup = await db('GET', 'payroll_docs', { select: 'doc_id,uploaded_at', employee_id: 'eq.' + payload.employee_id, bulan: 'eq.' + payload.bulan, tahun: 'eq.' + payload.tahun, limit: 3 });
+        if (!dup.ok) return json(res, 500, { ok: false, message: 'Gagal validasi duplikasi payroll.', error: dup.error });
+        if (Array.isArray(dup.data) && dup.data.length > 0) return json(res, 409, { ok: false, message: 'Payroll untuk periode ini sudah ada pada karyawan tersebut.' });
+      }
       const ins = await db('POST', 'payroll_docs', null, payload, { Prefer: 'return=representation' });
       if (!ins.ok) return json(res, 500, { ok: false, message: 'Gagal membuat payroll doc.', error: ins.error });
       await auditLog(a.email, 'CREATE', 'payroll_docs', 'Tambah payroll doc ' + payload.doc_id + ' untuk ' + payload.employee_id, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, { ok: true, message: 'Payroll doc berhasil dibuat.', data: ins.data });
+    }
+
+    if (path === 'admin/payroll/summary' && method === 'GET') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const bulan = String(req.query.bulan || '').trim();
+      const tahun = String(req.query.tahun || '').trim();
+      const [emps, docs] = await Promise.all([
+        db('GET', 'employees', { select: 'employee_id,nama,email,divisi,is_active', order: 'employee_id.asc', limit: 5000 }),
+        db('GET', 'payroll_docs', { select: 'doc_id,employee_id,email,bulan,tahun,uploaded_at,nama_file', order: 'uploaded_at.desc', limit: 5000 })
+      ]);
+      if (!emps.ok || !docs.ok) return json(res, 500, { ok: false, message: 'Gagal ambil payroll summary.', error: (!emps.ok ? emps.error : docs.error) });
+      const active = (emps.data || []).filter(function(e) { return String(e.is_active).toLowerCase() === 'true'; });
+      const filteredDocs = (docs.data || []).filter(function(d) {
+        if (bulan && String(d.bulan || '') !== bulan) return false;
+        if (tahun && String(d.tahun || '') !== tahun) return false;
+        return true;
+      });
+      const byEmp = {};
+      filteredDocs.forEach(function(d) {
+        const id = String(d.employee_id || '');
+        if (!byEmp[id]) byEmp[id] = [];
+        byEmp[id].push(d);
+      });
+      const coveredEmployeeIds = Object.keys(byEmp);
+      const duplicates = coveredEmployeeIds.filter(function(id) { return (byEmp[id] || []).length > 1; });
+      const missing = active.filter(function(e) { return !byEmp[String(e.employee_id || '')]; }).map(function(e) {
+        return { employee_id: e.employee_id, nama: e.nama, email: e.email, divisi: e.divisi };
+      });
+      const divisionStats = {};
+      active.forEach(function(e) {
+        const div = String(e.divisi || 'Tanpa Divisi');
+        if (!divisionStats[div]) divisionStats[div] = { divisi: div, active_employees: 0, payroll_uploaded: 0, payroll_missing: 0 };
+        divisionStats[div].active_employees += 1;
+        if (byEmp[String(e.employee_id || '')]) divisionStats[div].payroll_uploaded += 1;
+        else divisionStats[div].payroll_missing += 1;
+      });
+      return json(res, 200, {
+        ok: true,
+        period: { bulan: bulan || null, tahun: tahun || null },
+        summary: {
+          active_employees: active.length,
+          payroll_docs: filteredDocs.length,
+          covered_employees: coveredEmployeeIds.length,
+          missing_employees: missing.length,
+          duplicate_employees: duplicates.length,
+          completion_rate: active.length > 0 ? Math.round((coveredEmployeeIds.length / active.length) * 10000) / 100 : 0
+        },
+        duplicate_employee_ids: duplicates,
+        missing_employees: missing.slice(0, 200),
+        division_stats: Object.values(divisionStats).sort(function(a1, b1) { return Number(b1.payroll_missing || 0) - Number(a1.payroll_missing || 0); })
+      });
     }
 
     if (path === 'admin/master/divisions' || path === 'admin/master/positions' || path === 'admin/master/leave-types') {
