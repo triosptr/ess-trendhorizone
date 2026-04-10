@@ -902,6 +902,41 @@
       const nama=row?String(row.nama||row.employee_id||'Karyawan'):String(employeeId||'Karyawan');
       return 'Slip Gaji ' + bulan + ' ' + tahun + ' - ' + nama;
     }
+    function ensurePayrollAdvancedInputs(){
+      const keterangan=document.getElementById('pay_keterangan');
+      if(!keterangan) return;
+      if(document.getElementById('pay_adv_panel')) return;
+      const wrap=keterangan.closest('.form-group');
+      if(!wrap||!wrap.parentElement) return;
+      const panel=document.createElement('div');
+      panel.id='pay_adv_panel';
+      panel.className='card';
+      panel.style.cssText='box-shadow:none;background:var(--bg);margin-top:12px;';
+      panel.innerHTML='<div class="team-header"><h3 style="font-size:16px;font-weight:700;">Auto Deduction Rules</h3></div><div class="grid-2"><div class="form-group"><label><input id="pay_apply_bpjs_kes" type="checkbox" checked> Terapkan BPJS Kesehatan</label></div><div class="form-group"><label><input id="pay_apply_bpjs_ketenaga" type="checkbox" checked> Terapkan BPJS Ketenagakerjaan</label></div><div class="form-group"><label><input id="pay_apply_tax" type="checkbox" checked> Terapkan Tax (PPh21)</label></div><div class="form-group"><label>Tax Rate</label><input id="pay_tax_rate" type="number" min="0" max="1" step="0.001" value="0.05"></div><div class="form-group"><label>UMP_JAM (Base)</label><input id="pay_ump_jam" type="number" min="0" value="0"></div><div class="form-group"><label>MAX_KS</label><input id="pay_max_ks" type="number" min="0" value="12000000"></div><div class="form-group"><label>MAX_JP</label><input id="pay_max_jp" type="number" min="0" value="10300000"></div></div><div class="stat-label">Jika checkbox tidak dicentang, komponen deduction terkait akan otomatis menjadi 0.</div>';
+      wrap.parentElement.insertBefore(panel, wrap.nextSibling);
+      const basic=document.getElementById('pay_gaji_pokok');
+      const ump=document.getElementById('pay_ump_jam');
+      if(basic&&ump&&!Number(ump.value||0)) ump.value=String(Number(basic.value||0));
+      if(basic&&ump){
+        basic.addEventListener('input', function(){
+          if(!document.getElementById('pay_ump_jam_lock') || document.getElementById('pay_ump_jam_lock').checked!==false) ump.value=String(Number(basic.value||0));
+        });
+      }
+    }
+    function observePayrollForm(){
+      const root=document.getElementById('content');
+      if(!root||root.__payrollObserverInstalled) return;
+      root.__payrollObserverInstalled=true;
+      const obs=new MutationObserver(function(){ ensurePayrollAdvancedInputs(); });
+      obs.observe(root,{childList:true,subtree:true});
+    }
+    async function exportPayrollPdf(docId){
+      try{
+        if(!docId) throw new Error('doc_id tidak valid');
+        await api('/api/admin/payroll/export-pdf','POST',{doc_id:String(docId)});
+        await loadPayrollDocs();
+      }catch(err){ setContent(renderError(err.message)); }
+    }
     async function loadPayrollDocs(){
       try{
         setLoading();
@@ -917,7 +952,7 @@
         const missing=((summary&&summary.missing_employees)||[]).slice(0,8);
         const missingList=missing.map(function(x){ return '<li><div class="list-text"><span class="list-title">'+escapeHtml(x.nama||x.employee_id||'-')+'</span><span class="list-desc">'+escapeHtml((x.employee_id||'-')+' • '+(x.divisi||'-'))+'</span></div></li>'; }).join('') || '<li><div class="list-text"><span class="list-desc">Semua karyawan aktif sudah punya slip.</span></div></li>';
         const tableRows=((rows||[]).map(function(r){
-          return '<tr><td>'+escapeHtml(r.doc_id)+'</td><td>'+escapeHtml((r.employee_id||'-')+' • '+(r.email||'-'))+'</td><td>'+escapeHtml(r.bulan||'-')+'</td><td>'+escapeHtml(r.tahun||'-')+'</td><td>'+escapeHtml(moneyId(r.total_pendapatan||0))+'</td><td>'+escapeHtml(moneyId(r.total_potongan||0))+'</td><td>'+escapeHtml(moneyId(r.take_home_pay||0))+'</td><td>'+escapeHtml(formatDateTimeDisplay(r.uploaded_at)||'-')+'</td><td><a class="btn btn-secondary" href="'+escapeHtml(r.file_url||'#')+'" target="_blank">Buka</a></td></tr>';
+          return '<tr><td>'+escapeHtml(r.doc_id)+'</td><td>'+escapeHtml((r.employee_id||'-')+' • '+(r.email||'-'))+'</td><td>'+escapeHtml(r.bulan||'-')+'</td><td>'+escapeHtml(r.tahun||'-')+'</td><td>'+escapeHtml(moneyId(r.total_pendapatan||0))+'</td><td>'+escapeHtml(moneyId(r.total_potongan||0))+'</td><td>'+escapeHtml(moneyId(r.take_home_pay||0))+'</td><td>'+escapeHtml(formatDateTimeDisplay(r.uploaded_at)||'-')+'</td><td><div class="actions" style="margin-top:0;"><a class="btn btn-secondary" href="'+escapeHtml(r.file_url||'#')+'" target="_blank">Buka</a><button class="btn btn-primary" onclick="exportPayrollPdf(\''+escapeHtml(r.doc_id||'')+'\')">PDF</button></div></td></tr>';
         }).join('')||'<tr><td colspan="9">Tidak ada data</td></tr>');
         setContent(payrollRenderer('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Payroll Command Center</h3><div class="actions"><button class="btn btn-primary" onclick="submitPayrollDoc()"><i class="ph ph-upload-simple"></i> Simpan Payroll</button><button class="btn btn-secondary" onclick="loadMasterDataHub()">Back</button></div></div><div class="cards-row" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom:16px;"><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Active Employees</div><div class="stat-large">'+escapeHtml(s.active_employees||0)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Covered</div><div class="stat-large">'+escapeHtml(s.covered_employees||0)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Missing</div><div class="stat-large" style="color:var(--warning);">'+escapeHtml(s.missing_employees||0)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Completion</div><div class="stat-large">'+escapeHtml(s.completion_rate||0)+'%</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Total THP</div><div class="stat-large">'+escapeHtml(moneyId(s.total_take_home_pay||0))+'</div></div></div><div class="grid-2"><div class="form-group"><label>Filter Bulan</label><input id="pay_filter_bulan" value="'+escapeHtml(fBulan)+'"></div><div class="form-group"><label>Filter Tahun</label><input id="pay_filter_tahun" value="'+escapeHtml(fTahun)+'"></div><div class="form-group"><label>Filter Keyword</label><input id="pay_filter_keyword" value="'+escapeHtml(fKeyword)+'" placeholder="doc id / employee / email / file"></div><div class="form-group"><label> </label><button class="btn btn-secondary" onclick="loadPayrollDocs()">Apply Filter</button></div></div><div class="grid-2"><div><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Upload Payroll Slip</h3></div><div class="grid-2"><div class="form-group"><label>Employee</label><select id="pay_emp_id" onchange="syncPayrollEmployeeEmail()"><option value="">-- Pilih Karyawan --</option>'+options+'</select></div><div class="form-group"><label>Email</label><input id="pay_email" readonly></div><div class="form-group"><label>Bulan</label><input id="pay_bulan" value="'+escapeHtml(fBulan)+'"></div><div class="form-group"><label>Tahun</label><input id="pay_tahun" value="'+escapeHtml(fTahun)+'"></div><div class="form-group"><label>Nama File</label><input id="pay_nama_file" placeholder="Slip Gaji '+escapeHtml(fBulan)+' '+escapeHtml(fTahun)+'"></div><div class="form-group"><label>File URL</label><input id="pay_file_url" placeholder="https://..."></div><div class="form-group"><label>Basic Salary</label><input id="pay_gaji_pokok" type="number" min="0" value="0"></div><div class="form-group"><label>Allowance</label><input id="pay_tunjangan" type="number" min="0" value="0"></div><div class="form-group"><label>Transport Allowance</label><input id="pay_transport_allowance" type="number" min="0" value="0"></div><div class="form-group"><label>Meal Allowance</label><input id="pay_meal_allowance" type="number" min="0" value="0"></div><div class="form-group"><label>Overtime Pay</label><input id="pay_lembur" type="number" min="0" value="0"></div><div class="form-group"><label>Bonus / Incentive</label><input id="pay_bonus" type="number" min="0" value="0"></div><div class="form-group"><label>Attendance Allowance</label><input id="pay_attendance_allowance" type="number" min="0" value="0"></div><div class="form-group"><label>THR</label><input id="pay_thr" type="number" min="0" value="0"></div><div class="form-group"><label>Tax (PPh21)</label><input id="pay_pot_pajak" type="number" min="0" value="0"></div><div class="form-group"><label>BPJS Kesehatan</label><input id="pay_bpjs_kes" type="number" min="0" value="0"></div><div class="form-group"><label>BPJS Ketenagakerjaan</label><input id="pay_bpjs_ket" type="number" min="0" value="0"></div><div class="form-group"><label>Penalty / Deduction</label><input id="pay_penalty_deduction" type="number" min="0" value="0"></div><div class="form-group"><label>Late Deduction</label><input id="pay_late_deduction" type="number" min="0" value="0"></div><div class="form-group"><label>Absence Deduction</label><input id="pay_absence_deduction" type="number" min="0" value="0"></div><div class="form-group"><label>Other Deduction</label><input id="pay_pot_lain" type="number" min="0" value="0"></div></div><div class="form-group"><label>Keterangan</label><textarea id="pay_keterangan" placeholder="Opsional"></textarea></div></div><div><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Karyawan Belum Ada Slip</h3></div><ul class="clean-list">'+missingList+'</ul></div></div><div class="table-wrap"><table><thead><tr><th>Doc ID</th><th>Employee</th><th>Bulan</th><th>Tahun</th><th>Pendapatan</th><th>Potongan</th><th>Take Home Pay</th><th>Uploaded</th><th>Aksi</th></tr></thead><tbody>'+tableRows+'</tbody></table></div></div>'));
       }catch(err){ setContent(renderError(err.message)); }
@@ -931,7 +966,7 @@
         const namaFile=String((document.getElementById('pay_nama_file')||{}).value||'').trim();
         const fileUrl=String((document.getElementById('pay_file_url')||{}).value||'').trim();
         const keterangan=String((document.getElementById('pay_keterangan')||{}).value||'').trim();
-        if(!employeeId||!fileUrl||!bulan||!tahun) throw new Error('Employee, bulan, tahun, dan file URL wajib diisi.');
+        if(!employeeId||!bulan||!tahun) throw new Error('Employee, bulan, dan tahun wajib diisi.');
         await api('/api/admin/payroll-docs','POST',{
           employee_id:employeeId,email:email,bulan:bulan,tahun:tahun,nama_file:(namaFile||autoPayrollFileName(employeeId)),file_url:fileUrl,keterangan:keterangan,
           gaji_pokok:Number((document.getElementById('pay_gaji_pokok')||{}).value||0),
@@ -948,7 +983,14 @@
           penalty_deduction:Number((document.getElementById('pay_penalty_deduction')||{}).value||0),
           late_deduction:Number((document.getElementById('pay_late_deduction')||{}).value||0),
           absence_deduction:Number((document.getElementById('pay_absence_deduction')||{}).value||0),
-          potongan_lain:Number((document.getElementById('pay_pot_lain')||{}).value||0)
+          potongan_lain:Number((document.getElementById('pay_pot_lain')||{}).value||0),
+          apply_bpjs_kesehatan: !!((document.getElementById('pay_apply_bpjs_kes')||{}).checked),
+          apply_bpjs_ketenagakerjaan: !!((document.getElementById('pay_apply_bpjs_ketenaga')||{}).checked),
+          apply_tax: !!((document.getElementById('pay_apply_tax')||{}).checked),
+          UMP_JAM: Number((document.getElementById('pay_ump_jam')||{}).value||0),
+          MAX_KS: Number((document.getElementById('pay_max_ks')||{}).value||12000000),
+          MAX_JP: Number((document.getElementById('pay_max_jp')||{}).value||10300000),
+          tax_rate: Number((document.getElementById('pay_tax_rate')||{}).value||0)
         });
         await loadPayrollDocs();
       }catch(err){ setContent(renderError(err.message)); }
@@ -963,6 +1005,7 @@
     async function loadAdminNotifications(){ try{ setLoading(); const summary=await api('/api/admin/notifications/leave/summary'); const rows=await api('/api/admin/notifications/leave'); setContent('<div class="cards-row" style="margin-bottom:24px;"><div class="card"><div class="stat-label">Leave Request Baru</div><div class="stat-large" style="color:var(--warning);">'+escapeHtml(summary.unread_leave_requests||0)+'</div></div><div class="card"><div class="stat-label">Total Unread</div><div class="stat-large">'+escapeHtml(summary.total_unread||0)+'</div></div></div><div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Notifikasi Admin</h3><div class="actions"><button class="btn btn-secondary" onclick="markAllAdminNotificationsSeen()"><i class="ph ph-check-double"></i> Mark All Read</button></div></div><ul class="clean-list">'+((rows||[]).map(function(r){return '<li><div class="icon-box" style="background:var(--warning-bg);color:var(--warning);"><i class="ph ph-bell"></i></div><div class="list-text"><span class="list-title">'+escapeHtml(r.title||'Notifikasi')+'</span><span class="list-desc">'+escapeHtml(formatDateTimeDisplay(r.date_value||''))+' - '+escapeHtml(r.message||'')+'</span></div></li>';}).join('')||'<li>Tidak ada notifikasi</li>')+'</ul></div>'); }catch(err){ setContent(renderError(err.message)); } }
     async function markAllAdminNotificationsSeen(){ try{ await api('/api/admin/notifications/leave/mark-seen','POST',{}); await loadAdminNotifications(); }catch(err){ setContent(renderError(err.message)); } }
 
+    observePayrollForm();
     loadSummary();
   </script>
 </body>

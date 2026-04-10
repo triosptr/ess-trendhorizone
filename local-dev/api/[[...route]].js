@@ -265,6 +265,16 @@ function maximumFormula(calculationBase, maximumCalculationBase, tariff) {
   const used = Number.isFinite(maxBase) && maxBase > 0 ? Math.min(base, maxBase) : base;
   return toMoney(used * Number(tariff || 0));
 }
+function componentEligible(name, ctx) {
+  const n = String(name || '').toLowerCase();
+  const applyKes = String(ctx.apply_bpjs_kesehatan).toLowerCase() !== 'false';
+  const applyKetenaga = String(ctx.apply_bpjs_ketenagakerjaan).toLowerCase() !== 'false';
+  const applyTax = String(ctx.apply_tax).toLowerCase() !== 'false';
+  if (n.indexOf('tax') >= 0 || n.indexOf('pph21') >= 0) return applyTax;
+  if (n.indexOf('bpjs kesehatan') >= 0) return applyKes;
+  if (n.indexOf('jht') >= 0 || n.indexOf('jkk') >= 0 || n.indexOf('jkm') >= 0 || n.indexOf('jaminan pensiun') >= 0) return applyKetenaga;
+  return true;
+}
 function payrollEngine(input) {
   const employeeId = String((input && input.employee_id) || '').trim();
   const components = componentMapper(input);
@@ -285,6 +295,9 @@ function payrollEngine(input) {
   ctx.UMP_JAM = Number(ctx.UMP_JAM || ctx.ump_jam || ctx.full_salary || 0);
   ctx.MAX_KS = Number(ctx.MAX_KS || ctx.max_ks || 12000000);
   ctx.MAX_JP = Number(ctx.MAX_JP || ctx.max_jp || 10300000);
+  if (ctx.apply_bpjs_kesehatan === undefined) ctx.apply_bpjs_kesehatan = true;
+  if (ctx.apply_bpjs_ketenagakerjaan === undefined) ctx.apply_bpjs_ketenagakerjaan = true;
+  if (ctx.apply_tax === undefined) ctx.apply_tax = true;
   ctx.MaxMinFormula = maxMinFormula;
   ctx.MaximumFormula = maximumFormula;
   const basicComp = components.find(function(c) { return String(c.name).toLowerCase() === 'basic salary'; }) || { value: 0 };
@@ -292,6 +305,10 @@ function payrollEngine(input) {
   if (!ctx.UMP_JAM || ctx.UMP_JAM <= 0) ctx.UMP_JAM = Number(ctx.full_salary || 0);
   ctx.daily_salary = Number(ctx.daily_salary || (ctx.total_work_days > 0 ? ctx.full_salary / ctx.total_work_days : 0));
   const evaluateComponent = function(comp) {
+    if (!componentEligible(comp.name, ctx)) {
+      ctx[payrollComponentKey(comp.name)] = 0;
+      return Object.assign({}, comp, { value: 0, formula: String(comp.formula || '') });
+    }
     const manualFormula = String(comp.formula || '').trim();
     const autoFormula = manualFormula ? '' : (shouldApplyDefaultFormula(comp.name, ctx) ? defaultFormulaByName(comp.name) : '');
     const formula = String(manualFormula || autoFormula || '').trim();
@@ -442,6 +459,10 @@ function driveFolderId() {
 }
 function reportDriveFolderId() {
   const folderRaw = String(process.env.REPORT_DRIVE_FOLDER || '1kiRVtwgOrYDCTErhmhamzLPi_ID8jv5C').trim();
+  return parseDriveFolderId(folderRaw);
+}
+function payrollDriveFolderId() {
+  const folderRaw = String(process.env.PAYSLIP_DRIVE_FOLDER || '1uL6UT7PtjMPEGOW0MwsiEzwCtVCTisC6').trim();
   return parseDriveFolderId(folderRaw);
 }
 function leaveDriveFolderId() {
@@ -603,6 +624,28 @@ function simplePdfBuffer(title, rows) {
   }
   pdf += 'trailer << /Size ' + String(objects.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + String(xrefPos) + '\n%%EOF';
   return Buffer.from(pdf, 'utf8');
+}
+function payrollPdfBuffer(payrollDoc, employeeName) {
+  const d = payrollDoc || {};
+  const earn = ((d.breakdown && d.breakdown.earnings) || []).map(function(x) { return String(x.name || '-') + ' : ' + String(toMoney(x.value || 0)); });
+  const ded = ((d.breakdown && d.breakdown.deductions) || []).map(function(x) { return String(x.name || '-') + ' : ' + String(toMoney(x.value || 0)); });
+  const lines = [];
+  lines.push('Company: Tren Gen Horizon');
+  lines.push('Payroll Period: ' + String(d.bulan || '-') + ' ' + String(d.tahun || '-'));
+  lines.push('Employee ID: ' + String(d.employee_id || '-'));
+  lines.push('Employee Name: ' + String(employeeName || '-'));
+  lines.push('----------------------------------------');
+  lines.push('EARNINGS');
+  earn.forEach(function(x) { lines.push(x); });
+  lines.push('----------------------------------------');
+  lines.push('DEDUCTIONS');
+  ded.forEach(function(x) { lines.push(x); });
+  lines.push('----------------------------------------');
+  lines.push('Total Income: ' + String(toMoney(d.total_earning || 0)));
+  lines.push('Total Deduction: ' + String(toMoney(d.total_deduction || 0)));
+  lines.push('Take Home Pay: ' + String(toMoney(d.net_salary || 0)));
+  lines.push('This is system generated message and requires no signature');
+  return simplePdfBuffer('Payslip ' + String(d.bulan || '-') + ' ' + String(d.tahun || '-'), lines);
 }
 async function getEmployeeDisplayName(user) {
   const r = await db('GET', 'employees', { select: 'nama', employee_id: 'eq.' + String(user.employee_id || ''), limit: 1 });
@@ -2273,6 +2316,9 @@ module.exports = async function handler(req, res) {
           penalty_rate: b.penalty_rate,
           absent_days: b.absent_days,
           daily_salary: b.daily_salary,
+          apply_bpjs_kesehatan: b.apply_bpjs_kesehatan,
+          apply_bpjs_ketenagakerjaan: b.apply_bpjs_ketenagakerjaan,
+          apply_tax: b.apply_tax,
           UMP_JAM: b.UMP_JAM || b.ump_jam || b.gaji_pokok || b.basic_salary || b.full_salary,
           MAX_KS: b.MAX_KS || b.max_ks,
           MAX_JP: b.MAX_JP || b.max_jp
@@ -2301,7 +2347,7 @@ module.exports = async function handler(req, res) {
         uploaded_at: b.uploaded_at || nowIso()
       };
       payload.email = resolvedEmail;
-      if (!payload.employee_id || !payload.file_url || !payload.nama_file || !payload.email) return json(res, 400, { ok: false, message: 'employee_id, email, nama_file, file_url wajib diisi.' });
+      if (!payload.employee_id || !payload.nama_file || !payload.email) return json(res, 400, { ok: false, message: 'employee_id, email, dan nama_file wajib diisi.' });
       if (payload.bulan && payload.tahun) {
         const dup = await db('GET', 'payroll_docs', { select: 'doc_id,uploaded_at', employee_id: 'eq.' + payload.employee_id, bulan: 'eq.' + payload.bulan, tahun: 'eq.' + payload.tahun, limit: 3 });
         if (!dup.ok) return json(res, 500, { ok: false, message: 'Gagal validasi duplikasi payroll.', error: dup.error });
@@ -2309,8 +2355,20 @@ module.exports = async function handler(req, res) {
       }
       const ins = await db('POST', 'payroll_docs', null, payload, { Prefer: 'return=representation' });
       if (!ins.ok) return json(res, 500, { ok: false, message: 'Gagal membuat payroll doc.', error: ins.error });
+      const inserted = Array.isArray(ins.data) && ins.data[0] ? ins.data[0] : null;
+      if (inserted) {
+        const enriched = enrichPayrollDoc(inserted);
+        const pdf = payrollPdfBuffer(enriched, employeeName || employeeId);
+        const pdfName = toSafeFileToken('payslip_' + String(payload.bulan || '') + '_' + String(payload.tahun || '') + '_' + String(employeeName || employeeId || ''), 'payslip') + '.pdf';
+        const pdfUrl = await uploadBufferToDrive(pdfName, 'application/pdf', pdf, payrollDriveFolderId());
+        if (pdfUrl) {
+          await db('PATCH', 'payroll_docs', { doc_id: 'eq.' + String(inserted.doc_id || payload.doc_id) }, { file_url: pdfUrl, updated_at: nowIso() }, { Prefer: 'return=representation' });
+        }
+      }
       await auditLog(a.email, 'CREATE', 'payroll_docs', 'Tambah payroll doc ' + payload.doc_id + ' untuk ' + payload.employee_id, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
-      return json(res, 200, { ok: true, message: 'Payroll doc berhasil dibuat.', data: (ins.data || []).map(enrichPayrollDoc) });
+      const out = await db('GET', 'payroll_docs', { select: '*', doc_id: 'eq.' + String(payload.doc_id), limit: 1 });
+      const data = out.ok ? (out.data || []) : (ins.data || []);
+      return json(res, 200, { ok: true, message: 'Payroll doc berhasil dibuat.', data: data.map(enrichPayrollDoc) });
     }
 
     if (path === 'admin/payroll/calculate' && method === 'POST') {
@@ -2334,6 +2392,28 @@ module.exports = async function handler(req, res) {
       const cacheKey = 'payroll-calc:' + (period.bulan || '-') + ':' + (period.tahun || '-') + ':' + String(outputs.length);
       cacheSet(cacheKey, outputs, 5 * 60 * 1000);
       return json(res, 200, { ok: true, period: period, total_employees: outputs.length, outputs: outputs });
+    }
+
+    if (path === 'admin/payroll/export-pdf' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const docId = String(b.doc_id || '').trim();
+      if (!docId) return json(res, 400, { ok: false, message: 'doc_id wajib diisi.' });
+      const d = await db('GET', 'payroll_docs', { select: '*', doc_id: 'eq.' + docId, limit: 1 });
+      if (!d.ok) return json(res, 500, { ok: false, message: 'Gagal ambil payroll doc.', error: d.error });
+      const row = Array.isArray(d.data) && d.data[0] ? d.data[0] : null;
+      if (!row) return json(res, 404, { ok: false, message: 'Payroll doc tidak ditemukan.' });
+      const em = await db('GET', 'employees', { select: 'nama', employee_id: 'eq.' + String(row.employee_id || ''), limit: 1 });
+      const employeeName = em.ok && Array.isArray(em.data) && em.data[0] ? String(em.data[0].nama || row.employee_id || 'Karyawan') : String(row.employee_id || 'Karyawan');
+      const enriched = enrichPayrollDoc(row);
+      const pdf = payrollPdfBuffer(enriched, employeeName);
+      const pdfName = toSafeFileToken('payslip_' + String(row.bulan || '') + '_' + String(row.tahun || '') + '_' + employeeName, 'payslip') + '.pdf';
+      const pdfUrl = await uploadBufferToDrive(pdfName, 'application/pdf', pdf, payrollDriveFolderId());
+      if (!pdfUrl) return json(res, 500, { ok: false, message: 'Gagal upload PDF payslip ke Google Drive.' });
+      const upd = await db('PATCH', 'payroll_docs', { doc_id: 'eq.' + docId }, { file_url: pdfUrl, updated_at: nowIso() }, { Prefer: 'return=representation' });
+      if (!upd.ok) return json(res, 500, { ok: false, message: 'PDF berhasil dibuat, tetapi gagal update payroll doc.', file_url: pdfUrl, error: upd.error });
+      await auditLog(a.email, 'EXPORT', 'payroll_docs', 'Export payslip PDF ' + docId, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, { ok: true, message: 'Payslip PDF berhasil dibuat dan disimpan ke Google Drive.', file_url: pdfUrl, data: (upd.data || []).map(enrichPayrollDoc) });
     }
 
     if (path === 'admin/payroll/summary' && method === 'GET') {
