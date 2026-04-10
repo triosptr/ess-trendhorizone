@@ -2371,7 +2371,7 @@ module.exports = async function handler(req, res) {
           await db('DELETE', 'payroll_docs', { doc_id: 'eq.' + String(inserted.doc_id || payload.doc_id) });
           return json(res, 500, { ok: false, message: 'Gagal generate/upload payslip PDF ke Google Drive. Data payroll dibatalkan agar konsisten.' });
         }
-        const patchDoc = await db('PATCH', 'payroll_docs', { doc_id: 'eq.' + String(inserted.doc_id || payload.doc_id) }, { file_url: pdfUrl, updated_at: nowIso() }, { Prefer: 'return=representation' });
+        const patchDoc = await db('PATCH', 'payroll_docs', { doc_id: 'eq.' + String(inserted.doc_id || payload.doc_id) }, { file_url: pdfUrl }, { Prefer: 'return=representation' });
         if (!patchDoc.ok) {
           await db('DELETE', 'payroll_docs', { doc_id: 'eq.' + String(inserted.doc_id || payload.doc_id) });
           return json(res, 500, { ok: false, message: 'PDF berhasil dibuat tetapi gagal simpan URL ke payroll. Data payroll dibatalkan agar konsisten.', error: patchDoc.error });
@@ -2422,7 +2422,7 @@ module.exports = async function handler(req, res) {
       const pdfName = toSafeFileToken('payslip_' + String(row.bulan || '') + '_' + String(row.tahun || '') + '_' + employeeName, 'payslip') + '.pdf';
       const pdfUrl = await uploadBufferToDrive(pdfName, 'application/pdf', pdf, payrollDriveFolderId());
       if (!pdfUrl) return json(res, 500, { ok: false, message: 'Gagal upload PDF payslip ke Google Drive.' });
-      const upd = await db('PATCH', 'payroll_docs', { doc_id: 'eq.' + docId }, { file_url: pdfUrl, updated_at: nowIso() }, { Prefer: 'return=representation' });
+      const upd = await db('PATCH', 'payroll_docs', { doc_id: 'eq.' + docId }, { file_url: pdfUrl }, { Prefer: 'return=representation' });
       if (!upd.ok) return json(res, 500, { ok: false, message: 'PDF berhasil dibuat, tetapi gagal update payroll doc.', file_url: pdfUrl, error: upd.error });
       await auditLog(a.email, 'EXPORT', 'payroll_docs', 'Export payslip PDF ' + docId, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, { ok: true, message: 'Payslip PDF berhasil dibuat dan disimpan ke Google Drive.', file_url: pdfUrl, data: (upd.data || []).map(enrichPayrollDoc) });
