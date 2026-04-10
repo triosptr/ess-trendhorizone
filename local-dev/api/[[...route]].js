@@ -108,6 +108,36 @@ function randomPassword(len) {
   for (let i = 0; i < size; i++) out += chars[Math.floor(Math.random() * chars.length)];
   return out;
 }
+async function deliverActivationEmail(toEmail, employeeName, passwordPlain) {
+  const to = String(toEmail || '').trim().toLowerCase();
+  if (!to) return { sent: false, channel: 'none', message: 'Email tujuan kosong.' };
+  const apiKey = String(process.env.RESEND_API_KEY || '').trim();
+  const from = String(process.env.RESEND_FROM || 'ESS Trend Horizon <no-reply@trendhorizon.co>').trim();
+  const appUrl = String(process.env.APP_BASE_URL || 'https://ess-2026-trendhorizone-id.vercel.app').trim().replace(/\/+$/,'');
+  const html = '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6;color:#0f172a;">'
+    + '<h2 style="margin:0 0 12px;">Aktivasi Akun ESS</h2>'
+    + '<p>Halo ' + String(employeeName || 'Karyawan') + ',</p>'
+    + '<p>Akun ESS Anda sudah dibuat. Berikut password awal untuk login pertama:</p>'
+    + '<p style="font-size:18px;font-weight:700;background:#f1f5f9;padding:10px 12px;border-radius:8px;display:inline-block;">' + String(passwordPlain || '') + '</p>'
+    + '<p>Link login: <a href="' + appUrl + '/login">' + appUrl + '/login</a></p>'
+    + '<p>Setelah login pertama, Anda wajib mengganti password dan melengkapi profile.</p>'
+    + '</div>';
+  if (!apiKey) return { sent: false, channel: 'manual', message: 'RESEND_API_KEY belum diset.' };
+  try {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: from, to: [to], subject: 'Aktivasi Akun ESS', html: html })
+    });
+    const tx = await r.text();
+    let data = null;
+    try { data = JSON.parse(tx); } catch (_) { data = null; }
+    if (!r.ok) return { sent: false, channel: 'resend', message: 'Gagal kirim email aktivasi.', error: data || tx };
+    return { sent: true, channel: 'resend', provider_id: data && data.id ? data.id : '' };
+  } catch (e) {
+    return { sent: false, channel: 'resend', message: 'Error kirim email aktivasi.', error: String(e && e.message || e || '') };
+  }
+}
 async function getAuthCredByEmail(email) {
   const e = String(email || '').trim().toLowerCase();
   if (!e) return null;
@@ -1859,9 +1889,34 @@ module.exports = async function handler(req, res) {
         activation_sent_at: nowIso(),
         password_last_set_at: nowIso()
       });
-      await db('POST', 'config', { on_conflict: 'key' }, { key: 'AUTH_ACTIVATION_OUTBOX_' + payload.employee_id, value: JSON.stringify({ to: payload.email, activation_password: activationPassword, created_at: nowIso(), sent_via: 'email_queue_stub' }) }, { Prefer: 'resolution=merge-duplicates,return=minimal' });
+      const delivery = await deliverActivationEmail(payload.email, payload.nama, activationPassword);
+      await db('POST', 'config', { on_conflict: 'key' }, { key: 'AUTH_ACTIVATION_OUTBOX_' + payload.employee_id, value: JSON.stringify({ to: payload.email, activation_password: activationPassword, created_at: nowIso(), sent_via: delivery.channel || 'manual', sent: !!delivery.sent, provider_id: String(delivery.provider_id || ''), error: delivery.sent ? '' : String(delivery.message || '') }) }, { Prefer: 'resolution=merge-duplicates,return=minimal' });
       await auditLog(a.email, 'CREATE', 'employees', 'Tambah employee ' + payload.employee_id + ' (' + payload.email + ')', String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
-      return json(res, 200, { ok: true, message: 'Employee berhasil ditambahkan. Password aktivasi awal sudah dibuat untuk dikirim ke email karyawan.', activation_password: activationPassword, data: ins.data });
+      return json(res, 200, { ok: true, message: delivery.sent ? 'Employee berhasil ditambahkan. Password aktivasi terkirim ke email.' : 'Employee berhasil ditambahkan. Password aktivasi dibuat, kirim manual jika email belum aktif.', activation_password: activationPassword, activation_delivery: delivery, data: ins.data });
+    }
+
+    if (path === 'admin/auth/activation/reset' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const employeeId = String(b.employee_id || '').trim();
+      if (!employeeId) return json(res, 400, { ok: false, message: 'employee_id wajib diisi.' });
+      const e = await db('GET', 'employees', { select: 'employee_id,email,nama,role', employee_id: 'eq.' + employeeId, limit: 1 });
+      if (!e.ok) return json(res, 500, { ok: false, message: 'Gagal ambil employee.', error: e.error });
+      const row = Array.isArray(e.data) && e.data[0] ? e.data[0] : null;
+      if (!row) return json(res, 404, { ok: false, message: 'Employee tidak ditemukan.' });
+      const activationPassword = randomPassword(10);
+      await upsertAuthCred(String(row.email || ''), {
+        employee_id: String(row.employee_id || ''),
+        password_hash: hashSha256(activationPassword),
+        must_change_password: true,
+        first_login_required: true,
+        activation_sent_at: nowIso(),
+        password_last_set_at: nowIso()
+      });
+      const delivery = await deliverActivationEmail(String(row.email || ''), String(row.nama || ''), activationPassword);
+      await db('POST', 'config', { on_conflict: 'key' }, { key: 'AUTH_ACTIVATION_OUTBOX_' + employeeId, value: JSON.stringify({ to: String(row.email || ''), activation_password: activationPassword, created_at: nowIso(), sent_via: delivery.channel || 'manual', sent: !!delivery.sent, provider_id: String(delivery.provider_id || ''), error: delivery.sent ? '' : String(delivery.message || '') }) }, { Prefer: 'resolution=merge-duplicates,return=minimal' });
+      await auditLog(a.email, 'UPDATE', 'auth', 'Reset password aktivasi ' + employeeId, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, { ok: true, message: delivery.sent ? 'Password aktivasi baru terkirim ke email.' : 'Password aktivasi baru dibuat. Kirim manual jika email belum aktif.', employee_id: employeeId, email: row.email, role: row.role, activation_password: activationPassword, activation_delivery: delivery });
     }
 
     if (path === 'admin/employees' && method === 'PATCH') {
