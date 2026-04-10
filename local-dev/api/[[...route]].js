@@ -95,6 +95,77 @@ function hms() {
 }
 function rid(prefix) { return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 function roleAdmin(role) { const v = String(role || '').toLowerCase(); return v === 'superadmin' || v === 'admin'; }
+function toMoney(v) {
+  const n = Number(v || 0);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 100) / 100;
+}
+function parsePayrollMetaFromKeterangan(text) {
+  const raw = String(text || '');
+  const marker = 'PAYROLL_META::';
+  const idx = raw.indexOf(marker);
+  if (idx < 0) return null;
+  const jsonText = raw.slice(idx + marker.length).trim();
+  try {
+    const m = JSON.parse(jsonText);
+    const gross = toMoney((m.gaji_pokok || 0) + (m.tunjangan || 0) + (m.lembur || 0) + (m.bonus || 0) + (m.thr || 0));
+    const deductions = toMoney((m.potongan_pajak || 0) + (m.bpjs_kesehatan || 0) + (m.bpjs_ketenagakerjaan || 0) + (m.potongan_lain || 0));
+    const takeHome = toMoney(gross - deductions);
+    return {
+      gaji_pokok: toMoney(m.gaji_pokok),
+      tunjangan: toMoney(m.tunjangan),
+      lembur: toMoney(m.lembur),
+      bonus: toMoney(m.bonus),
+      thr: toMoney(m.thr),
+      potongan_pajak: toMoney(m.potongan_pajak),
+      bpjs_kesehatan: toMoney(m.bpjs_kesehatan),
+      bpjs_ketenagakerjaan: toMoney(m.bpjs_ketenagakerjaan),
+      potongan_lain: toMoney(m.potongan_lain),
+      total_pendapatan: gross,
+      total_potongan: deductions,
+      take_home_pay: takeHome
+    };
+  } catch (_) {
+    return null;
+  }
+}
+function composePayrollKeterangan(note, meta) {
+  const clean = String(note || '').replace(/\n*\s*PAYROLL_META::[\s\S]*$/m, '').trim();
+  const payload = {
+    gaji_pokok: toMoney(meta.gaji_pokok),
+    tunjangan: toMoney(meta.tunjangan),
+    lembur: toMoney(meta.lembur),
+    bonus: toMoney(meta.bonus),
+    thr: toMoney(meta.thr),
+    potongan_pajak: toMoney(meta.potongan_pajak),
+    bpjs_kesehatan: toMoney(meta.bpjs_kesehatan),
+    bpjs_ketenagakerjaan: toMoney(meta.bpjs_ketenagakerjaan),
+    potongan_lain: toMoney(meta.potongan_lain)
+  };
+  const encoded = 'PAYROLL_META::' + JSON.stringify(payload);
+  return clean ? (clean + '\n' + encoded) : encoded;
+}
+function enrichPayrollDoc(row) {
+  const r = Object.assign({}, row || {});
+  const meta = parsePayrollMetaFromKeterangan(r.keterangan || '');
+  if (!meta) {
+    r.gaji_pokok = 0;
+    r.tunjangan = 0;
+    r.lembur = 0;
+    r.bonus = 0;
+    r.thr = 0;
+    r.potongan_pajak = 0;
+    r.bpjs_kesehatan = 0;
+    r.bpjs_ketenagakerjaan = 0;
+    r.potongan_lain = 0;
+    r.total_pendapatan = 0;
+    r.total_potongan = 0;
+    r.take_home_pay = 0;
+    return r;
+  }
+  Object.assign(r, meta);
+  return r;
+}
 async function validateDivisionAndPosition(divisi, jabatan) {
   const divName = String(divisi || '').trim();
   const posName = String(jabatan || '').trim();
@@ -988,14 +1059,14 @@ module.exports = async function handler(req, res) {
       const u = requireUser(req, res); if (!u) return;
       const r = await db('GET', 'payroll_docs', { select: '*', employee_id: 'eq.' + u.employee_id, order: 'uploaded_at.desc', limit: Math.min(Number(req.query.limit || 24), 100) });
       if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil payroll docs.', error: r.error });
-      return json(res, 200, r.data || []);
+      return json(res, 200, (r.data || []).map(enrichPayrollDoc));
     }
 
     if (path === 'me/payroll/summary' && method === 'GET') {
       const u = requireUser(req, res); if (!u) return;
       const rows = await db('GET', 'payroll_docs', { select: 'doc_id,bulan,tahun,nama_file,file_url,keterangan,uploaded_at', employee_id: 'eq.' + u.employee_id, order: 'uploaded_at.desc', limit: 120 });
       if (!rows.ok) return json(res, 500, { ok: false, message: 'Gagal ambil payroll summary.', error: rows.error });
-      const data = rows.data || [];
+      const data = (rows.data || []).map(enrichPayrollDoc);
       const latest = data[0] || null;
       const thisYear = String(new Date().getFullYear());
       const docsThisYear = data.filter(function(x) { return String(x.tahun || '') === thisYear; }).length;
@@ -1010,7 +1081,9 @@ module.exports = async function handler(req, res) {
           total_docs: data.length,
           docs_this_year: docsThisYear,
           unique_periods: Object.keys(periodMap).length,
-          latest_uploaded_at: latest ? latest.uploaded_at : null
+          latest_uploaded_at: latest ? latest.uploaded_at : null,
+          latest_take_home_pay: latest ? toMoney(latest.take_home_pay || 0) : 0,
+          avg_take_home_pay: data.length > 0 ? toMoney(data.reduce(function(acc, x) { return acc + Number(x.take_home_pay || 0); }, 0) / data.length) : 0
         },
         latest_doc: latest
       });
@@ -1471,7 +1544,7 @@ module.exports = async function handler(req, res) {
           shift_code: String(meta.shift_code || '')
         }));
       }
-      return json(res, 200, rows);
+      return json(res, 200, rows.map(enrichPayrollDoc));
     }
 
     if (path === 'admin/reports/status/export-csv' && method === 'POST') {
@@ -1937,7 +2010,18 @@ module.exports = async function handler(req, res) {
         const em = await db('GET', 'employees', { select: 'email', employee_id: 'eq.' + employeeId, limit: 1 });
         if (em.ok && Array.isArray(em.data) && em.data[0]) resolvedEmail = String(em.data[0].email || '').trim().toLowerCase();
       }
-      const payload = { doc_id: rid('PAY'), employee_id: String(b.employee_id || '').trim(), email: String(b.email || '').trim().toLowerCase(), bulan: String(b.bulan || '').trim(), tahun: String(b.tahun || '').trim(), nama_file: String(b.nama_file || '').trim(), file_url: String(b.file_url || '').trim(), keterangan: String(b.keterangan || '').trim(), uploaded_at: b.uploaded_at || nowIso() };
+      const payrollMeta = {
+        gaji_pokok: toMoney(b.gaji_pokok),
+        tunjangan: toMoney(b.tunjangan),
+        lembur: toMoney(b.lembur),
+        bonus: toMoney(b.bonus),
+        thr: toMoney(b.thr),
+        potongan_pajak: toMoney(b.potongan_pajak),
+        bpjs_kesehatan: toMoney(b.bpjs_kesehatan),
+        bpjs_ketenagakerjaan: toMoney(b.bpjs_ketenagakerjaan),
+        potongan_lain: toMoney(b.potongan_lain)
+      };
+      const payload = { doc_id: rid('PAY'), employee_id: String(b.employee_id || '').trim(), email: String(b.email || '').trim().toLowerCase(), bulan: String(b.bulan || '').trim(), tahun: String(b.tahun || '').trim(), nama_file: String(b.nama_file || '').trim(), file_url: String(b.file_url || '').trim(), keterangan: composePayrollKeterangan(String(b.keterangan || '').trim(), payrollMeta), uploaded_at: b.uploaded_at || nowIso() };
       payload.email = resolvedEmail;
       if (!payload.employee_id || !payload.file_url || !payload.nama_file || !payload.email) return json(res, 400, { ok: false, message: 'employee_id, email, nama_file, file_url wajib diisi.' });
       if (payload.bulan && payload.tahun) {
@@ -1948,7 +2032,7 @@ module.exports = async function handler(req, res) {
       const ins = await db('POST', 'payroll_docs', null, payload, { Prefer: 'return=representation' });
       if (!ins.ok) return json(res, 500, { ok: false, message: 'Gagal membuat payroll doc.', error: ins.error });
       await auditLog(a.email, 'CREATE', 'payroll_docs', 'Tambah payroll doc ' + payload.doc_id + ' untuk ' + payload.employee_id, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
-      return json(res, 200, { ok: true, message: 'Payroll doc berhasil dibuat.', data: ins.data });
+      return json(res, 200, { ok: true, message: 'Payroll doc berhasil dibuat.', data: (ins.data || []).map(enrichPayrollDoc) });
     }
 
     if (path === 'admin/payroll/summary' && method === 'GET') {
@@ -1957,11 +2041,11 @@ module.exports = async function handler(req, res) {
       const tahun = String(req.query.tahun || '').trim();
       const [emps, docs] = await Promise.all([
         db('GET', 'employees', { select: 'employee_id,nama,email,divisi,is_active', order: 'employee_id.asc', limit: 5000 }),
-        db('GET', 'payroll_docs', { select: 'doc_id,employee_id,email,bulan,tahun,uploaded_at,nama_file', order: 'uploaded_at.desc', limit: 5000 })
+        db('GET', 'payroll_docs', { select: 'doc_id,employee_id,email,bulan,tahun,uploaded_at,nama_file,keterangan', order: 'uploaded_at.desc', limit: 5000 })
       ]);
       if (!emps.ok || !docs.ok) return json(res, 500, { ok: false, message: 'Gagal ambil payroll summary.', error: (!emps.ok ? emps.error : docs.error) });
       const active = (emps.data || []).filter(function(e) { return String(e.is_active).toLowerCase() === 'true'; });
-      const filteredDocs = (docs.data || []).filter(function(d) {
+      const filteredDocs = (docs.data || []).map(enrichPayrollDoc).filter(function(d) {
         if (bulan && String(d.bulan || '') !== bulan) return false;
         if (tahun && String(d.tahun || '') !== tahun) return false;
         return true;
@@ -1994,7 +2078,8 @@ module.exports = async function handler(req, res) {
           covered_employees: coveredEmployeeIds.length,
           missing_employees: missing.length,
           duplicate_employees: duplicates.length,
-          completion_rate: active.length > 0 ? Math.round((coveredEmployeeIds.length / active.length) * 10000) / 100 : 0
+          completion_rate: active.length > 0 ? Math.round((coveredEmployeeIds.length / active.length) * 10000) / 100 : 0,
+          total_take_home_pay: toMoney(filteredDocs.reduce(function(acc, x) { return acc + Number(x.take_home_pay || 0); }, 0))
         },
         duplicate_employee_ids: duplicates,
         missing_employees: missing.slice(0, 200),
