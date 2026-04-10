@@ -1095,6 +1095,32 @@ module.exports = async function handler(req, res) {
       });
     }
 
+    if (path === 'me/operations-intelligence/reminder-plan' && method === 'GET') {
+      const u = requireUser(req, res); if (!u) return;
+      const today = ymd();
+      const [cfg, todayAtt, pendingLeaves] = await Promise.all([
+        db('GET', 'config', { select: 'key,value', key: 'in.(WORK_START_TIME,LATE_AFTER_TIME)', limit: 10 }),
+        db('GET', 'attendance', { select: 'jam_masuk,jam_keluar,break_active,status', employee_id: 'eq.' + u.employee_id, tanggal: 'eq.' + today, order: 'created_at.desc', limit: 1 }),
+        db('GET', 'leave_requests', { select: 'leave_id', employee_id: 'eq.' + u.employee_id, status: 'eq.pending', limit: 500 })
+      ]);
+      if (!cfg.ok || !todayAtt.ok || !pendingLeaves.ok) {
+        const err = !cfg.ok ? cfg.error : !todayAtt.ok ? todayAtt.error : pendingLeaves.error;
+        return json(res, 500, { ok: false, message: 'Gagal ambil reminder plan.', error: err });
+      }
+      const map = {};
+      (cfg.data || []).forEach(function(x) { map[String(x.key || '')] = String(x.value || ''); });
+      const workStart = map.WORK_START_TIME || '08:00:00';
+      const lateAfter = map.LATE_AFTER_TIME || '08:30:00';
+      const row = (todayAtt.data && todayAtt.data[0]) || null;
+      const pendingCount = Array.isArray(pendingLeaves.data) ? pendingLeaves.data.length : 0;
+      let reminder = { action_key: 'open_attendance_history', label: 'Cek Riwayat Kehadiran', urgency: 'low', detail: 'Kondisi hari ini stabil.' };
+      if (!row || !row.jam_masuk) reminder = { action_key: 'checkin_now', label: 'Check In Sekarang', urgency: 'high', detail: 'Belum ada check-in. Batas terlambat: ' + lateAfter + '.' };
+      else if (!row.jam_keluar && String(row.break_active || '').toLowerCase() === 'true') reminder = { action_key: 'checkout_or_break', label: 'Akhiri Break / Lanjut Kerja', urgency: 'medium', detail: 'Break masih aktif. Pastikan durasi break terkontrol.' };
+      else if (!row.jam_keluar) reminder = { action_key: 'checkout_or_break', label: 'Ingat Check Out', urgency: 'medium', detail: 'Setelah jam kerja selesai, lakukan check-out.' };
+      if (pendingCount > 0) reminder = { action_key: 'open_leave_status', label: 'Review Pengajuan Cuti', urgency: 'medium', detail: pendingCount + ' pengajuan cuti masih pending.' };
+      return json(res, 200, { ok: true, date: today, work_start_time: workStart, late_after_time: lateAfter, pending_leaves: pendingCount, reminder: reminder });
+    }
+
     if (path === 'me/notifications/mark-seen' && method === 'POST') {
       const u = requireUser(req, res); if (!u) return;
       const b = await readBody(req);
@@ -1927,6 +1953,55 @@ module.exports = async function handler(req, res) {
       if (!ins.ok) return json(res, 500, { ok: false, message: 'Gagal membuat auto-announcement.', error: ins.error });
       await auditLog(a.email, 'CREATE', 'announcements', 'Ops auto announcement ' + payload.announcement_id, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, { ok: true, message: 'Auto-announcement berhasil dibuat.', data: ins.data });
+    }
+
+    if (path === 'admin/operations-intelligence/escalation-digest' && method === 'GET') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const today = ymd();
+      const [summary, rules] = await Promise.all([
+        (async function() {
+          const rEmp = await db('GET', 'employees', { select: 'employee_id,is_active', limit: 5000 });
+          const rToday = await db('GET', 'attendance', { select: 'employee_id', tanggal: 'eq.' + today, limit: 10000 });
+          const rLeave = await db('GET', 'leave_requests', { select: 'leave_id', status: 'eq.pending', limit: 5000 });
+          if (!rEmp.ok || !rToday.ok || !rLeave.ok) return null;
+          const activeCount = (rEmp.data || []).filter(function(x){ return String(x.is_active).toLowerCase()==='true'; }).length;
+          const checkedIn = new Set((rToday.data || []).map(function(x){ return String(x.employee_id||''); }).filter(Boolean)).size;
+          const pending = Array.isArray(rLeave.data) ? rLeave.data.length : 0;
+          return { active_employees: activeCount, checked_in_today: checkedIn, not_checked_in_today: Math.max(0, activeCount-checkedIn), pending_leaves: pending };
+        })(),
+        db('GET', 'config', { select: 'key,value', key: 'in.(OPS_CHECKIN_GAP_CRITICAL,OPS_PENDING_LEAVES_CRITICAL)', limit: 10 })
+      ]);
+      if (!summary || !rules.ok) return json(res, 500, { ok: false, message: 'Gagal membuat escalation digest.' });
+      const map = {};
+      (rules.data || []).forEach(function(x){ map[String(x.key||'')] = Number(x.value||0); });
+      const thCheckinCritical = Number(map.OPS_CHECKIN_GAP_CRITICAL || 25);
+      const thPendingCritical = Number(map.OPS_PENDING_LEAVES_CRITICAL || 15);
+      const noCheckinRate = summary.active_employees > 0 ? Math.round((summary.not_checked_in_today / summary.active_employees) * 10000) / 100 : 0;
+      const shouldEscalate = noCheckinRate >= thCheckinCritical || summary.pending_leaves >= thPendingCritical;
+      const title = shouldEscalate ? 'Escalation Digest Operasional Harian' : 'Daily Digest Operasional Stabil';
+      const detail = 'Tanggal ' + today + ' • Active=' + summary.active_employees + ' • NoCheckin=' + summary.not_checked_in_today + ' (' + noCheckinRate + '%) • PendingLeave=' + summary.pending_leaves + '.';
+      return json(res, 200, { ok: true, should_escalate: shouldEscalate, title: title, detail: detail, summary: summary, thresholds: { checkin_critical: thCheckinCritical, pending_critical: thPendingCritical } });
+    }
+
+    if (path === 'admin/operations-intelligence/escalation-digest/publish' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const title = String(b.title || '').trim();
+      const detail = String(b.detail || '').trim();
+      if (!title || !detail) return json(res, 400, { ok: false, message: 'title dan detail escalation wajib diisi.' });
+      const payload = {
+        announcement_id: rid('ANN'),
+        judul: '[OPS DIGEST] ' + title,
+        isi: detail + '\n\nSumber: Escalation Digest',
+        target_role: 'admin',
+        published_at: nowIso(),
+        expired_at: null,
+        is_active: true,
+        created_by: a.email
+      };
+      const ins = await db('POST', 'announcements', null, payload, { Prefer: 'return=representation' });
+      if (!ins.ok) return json(res, 500, { ok: false, message: 'Gagal publish escalation digest.', error: ins.error });
+      return json(res, 200, { ok: true, message: 'Escalation digest dipublish.', data: ins.data });
     }
 
     if (path === 'admin/operations-intelligence/summary' && method === 'GET') {
