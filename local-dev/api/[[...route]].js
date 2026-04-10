@@ -100,6 +100,163 @@ function toMoney(v) {
   if (!Number.isFinite(n)) return 0;
   return Math.round(n * 100) / 100;
 }
+const PAYROLL_SUMMARY_CACHE = new Map();
+function cacheGet(key) {
+  const v = PAYROLL_SUMMARY_CACHE.get(key);
+  if (!v) return null;
+  if (Date.now() > Number(v.expired_at || 0)) { PAYROLL_SUMMARY_CACHE.delete(key); return null; }
+  return v.data;
+}
+function cacheSet(key, data, ttlMs) {
+  PAYROLL_SUMMARY_CACHE.set(key, { data: data, expired_at: Date.now() + Math.max(1000, Number(ttlMs || 300000)) });
+}
+const PAYROLL_COMPONENTS = [
+  { name: 'Basic Salary', type: 'EARNING', category: 'FIXED' },
+  { name: 'Allowance', type: 'EARNING', category: 'FIXED' },
+  { name: 'Transport Allowance', type: 'EARNING', category: 'FIXED' },
+  { name: 'Meal Allowance', type: 'EARNING', category: 'FIXED' },
+  { name: 'Overtime Pay', type: 'EARNING', category: 'VARIABLE' },
+  { name: 'Bonus / Incentive', type: 'EARNING', category: 'VARIABLE' },
+  { name: 'Attendance Allowance', type: 'EARNING', category: 'VARIABLE' },
+  { name: 'BPJS / Insurance', type: 'DEDUCTION', category: 'FIXED' },
+  { name: 'Tax (PPh21)', type: 'DEDUCTION', category: 'VARIABLE' },
+  { name: 'Penalty / Deduction', type: 'DEDUCTION', category: 'FIXED' },
+  { name: 'Late Deduction', type: 'DEDUCTION', category: 'VARIABLE' },
+  { name: 'Absence Deduction', type: 'DEDUCTION', category: 'VARIABLE' },
+  { name: 'Other Deduction', type: 'DEDUCTION', category: 'FIXED' },
+  { name: 'THR', type: 'EARNING', category: 'VARIABLE' }
+];
+function payrollComponentKey(name) {
+  return String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+function defaultFormulaByName(name) {
+  const n = String(name || '').toLowerCase().trim();
+  if (n === 'basic salary') return '(worked_days / total_work_days) * full_salary';
+  if (n === 'overtime pay') return 'overtime_hours * rate_per_hour';
+  if (n === 'attendance allowance') return '(present_days / total_days) * base_allowance';
+  if (n === 'tax (pph21)') return 'gross_salary * tax_rate';
+  if (n === 'late deduction') return 'late_minutes * penalty_rate';
+  if (n === 'absence deduction') return 'absent_days * daily_salary';
+  return '';
+}
+function formulaEvaluator(formula, scope) {
+  const f = String(formula || '').trim();
+  if (!f) return null;
+  if (!/^[a-zA-Z0-9_+\-*/().<>=!?:,\s]+$/.test(f)) return null;
+  const keys = Object.keys(scope || {});
+  const values = keys.map(function(k) { return scope[k]; });
+  try {
+    const fn = new Function(...keys, 'return (' + f + ')');
+    const out = fn(...values);
+    return toMoney(out);
+  } catch (_) {
+    return null;
+  }
+}
+function componentMapper(input) {
+  const src = input || {};
+  const given = Array.isArray(src.components) ? src.components : [];
+  const mapped = [];
+  given.forEach(function(c) {
+    const base = PAYROLL_COMPONENTS.find(function(x) { return String(x.name).toLowerCase() === String(c.name || '').toLowerCase(); }) || null;
+    mapped.push({
+      name: String(c.name || (base ? base.name : '')).trim(),
+      type: String(c.type || (base ? base.type : 'EARNING')).toUpperCase() === 'DEDUCTION' ? 'DEDUCTION' : 'EARNING',
+      category: String(c.category || (base ? base.category : 'VARIABLE')).toUpperCase() === 'FIXED' ? 'FIXED' : 'VARIABLE',
+      value: toMoney(c.value),
+      formula: String(c.formula || '').trim()
+    });
+  });
+  if (!mapped.length) {
+    const val = function(v) { return toMoney(v); };
+    mapped.push({ name: 'Basic Salary', type: 'EARNING', category: 'FIXED', value: val(src.gaji_pokok || src.basic_salary || src.full_salary), formula: String(src.basic_salary_formula || '').trim() });
+    mapped.push({ name: 'Allowance', type: 'EARNING', category: 'FIXED', value: val(src.tunjangan || src.allowance), formula: '' });
+    mapped.push({ name: 'Transport Allowance', type: 'EARNING', category: 'FIXED', value: val(src.transport_allowance), formula: '' });
+    mapped.push({ name: 'Meal Allowance', type: 'EARNING', category: 'FIXED', value: val(src.meal_allowance), formula: '' });
+    mapped.push({ name: 'Overtime Pay', type: 'EARNING', category: 'VARIABLE', value: val(src.lembur || src.overtime_pay), formula: String(src.overtime_formula || '').trim() });
+    mapped.push({ name: 'Bonus / Incentive', type: 'EARNING', category: 'VARIABLE', value: val(src.bonus), formula: '' });
+    mapped.push({ name: 'Attendance Allowance', type: 'EARNING', category: 'VARIABLE', value: val(src.attendance_allowance), formula: String(src.attendance_formula || '').trim() });
+    mapped.push({ name: 'THR', type: 'EARNING', category: 'VARIABLE', value: val(src.thr), formula: '' });
+    mapped.push({ name: 'Tax (PPh21)', type: 'DEDUCTION', category: 'VARIABLE', value: val(src.potongan_pajak || src.tax), formula: String(src.tax_formula || '').trim() });
+    mapped.push({ name: 'BPJS / Insurance', type: 'DEDUCTION', category: 'FIXED', value: val((src.bpjs_kesehatan || 0) + (src.bpjs_ketenagakerjaan || 0) + (src.bpjs || 0)), formula: '' });
+    mapped.push({ name: 'Penalty / Deduction', type: 'DEDUCTION', category: 'FIXED', value: val(src.penalty_deduction), formula: '' });
+    mapped.push({ name: 'Late Deduction', type: 'DEDUCTION', category: 'VARIABLE', value: val(src.late_deduction), formula: String(src.late_formula || '').trim() });
+    mapped.push({ name: 'Absence Deduction', type: 'DEDUCTION', category: 'VARIABLE', value: val(src.absence_deduction), formula: String(src.absence_formula || '').trim() });
+    mapped.push({ name: 'Other Deduction', type: 'DEDUCTION', category: 'FIXED', value: val(src.potongan_lain || src.other_deduction), formula: '' });
+  }
+  const byName = {};
+  mapped.forEach(function(c) { byName[String(c.name || '').toLowerCase()] = c; });
+  PAYROLL_COMPONENTS.forEach(function(t) {
+    if (!byName[String(t.name).toLowerCase()]) mapped.push({ name: t.name, type: t.type, category: t.category, value: 0, formula: '' });
+  });
+  return mapped.map(function(c) {
+    return {
+      name: String(c.name || '').trim(),
+      type: String(c.type || 'EARNING').toUpperCase() === 'DEDUCTION' ? 'DEDUCTION' : 'EARNING',
+      category: String(c.category || 'VARIABLE').toUpperCase() === 'FIXED' ? 'FIXED' : 'VARIABLE',
+      value: toMoney(c.value),
+      formula: String(c.formula || '').trim()
+    };
+  });
+}
+function payrollEngine(input) {
+  const employeeId = String((input && input.employee_id) || '').trim();
+  const components = componentMapper(input);
+  const ctx = Object.assign({
+    worked_days: 0, total_work_days: 1, full_salary: 0, overtime_hours: 0, rate_per_hour: 0, present_days: 0, total_days: 1, base_allowance: 0, tax_rate: 0, late_minutes: 0, penalty_rate: 0, absent_days: 0, daily_salary: 0, gross_salary: 0
+  }, (input && input.context) || {});
+  ctx.worked_days = Number(ctx.worked_days || 0);
+  ctx.total_work_days = Math.max(1, Number(ctx.total_work_days || 1));
+  ctx.overtime_hours = Number(ctx.overtime_hours || 0);
+  ctx.rate_per_hour = Number(ctx.rate_per_hour || 0);
+  ctx.present_days = Number(ctx.present_days || 0);
+  ctx.total_days = Math.max(1, Number(ctx.total_days || 1));
+  ctx.base_allowance = Number(ctx.base_allowance || 0);
+  ctx.tax_rate = Number(ctx.tax_rate || 0);
+  ctx.late_minutes = Number(ctx.late_minutes || 0);
+  ctx.penalty_rate = Number(ctx.penalty_rate || 0);
+  ctx.absent_days = Number(ctx.absent_days || 0);
+  const basicComp = components.find(function(c) { return String(c.name).toLowerCase() === 'basic salary'; }) || { value: 0 };
+  ctx.full_salary = Number(ctx.full_salary || basicComp.value || 0);
+  ctx.daily_salary = Number(ctx.daily_salary || (ctx.total_work_days > 0 ? ctx.full_salary / ctx.total_work_days : 0));
+  const evaluateComponent = function(comp) {
+    const formula = String(comp.formula || defaultFormulaByName(comp.name) || '').trim();
+    let value = toMoney(comp.value);
+    if (formula) {
+      const evalVal = formulaEvaluator(formula, ctx);
+      if (evalVal !== null && Number.isFinite(evalVal)) value = toMoney(evalVal);
+    }
+    if (!Number.isFinite(value)) value = 0;
+    ctx[payrollComponentKey(comp.name)] = value;
+    return Object.assign({}, comp, { value: toMoney(value), formula: formula || '' });
+  };
+  const fixedEarnings = components.filter(function(c) { return c.type === 'EARNING' && c.category === 'FIXED'; }).map(evaluateComponent);
+  const variableEarnings = components.filter(function(c) { return c.type === 'EARNING' && c.category !== 'FIXED'; }).map(evaluateComponent);
+  const allEarnings = fixedEarnings.concat(variableEarnings);
+  const totalEarning = toMoney(allEarnings.reduce(function(acc, x) { return acc + Number(x.value || 0); }, 0));
+  const grossSalary = totalEarning;
+  ctx.gross_salary = grossSalary;
+  const variableDeductions = components.filter(function(c) { return c.type === 'DEDUCTION' && c.category !== 'FIXED'; }).map(evaluateComponent);
+  const fixedDeductions = components.filter(function(c) { return c.type === 'DEDUCTION' && c.category === 'FIXED'; }).map(evaluateComponent);
+  const allDeductions = variableDeductions.concat(fixedDeductions);
+  const totalDeduction = toMoney(allDeductions.reduce(function(acc, x) { return acc + Number(x.value || 0); }, 0));
+  const netSalary = toMoney(grossSalary - totalDeduction);
+  const errors = [];
+  const warnings = [];
+  const basicVal = toMoney((allEarnings.find(function(x) { return String(x.name).toLowerCase() === 'basic salary'; }) || {}).value || 0);
+  if (basicVal === 0) errors.push('Basic Salary bernilai 0.');
+  if (totalDeduction > grossSalary) warnings.push('Total deduction lebih besar dari gross salary.');
+  return {
+    employee_id: employeeId,
+    total_earning: totalEarning,
+    total_deduction: totalDeduction,
+    gross_salary: grossSalary,
+    net_salary: netSalary,
+    breakdown: { earnings: allEarnings, deductions: allDeductions },
+    errors: errors,
+    warnings: warnings
+  };
+}
 function parsePayrollMetaFromKeterangan(text) {
   const raw = String(text || '');
   const marker = 'PAYROLL_META::';
@@ -108,63 +265,48 @@ function parsePayrollMetaFromKeterangan(text) {
   const jsonText = raw.slice(idx + marker.length).trim();
   try {
     const m = JSON.parse(jsonText);
-    const gross = toMoney((m.gaji_pokok || 0) + (m.tunjangan || 0) + (m.lembur || 0) + (m.bonus || 0) + (m.thr || 0));
-    const deductions = toMoney((m.potongan_pajak || 0) + (m.bpjs_kesehatan || 0) + (m.bpjs_ketenagakerjaan || 0) + (m.potongan_lain || 0));
-    const takeHome = toMoney(gross - deductions);
-    return {
-      gaji_pokok: toMoney(m.gaji_pokok),
-      tunjangan: toMoney(m.tunjangan),
-      lembur: toMoney(m.lembur),
-      bonus: toMoney(m.bonus),
-      thr: toMoney(m.thr),
-      potongan_pajak: toMoney(m.potongan_pajak),
-      bpjs_kesehatan: toMoney(m.bpjs_kesehatan),
-      bpjs_ketenagakerjaan: toMoney(m.bpjs_ketenagakerjaan),
-      potongan_lain: toMoney(m.potongan_lain),
-      total_pendapatan: gross,
-      total_potongan: deductions,
-      take_home_pay: takeHome
-    };
+    if (m && m.payroll_output) return m;
+    if (m && Array.isArray(m.components)) return { version: 2, payroll_output: payrollEngine({ employee_id: m.employee_id || '', components: m.components, context: m.context || {} }), components: m.components, context: m.context || {} };
+    return { version: 1, payroll_output: payrollEngine(m), legacy: true };
   } catch (_) {
     return null;
   }
 }
-function composePayrollKeterangan(note, meta) {
+function composePayrollKeterangan(note, data) {
   const clean = String(note || '').replace(/\n*\s*PAYROLL_META::[\s\S]*$/m, '').trim();
-  const payload = {
-    gaji_pokok: toMoney(meta.gaji_pokok),
-    tunjangan: toMoney(meta.tunjangan),
-    lembur: toMoney(meta.lembur),
-    bonus: toMoney(meta.bonus),
-    thr: toMoney(meta.thr),
-    potongan_pajak: toMoney(meta.potongan_pajak),
-    bpjs_kesehatan: toMoney(meta.bpjs_kesehatan),
-    bpjs_ketenagakerjaan: toMoney(meta.bpjs_ketenagakerjaan),
-    potongan_lain: toMoney(meta.potongan_lain)
-  };
-  const encoded = 'PAYROLL_META::' + JSON.stringify(payload);
+  const encoded = 'PAYROLL_META::' + JSON.stringify(data || {});
   return clean ? (clean + '\n' + encoded) : encoded;
 }
 function enrichPayrollDoc(row) {
   const r = Object.assign({}, row || {});
   const meta = parsePayrollMetaFromKeterangan(r.keterangan || '');
-  if (!meta) {
-    r.gaji_pokok = 0;
-    r.tunjangan = 0;
-    r.lembur = 0;
-    r.bonus = 0;
-    r.thr = 0;
-    r.potongan_pajak = 0;
-    r.bpjs_kesehatan = 0;
-    r.bpjs_ketenagakerjaan = 0;
-    r.potongan_lain = 0;
-    r.total_pendapatan = 0;
-    r.total_potongan = 0;
-    r.take_home_pay = 0;
+  if (!meta || !meta.payroll_output) {
+    const empty = payrollEngine({ employee_id: String(r.employee_id || ''), components: [] });
+    Object.assign(r, empty);
     return r;
   }
-  Object.assign(r, meta);
+  Object.assign(r, meta.payroll_output);
+  r.components = meta.components || [];
+  r.context = meta.context || {};
   return r;
+}
+function componentMapperFromMatrixRows(rows) {
+  const grouped = {};
+  (rows || []).forEach(function(row) {
+    const employeeId = String(row.employee_id || '').trim();
+    if (!employeeId) return;
+    if (!grouped[employeeId]) grouped[employeeId] = { employee_id: employeeId, components: [] };
+    const componentName = String(row.component_name || row.name || row.remark || '').trim();
+    if (!componentName) return;
+    grouped[employeeId].components.push({
+      name: componentName,
+      type: String(row.type || '').toUpperCase() === 'DEDUCTION' ? 'DEDUCTION' : 'EARNING',
+      category: String(row.category || '').toUpperCase() === 'FIXED' ? 'FIXED' : 'VARIABLE',
+      value: toMoney(row.value),
+      formula: String(row.formula || '').trim()
+    });
+  });
+  return Object.values(grouped);
 }
 async function validateDivisionAndPosition(divisi, jabatan) {
   const divName = String(divisi || '').trim();
@@ -2010,18 +2152,63 @@ module.exports = async function handler(req, res) {
         const em = await db('GET', 'employees', { select: 'email', employee_id: 'eq.' + employeeId, limit: 1 });
         if (em.ok && Array.isArray(em.data) && em.data[0]) resolvedEmail = String(em.data[0].email || '').trim().toLowerCase();
       }
-      const payrollMeta = {
-        gaji_pokok: toMoney(b.gaji_pokok),
-        tunjangan: toMoney(b.tunjangan),
-        lembur: toMoney(b.lembur),
-        bonus: toMoney(b.bonus),
-        thr: toMoney(b.thr),
-        potongan_pajak: toMoney(b.potongan_pajak),
-        bpjs_kesehatan: toMoney(b.bpjs_kesehatan),
-        bpjs_ketenagakerjaan: toMoney(b.bpjs_ketenagakerjaan),
-        potongan_lain: toMoney(b.potongan_lain)
+      const payrollResult = payrollEngine({
+        employee_id: employeeId,
+        components: Array.isArray(b.components) ? b.components : undefined,
+        gaji_pokok: b.gaji_pokok,
+        basic_salary: b.basic_salary,
+        full_salary: b.full_salary,
+        tunjangan: b.tunjangan,
+        allowance: b.allowance,
+        transport_allowance: b.transport_allowance,
+        meal_allowance: b.meal_allowance,
+        lembur: b.lembur,
+        overtime_pay: b.overtime_pay,
+        bonus: b.bonus,
+        attendance_allowance: b.attendance_allowance,
+        thr: b.thr,
+        potongan_pajak: b.potongan_pajak,
+        tax: b.tax,
+        bpjs_kesehatan: b.bpjs_kesehatan,
+        bpjs_ketenagakerjaan: b.bpjs_ketenagakerjaan,
+        penalty_deduction: b.penalty_deduction,
+        late_deduction: b.late_deduction,
+        absence_deduction: b.absence_deduction,
+        potongan_lain: b.potongan_lain,
+        other_deduction: b.other_deduction,
+        context: Object.assign({}, b.context || {}, {
+          worked_days: b.worked_days,
+          total_work_days: b.total_work_days,
+          overtime_hours: b.overtime_hours,
+          rate_per_hour: b.rate_per_hour,
+          present_days: b.present_days,
+          total_days: b.total_days,
+          base_allowance: b.base_allowance,
+          tax_rate: b.tax_rate,
+          late_minutes: b.late_minutes,
+          penalty_rate: b.penalty_rate,
+          absent_days: b.absent_days,
+          daily_salary: b.daily_salary
+        })
+      });
+      if (Array.isArray(payrollResult.errors) && payrollResult.errors.length > 0) return json(res, 400, { ok: false, message: payrollResult.errors[0], errors: payrollResult.errors });
+      const payload = {
+        doc_id: rid('PAY'),
+        employee_id: String(b.employee_id || '').trim(),
+        email: String(b.email || '').trim().toLowerCase(),
+        bulan: String(b.bulan || '').trim(),
+        tahun: String(b.tahun || '').trim(),
+        nama_file: String(b.nama_file || '').trim(),
+        file_url: String(b.file_url || '').trim(),
+        keterangan: composePayrollKeterangan(String(b.keterangan || '').trim(), {
+          version: 2,
+          employee_id: employeeId,
+          context: (b.context || {}),
+          components: payrollResult.breakdown.earnings.concat(payrollResult.breakdown.deductions),
+          payroll_output: payrollResult
+        }),
+        uploaded_at: b.uploaded_at || nowIso()
       };
-      const payload = { doc_id: rid('PAY'), employee_id: String(b.employee_id || '').trim(), email: String(b.email || '').trim().toLowerCase(), bulan: String(b.bulan || '').trim(), tahun: String(b.tahun || '').trim(), nama_file: String(b.nama_file || '').trim(), file_url: String(b.file_url || '').trim(), keterangan: composePayrollKeterangan(String(b.keterangan || '').trim(), payrollMeta), uploaded_at: b.uploaded_at || nowIso() };
       payload.email = resolvedEmail;
       if (!payload.employee_id || !payload.file_url || !payload.nama_file || !payload.email) return json(res, 400, { ok: false, message: 'employee_id, email, nama_file, file_url wajib diisi.' });
       if (payload.bulan && payload.tahun) {
@@ -2035,10 +2222,36 @@ module.exports = async function handler(req, res) {
       return json(res, 200, { ok: true, message: 'Payroll doc berhasil dibuat.', data: (ins.data || []).map(enrichPayrollDoc) });
     }
 
+    if (path === 'admin/payroll/calculate' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const period = {
+        bulan: String((b.period && b.period.bulan) || b.bulan || '').trim(),
+        tahun: String((b.period && b.period.tahun) || b.tahun || '').trim()
+      };
+      let objects = [];
+      if (Array.isArray(b.rows) && b.rows.length > 0) objects = componentMapperFromMatrixRows(b.rows);
+      else if (Array.isArray(b.payrolls) && b.payrolls.length > 0) objects = b.payrolls;
+      else if (b.employee_id || Array.isArray(b.components)) objects = [b];
+      else return json(res, 400, { ok: false, message: 'Input payroll tidak valid. Gunakan rows/payrolls/components.' });
+      const contextByEmployee = (b.context_by_employee && typeof b.context_by_employee === 'object') ? b.context_by_employee : {};
+      const outputs = objects.map(function(x) {
+        const employeeId = String(x.employee_id || '').trim();
+        const merged = Object.assign({}, x, { employee_id: employeeId, context: Object.assign({}, b.context || {}, x.context || {}, contextByEmployee[employeeId] || {}) });
+        return payrollEngine(merged);
+      });
+      const cacheKey = 'payroll-calc:' + (period.bulan || '-') + ':' + (period.tahun || '-') + ':' + String(outputs.length);
+      cacheSet(cacheKey, outputs, 5 * 60 * 1000);
+      return json(res, 200, { ok: true, period: period, total_employees: outputs.length, outputs: outputs });
+    }
+
     if (path === 'admin/payroll/summary' && method === 'GET') {
       const a = requireAdmin(req, res); if (!a) return;
       const bulan = String(req.query.bulan || '').trim();
       const tahun = String(req.query.tahun || '').trim();
+      const summaryCacheKey = 'payroll-summary:' + (bulan || '-') + ':' + (tahun || '-');
+      const cachedSummary = cacheGet(summaryCacheKey);
+      if (cachedSummary) return json(res, 200, cachedSummary);
       const [emps, docs] = await Promise.all([
         db('GET', 'employees', { select: 'employee_id,nama,email,divisi,is_active', order: 'employee_id.asc', limit: 5000 }),
         db('GET', 'payroll_docs', { select: 'doc_id,employee_id,email,bulan,tahun,uploaded_at,nama_file,keterangan', order: 'uploaded_at.desc', limit: 5000 })
@@ -2069,7 +2282,7 @@ module.exports = async function handler(req, res) {
         if (byEmp[String(e.employee_id || '')]) divisionStats[div].payroll_uploaded += 1;
         else divisionStats[div].payroll_missing += 1;
       });
-      return json(res, 200, {
+      const payload = {
         ok: true,
         period: { bulan: bulan || null, tahun: tahun || null },
         summary: {
@@ -2084,7 +2297,9 @@ module.exports = async function handler(req, res) {
         duplicate_employee_ids: duplicates,
         missing_employees: missing.slice(0, 200),
         division_stats: Object.values(divisionStats).sort(function(a1, b1) { return Number(b1.payroll_missing || 0) - Number(a1.payroll_missing || 0); })
-      });
+      };
+      cacheSet(summaryCacheKey, payload, 5 * 60 * 1000);
+      return json(res, 200, payload);
     }
 
     if (path === 'admin/master/divisions' || path === 'admin/master/positions' || path === 'admin/master/leave-types') {
