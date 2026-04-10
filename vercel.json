@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/", "destination": "/local-dev/index.html" },
+    { "source": "/", "destination": "/local-dev/login.html" },
     { "source": "/login", "destination": "/local-dev/login.html" },
     { "source": "/admin", "destination": "/local-dev/admin/index.html" },
     { "source": "/employee", "destination": "/local-dev/employee.preview.html" },
