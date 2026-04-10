@@ -421,6 +421,13 @@
       if(s==='medium') return '<span class="status-badge neutral">Watch</span>';
       return '<span class="status-badge on-time">Good</span>';
     }
+    function runEmployeeQuickAction(key){
+      const k=String(key||'');
+      if(k==='checkin_now') return openCheckInCameraFlow();
+      if(k==='checkout_or_break') return navTo('home', document.querySelectorAll('.menu-item')[0]);
+      if(k==='open_leave_status') return navTo('leave', document.querySelectorAll('.menu-item')[1]), loadLeaveForm();
+      return navTo('history', document.querySelectorAll('.menu-item')[2]), loadMyAttendanceHistory();
+    }
 
     async function loadEmployeeHome(){ 
       try{ 
@@ -560,6 +567,9 @@
                     ${(insights.recommendations||[]).slice(0,3).map(function(r){ return '<li><div class="list-text"><span class="list-title">Priority '+escapeHtml(r.priority||'-')+'</span><span class="list-desc">'+escapeHtml(r.text||'-')+'</span></div></li>'; }).join('') || '<li><div class="list-text"><span class="list-desc">No recommendation.</span></div></li>'}
                   </ul>
                 </div>
+              </div>
+              <div class="actions" style="margin-top:16px;">
+                ${(insights.quick_actions||[]).slice(0,3).map(function(a){ return '<button class="btn btn-secondary" onclick="runEmployeeQuickAction(\''+escapeHtml(a.action_key||'')+'\')">'+escapeHtml(a.label||'Open')+'</button>'; }).join('')}
               </div>
             </div>
         `;

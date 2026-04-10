@@ -325,7 +325,7 @@
         const s=(ops&&ops.summary)||{};
         const rules=(ruleRes&&ruleRes.rules)||{};
         const alertRows=((ops&&ops.alerts)||[]).map(function(a){
-          return '<tr><td>'+severityBadge(a.severity)+'</td><td>'+escapeHtml(a.title||'-')+'</td><td>'+escapeHtml(a.detail||'-')+'</td><td><button class="btn btn-secondary" onclick="openOpsAction(\''+escapeHtml(a.action_route||'home')+'\')">'+escapeHtml(a.action_label||'Open')+'</button></td></tr>';
+          return '<tr><td>'+severityBadge(a.severity)+'</td><td>'+escapeHtml(a.title||'-')+'</td><td>'+escapeHtml(a.detail||'-')+'</td><td><div class="actions" style="margin-top:0;"><button class="btn btn-secondary" onclick="openOpsAction(\''+escapeHtml(a.action_route||'home')+'\')">'+escapeHtml(a.action_label||'Open')+'</button><button class="btn btn-primary" onclick="broadcastOpsAlert(\''+escapeHtml(a.title||'')+'\',\''+escapeHtml(a.detail||'')+'\')">Broadcast</button></div></td></tr>';
         }).join('') || '<tr><td colspan="4">Tidak ada alert.</td></tr>';
         const recRows=((ops&&ops.recommendations)||[]).map(function(r){
           return '<tr><td>'+escapeHtml(r.priority||'-')+'</td><td>'+escapeHtml(r.text||'-')+'</td></tr>';
@@ -348,6 +348,12 @@
           late_rate_high:Number((document.getElementById('ops_rule_late_high')||{}).value||20),
           division_risk_medium:Number((document.getElementById('ops_rule_div_risk')||{}).value||20)
         });
+        loadOperationsIntelligenceCenter();
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    async function broadcastOpsAlert(title,detail){
+      try{
+        await api('/api/admin/operations-intelligence/announce-action','POST',{ title:String(title||''), detail:String(detail||''), target_role:'employee' });
         loadOperationsIntelligenceCenter();
       }catch(err){ setContent(renderError(err.message)); }
     }

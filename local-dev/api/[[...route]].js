@@ -1070,6 +1070,11 @@ module.exports = async function handler(req, res) {
       if (pendingLeaves >= 2) recommendations.push({ priority: 4, text: 'Cek menu leave untuk memastikan dokumen pendukung sudah lengkap.' });
       if (!recommendations.length) recommendations.push({ priority: 1, text: 'Kehadiran bagus. Pertahankan konsistensi dan disiplin waktu.' });
       recommendations.sort(function(a1, b1) { return Number(a1.priority || 99) - Number(b1.priority || 99); });
+      const quickActions = [];
+      if (!todayRow && !approvedLeaveToday) quickActions.push({ action_key: 'checkin_now', label: 'Check In Sekarang' });
+      if (todayRow && !todayRow.jam_keluar) quickActions.push({ action_key: 'checkout_or_break', label: 'Kelola Break / Check Out' });
+      if (pendingLeaves > 0) quickActions.push({ action_key: 'open_leave_status', label: 'Lihat Status Cuti' });
+      if (!quickActions.length) quickActions.push({ action_key: 'open_attendance_history', label: 'Lihat Riwayat Absensi' });
       return json(res, 200, {
         ok: true,
         generated_at: nowIso(),
@@ -1085,7 +1090,8 @@ module.exports = async function handler(req, res) {
           on_leave_today: !!approvedLeaveToday
         },
         alerts: alerts,
-        recommendations: recommendations
+        recommendations: recommendations,
+        quick_actions: quickActions
       });
     }
 
@@ -1897,6 +1903,30 @@ module.exports = async function handler(req, res) {
       }
       await auditLog(a.email, 'UPDATE', 'operations_rules', 'Update operations intelligence rules', String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, { ok: true, message: 'Rules operations intelligence berhasil diperbarui.' });
+    }
+
+    if (path === 'admin/operations-intelligence/announce-action' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const title = String(b.title || '').trim();
+      const detail = String(b.detail || '').trim();
+      const targetRole = String(b.target_role || 'employee').trim().toLowerCase();
+      if (!title || !detail) return json(res, 400, { ok: false, message: 'title dan detail wajib diisi.' });
+      if (!['all', 'employee', 'admin'].includes(targetRole)) return json(res, 400, { ok: false, message: 'target_role tidak valid.' });
+      const payload = {
+        announcement_id: rid('ANN'),
+        judul: '[OPS] ' + title,
+        isi: detail + '\n\nSumber: Operations Intelligence',
+        target_role: targetRole,
+        published_at: nowIso(),
+        expired_at: null,
+        is_active: true,
+        created_by: a.email
+      };
+      const ins = await db('POST', 'announcements', null, payload, { Prefer: 'return=representation' });
+      if (!ins.ok) return json(res, 500, { ok: false, message: 'Gagal membuat auto-announcement.', error: ins.error });
+      await auditLog(a.email, 'CREATE', 'announcements', 'Ops auto announcement ' + payload.announcement_id, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, { ok: true, message: 'Auto-announcement berhasil dibuat.', data: ins.data });
     }
 
     if (path === 'admin/operations-intelligence/summary' && method === 'GET') {
