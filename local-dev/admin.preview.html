@@ -172,6 +172,47 @@
     function renderError(m){ return `<div class="card"><div class="error">${escapeHtml(m||'Error occurred.')}</div></div>`; }
     function normalizeStatusBadge(status){ const s=String(safe(status)).trim().toLowerCase(); if(s==='approved'||s==='active'||s==='true'||s==='hadir') return `<span class="status-badge on-time">${escapeHtml(status)}</span>`; if(s==='rejected'||s==='inactive'||s==='false') return `<span class="status-badge danger">${escapeHtml(status)}</span>`; if(s==='pending'||s==='terlambat') return `<span class="status-badge on-leave">${escapeHtml(status)}</span>`; return `<span class="status-badge neutral">${escapeHtml(status||'-')}</span>`; }
     function moneyId(n){ return 'Rp ' + Number(n||0).toLocaleString('id-ID'); }
+    function parseRupiahInput(v){
+      const clean=String(v||'').replace(/[^\d,-]/g,'').replace(',', '.');
+      const n=Number(clean||0);
+      return Number.isFinite(n)?n:0;
+    }
+    function rupiahPlain(n){ return Number(n||0).toLocaleString('id-ID'); }
+    function attachRupiahInput(id){
+      const el=document.getElementById(id);
+      if(!el||el.__rupiahAttached) return;
+      el.__rupiahAttached=true;
+      el.type='text';
+      const render=function(){ const num=parseRupiahInput(el.value); el.value = num ? rupiahPlain(num) : ''; };
+      el.addEventListener('blur', render);
+      el.addEventListener('focus', function(){ el.value=String(parseRupiahInput(el.value)||''); });
+      if(String(el.value||'').trim()) render();
+    }
+    function payrollMoneyInputIds(){
+      return ['pay_gaji_pokok','pay_tunjangan','pay_transport_allowance','pay_meal_allowance','pay_lembur','pay_bonus','pay_attendance_allowance','pay_thr','pay_pot_pajak','pay_bpjs_kes','pay_bpjs_ket','pay_penalty_deduction','pay_late_deduction','pay_absence_deduction','pay_pot_lain','pay_ump_jam','pay_max_ks','pay_max_jp'];
+    }
+    function initPayrollMoneyInputs(){
+      payrollMoneyInputIds().forEach(function(id){ attachRupiahInput(id); });
+    }
+    function getPayNum(id){ return parseRupiahInput((document.getElementById(id)||{}).value||0); }
+    function setPayNum(id,n){ const el=document.getElementById(id); if(!el) return; el.value = Number(n||0)?rupiahPlain(Number(n||0)):'0'; }
+    function applyPayrollQuickFill(){
+      const base=getPayNum('pay_gaji_pokok');
+      const maxKs=getPayNum('pay_max_ks')||12000000;
+      const maxJp=getPayNum('pay_max_jp')||10300000;
+      const ksBase=Math.min(Math.max(base,base),maxKs);
+      const jpBase=Math.min(base,maxJp);
+      setPayNum('pay_bpjs_kes', Math.round(ksBase*0.01));
+      setPayNum('pay_bpjs_ket', Math.round(base*0.02));
+      setPayNum('pay_pot_pajak', Math.round(base*0.05));
+      setPayNum('pay_penalty_deduction', 0);
+      setPayNum('pay_late_deduction', 0);
+      setPayNum('pay_absence_deduction', 0);
+      setPayNum('pay_pot_lain', 0);
+    }
+    function resetPayrollNominal(){
+      payrollMoneyInputIds().forEach(function(id){ if(id==='pay_max_ks') return setPayNum(id,12000000); if(id==='pay_max_jp') return setPayNum(id,10300000); setPayNum(id,0); });
+    }
     function payrollRenderer(html){ return String(html||''); }
     function slaPriorityBadge(p){ const v=String(p||'normal').toLowerCase(); if(v==='critical') return '<span class="status-badge danger">Critical SLA</span>'; if(v==='high') return '<span class="status-badge on-leave">High SLA</span>'; return '<span class="status-badge on-time">Normal SLA</span>'; }
     function severityBadge(sev){ const s=String(sev||'info').toLowerCase(); if(s==='critical') return '<span class="status-badge danger">Critical</span>'; if(s==='high') return '<span class="status-badge on-leave">High</span>'; if(s==='medium') return '<span class="status-badge neutral">Medium</span>'; return '<span class="status-badge on-time">Info</span>'; }
@@ -912,7 +953,7 @@
       panel.id='pay_adv_panel';
       panel.className='card';
       panel.style.cssText='box-shadow:none;background:var(--bg);margin-top:12px;';
-      panel.innerHTML='<div class="team-header"><h3 style="font-size:16px;font-weight:700;">Auto Deduction Rules</h3></div><div class="grid-2"><div class="form-group"><label><input id="pay_apply_bpjs_kes" type="checkbox" checked> Terapkan BPJS Kesehatan</label></div><div class="form-group"><label><input id="pay_apply_bpjs_ketenaga" type="checkbox" checked> Terapkan BPJS Ketenagakerjaan</label></div><div class="form-group"><label><input id="pay_apply_tax" type="checkbox" checked> Terapkan Tax (PPh21)</label></div><div class="form-group"><label>Tax Rate</label><input id="pay_tax_rate" type="number" min="0" max="1" step="0.001" value="0.05"></div><div class="form-group"><label>UMP_JAM (Base)</label><input id="pay_ump_jam" type="number" min="0" value="0"></div><div class="form-group"><label>MAX_KS</label><input id="pay_max_ks" type="number" min="0" value="12000000"></div><div class="form-group"><label>MAX_JP</label><input id="pay_max_jp" type="number" min="0" value="10300000"></div></div><div class="stat-label">Jika checkbox tidak dicentang, komponen deduction terkait akan otomatis menjadi 0.</div>';
+      panel.innerHTML='<div class="team-header"><h3 style="font-size:16px;font-weight:700;">Auto Deduction Rules</h3><div class="actions"><button class="btn btn-secondary" onclick="applyPayrollQuickFill()">Isi Cepat</button><button class="btn btn-secondary" onclick="resetPayrollNominal()">Reset Nominal</button></div></div><div class="grid-2"><div class="form-group"><label><input id="pay_apply_bpjs_kes" type="checkbox" checked> Terapkan BPJS Kesehatan</label></div><div class="form-group"><label><input id="pay_apply_bpjs_ketenaga" type="checkbox" checked> Terapkan BPJS Ketenagakerjaan</label></div><div class="form-group"><label><input id="pay_apply_tax" type="checkbox" checked> Terapkan Tax (PPh21)</label></div><div class="form-group"><label>Tax Rate</label><input id="pay_tax_rate" type="number" min="0" max="1" step="0.001" value="0.05"></div><div class="form-group"><label>UMP_JAM (Base)</label><input id="pay_ump_jam" type="number" min="0" value="0"></div><div class="form-group"><label>MAX_KS</label><input id="pay_max_ks" type="number" min="0" value="12000000"></div><div class="form-group"><label>MAX_JP</label><input id="pay_max_jp" type="number" min="0" value="10300000"></div></div><div class="stat-label">Jika checkbox tidak dicentang, komponen deduction terkait otomatis 0. Nominal gaji bisa diinput dengan format rupiah (contoh: 4.500.000).</div>';
       wrap.parentElement.insertBefore(panel, wrap.nextSibling);
       const basic=document.getElementById('pay_gaji_pokok');
       const ump=document.getElementById('pay_ump_jam');
@@ -922,6 +963,7 @@
           if(!document.getElementById('pay_ump_jam_lock') || document.getElementById('pay_ump_jam_lock').checked!==false) ump.value=String(Number(basic.value||0));
         });
       }
+      initPayrollMoneyInputs();
     }
     function observePayrollForm(){
       const root=document.getElementById('content');
@@ -969,27 +1011,27 @@
         if(!employeeId||!bulan||!tahun) throw new Error('Employee, bulan, dan tahun wajib diisi.');
         await api('/api/admin/payroll-docs','POST',{
           employee_id:employeeId,email:email,bulan:bulan,tahun:tahun,nama_file:(namaFile||autoPayrollFileName(employeeId)),file_url:fileUrl,keterangan:keterangan,
-          gaji_pokok:Number((document.getElementById('pay_gaji_pokok')||{}).value||0),
-          tunjangan:Number((document.getElementById('pay_tunjangan')||{}).value||0),
-          transport_allowance:Number((document.getElementById('pay_transport_allowance')||{}).value||0),
-          meal_allowance:Number((document.getElementById('pay_meal_allowance')||{}).value||0),
-          lembur:Number((document.getElementById('pay_lembur')||{}).value||0),
-          bonus:Number((document.getElementById('pay_bonus')||{}).value||0),
-          attendance_allowance:Number((document.getElementById('pay_attendance_allowance')||{}).value||0),
-          thr:Number((document.getElementById('pay_thr')||{}).value||0),
-          potongan_pajak:Number((document.getElementById('pay_pot_pajak')||{}).value||0),
-          bpjs_kesehatan:Number((document.getElementById('pay_bpjs_kes')||{}).value||0),
-          bpjs_ketenagakerjaan:Number((document.getElementById('pay_bpjs_ket')||{}).value||0),
-          penalty_deduction:Number((document.getElementById('pay_penalty_deduction')||{}).value||0),
-          late_deduction:Number((document.getElementById('pay_late_deduction')||{}).value||0),
-          absence_deduction:Number((document.getElementById('pay_absence_deduction')||{}).value||0),
-          potongan_lain:Number((document.getElementById('pay_pot_lain')||{}).value||0),
+          gaji_pokok:getPayNum('pay_gaji_pokok'),
+          tunjangan:getPayNum('pay_tunjangan'),
+          transport_allowance:getPayNum('pay_transport_allowance'),
+          meal_allowance:getPayNum('pay_meal_allowance'),
+          lembur:getPayNum('pay_lembur'),
+          bonus:getPayNum('pay_bonus'),
+          attendance_allowance:getPayNum('pay_attendance_allowance'),
+          thr:getPayNum('pay_thr'),
+          potongan_pajak:getPayNum('pay_pot_pajak'),
+          bpjs_kesehatan:getPayNum('pay_bpjs_kes'),
+          bpjs_ketenagakerjaan:getPayNum('pay_bpjs_ket'),
+          penalty_deduction:getPayNum('pay_penalty_deduction'),
+          late_deduction:getPayNum('pay_late_deduction'),
+          absence_deduction:getPayNum('pay_absence_deduction'),
+          potongan_lain:getPayNum('pay_pot_lain'),
           apply_bpjs_kesehatan: !!((document.getElementById('pay_apply_bpjs_kes')||{}).checked),
           apply_bpjs_ketenagakerjaan: !!((document.getElementById('pay_apply_bpjs_ketenaga')||{}).checked),
           apply_tax: !!((document.getElementById('pay_apply_tax')||{}).checked),
-          UMP_JAM: Number((document.getElementById('pay_ump_jam')||{}).value||0),
-          MAX_KS: Number((document.getElementById('pay_max_ks')||{}).value||12000000),
-          MAX_JP: Number((document.getElementById('pay_max_jp')||{}).value||10300000),
+          UMP_JAM: getPayNum('pay_ump_jam'),
+          MAX_KS: getPayNum('pay_max_ks')||12000000,
+          MAX_JP: getPayNum('pay_max_jp')||10300000,
           tax_rate: Number((document.getElementById('pay_tax_rate')||{}).value||0)
         });
         await loadPayrollDocs();

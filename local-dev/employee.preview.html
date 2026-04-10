@@ -434,23 +434,30 @@
       }).join('');
       return `
       <div class="card">
-        <div class="team-header">
-          <h3 style="font-size:20px;font-weight:700;">Tren Gen Horizon</h3>
-          <div class="actions"><button class="btn btn-secondary" onclick="loadMyPayrollDocs()">Back</button>${doc&&doc.file_url?`<a href="${escapeHtml(doc.file_url)}" target="_blank" class="btn btn-primary">Download</a>`:''}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:14px;">
+          <div>
+            <div style="font-size:24px;font-weight:800;letter-spacing:.2px;">Tren Gen Horizon</div>
+            <div class="stat-label">Employee Payslip</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <img src="https://ess-tren-gen-horizon.vercel.app/logo-trend-horizon.jpg" alt="logo" style="width:72px;height:72px;object-fit:contain;border-radius:12px;background:#fff;border:1px solid var(--border);" />
+            <div class="actions"><button class="btn btn-secondary" onclick="loadMyPayrollDocs()">Back</button>${doc&&doc.file_url?`<a href="${escapeHtml(doc.file_url)}" target="_blank" class="btn btn-primary">Download PDF</a>`:''}</div>
+          </div>
         </div>
-        <div class="grid-2" style="margin-bottom:16px;">
-          <div class="stat-label"><strong>Payroll Period</strong> : ${escapeHtml((doc&&doc.bulan)||'-')} ${escapeHtml((doc&&doc.tahun)||'')}</div>
-          <div class="stat-label"><strong>Employee ID</strong> : ${escapeHtml((doc&&doc.employee_id)||'-')}</div>
+        <div class="cards-row" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom:14px;">
+          <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Payroll Period</div><div class="stat-large" style="font-size:20px;">${escapeHtml((doc&&doc.bulan)||'-')} ${escapeHtml((doc&&doc.tahun)||'')}</div></div>
+          <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Employee ID</div><div class="stat-large" style="font-size:20px;">${escapeHtml((doc&&doc.employee_id)||'-')}</div></div>
+          <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Take Home Pay</div><div class="stat-large" style="font-size:22px;color:var(--primary);">${escapeHtml(moneyId((doc&&doc.net_salary)||0))}</div></div>
         </div>
-        <div class="table-wrap"><table>
-          <thead><tr><th>Description</th><th style="text-align:right;">Amount</th><th>Description</th><th style="text-align:right;">Amount</th></tr></thead>
+        <div class="table-wrap" style="border:1px solid var(--border);border-radius:12px;overflow:hidden;"><table>
+          <thead><tr><th style="width:36%;">Earnings</th><th style="width:14%;text-align:right;">Amount</th><th style="width:36%;">Deductions</th><th style="width:14%;text-align:right;">Amount</th></tr></thead>
           <tbody>${rows}</tbody>
           <tfoot>
             <tr><th>Total Income</th><th style="text-align:right;">${escapeHtml(moneyId((doc&&doc.total_earning)||0))}</th><th>Total Deduction</th><th style="text-align:right;">${escapeHtml(moneyId((doc&&doc.total_deduction)||0))}</th></tr>
-            <tr><th colspan="3">Take Home Pay</th><th style="text-align:right;color:var(--primary);">${escapeHtml(moneyId((doc&&doc.net_salary)||0))}</th></tr>
+            <tr><th colspan="3">Take Home Pay</th><th style="text-align:right;color:var(--primary);font-size:18px;">${escapeHtml(moneyId((doc&&doc.net_salary)||0))}</th></tr>
           </tfoot>
         </table></div>
-        <div class="stat-label" style="margin-top:14px;">
+        <div class="stat-label" style="margin-top:14px;font-size:12px;">
           This is system generated message and requires no signature
         </div>
       </div>`;
