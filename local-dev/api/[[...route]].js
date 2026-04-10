@@ -1564,6 +1564,38 @@ module.exports = async function handler(req, res) {
       return json(res, 200, { ok: true, message: 'Pengajuan cuti berhasil ditolak.', data: p.data });
     }
 
+    if (path === 'admin/leaves/batch-action' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const action = String(b.action || '').trim().toLowerCase();
+      const leaveIds = Array.isArray(b.leave_ids) ? b.leave_ids.map(function(x) { return String(x || '').trim(); }).filter(Boolean) : [];
+      const note = String(b.catatan_approver || '').trim();
+      if (!['approve', 'reject'].includes(action)) return json(res, 400, { ok: false, message: 'action wajib approve/reject.' });
+      if (!leaveIds.length) return json(res, 400, { ok: false, message: 'leave_ids wajib diisi.' });
+      const statusTarget = action === 'approve' ? 'approved' : 'rejected';
+      const processed = [];
+      const skipped = [];
+      for (const leaveId of leaveIds) {
+        const p = await db('PATCH', 'leave_requests', { leave_id: 'eq.' + leaveId, status: 'eq.pending' }, {
+          status: statusTarget,
+          approver_email: a.email,
+          approved_at: nowIso(),
+          catatan_approver: note,
+          updated_at: nowIso()
+        }, { Prefer: 'return=representation' });
+        if (p.ok && Array.isArray(p.data) && p.data.length > 0) processed.push(leaveId);
+        else skipped.push(leaveId);
+      }
+      await auditLog(a.email, action === 'approve' ? 'APPROVE_BATCH' : 'REJECT_BATCH', 'leave_requests', (action === 'approve' ? 'Approve' : 'Reject') + ' batch leaves ' + processed.join(','), String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, {
+        ok: true,
+        message: 'Batch action selesai.',
+        summary: { action: action, requested: leaveIds.length, processed: processed.length, skipped: skipped.length },
+        processed_leave_ids: processed,
+        skipped_leave_ids: skipped
+      });
+    }
+
     if (path === 'admin/announcements' && method === 'GET') {
       const a = requireAdmin(req, res); if (!a) return;
       const r = await db('GET', 'announcements', { select: '*', order: 'published_at.desc', limit: Math.min(Number(req.query.limit || 200), 1000) });
