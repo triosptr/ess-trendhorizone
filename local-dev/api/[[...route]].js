@@ -1785,6 +1785,92 @@ module.exports = async function handler(req, res) {
       return json(res, 200, { ok: true, summary: summary, attendance: attendance, leaves: leaves, late_rows: lateRows });
     }
 
+    if (path === 'admin/operations-intelligence/summary' && method === 'GET') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const today = ymd();
+      const startDate = String(req.query.start_date || dateShift(today, -13)).trim();
+      const endDate = String(req.query.end_date || today).trim();
+      const rCfg = await db('GET', 'config', { select: 'key,value', key: 'eq.LATE_AFTER_TIME', limit: 1 });
+      const rEmp = await db('GET', 'employees', { select: 'employee_id,nama,divisi,jabatan,is_active', order: 'employee_id.asc', limit: 5000 });
+      const rToday = await db('GET', 'attendance', { select: 'employee_id,jam_masuk,jam_keluar,status,tanggal', tanggal: 'eq.' + today, order: 'created_at.desc', limit: 10000 });
+      const rLeavesPending = await db('GET', 'leave_requests', { select: 'leave_id,employee_id,jenis_cuti,tanggal_mulai,tanggal_selesai,status,created_at', status: 'eq.pending', order: 'created_at.desc', limit: 5000 });
+      const rAttendancePeriod = await db('GET', 'attendance', {
+        select: 'employee_id,tanggal,jam_masuk,status',
+        order: 'tanggal.asc,created_at.asc',
+        limit: 30000,
+        and: '(tanggal.gte.' + startDate + ',tanggal.lte.' + endDate + ')'
+      });
+      if (!rCfg.ok || !rEmp.ok || !rToday.ok || !rLeavesPending.ok || !rAttendancePeriod.ok) {
+        const err = !rCfg.ok ? rCfg.error : !rEmp.ok ? rEmp.error : !rToday.ok ? rToday.error : !rLeavesPending.ok ? rLeavesPending.error : rAttendancePeriod.error;
+        return json(res, 500, { ok: false, message: 'Gagal menghitung operations intelligence.', error: err });
+      }
+      const lateAfter = String((rCfg.data && rCfg.data[0] && rCfg.data[0].value) || '08:30:00');
+      const emps = rEmp.data || [];
+      const todayRows = rToday.data || [];
+      const leavesPending = rLeavesPending.data || [];
+      const periodRows = rAttendancePeriod.data || [];
+      const activeEmployees = emps.filter(function(e) { return String(e.is_active).toLowerCase() === 'true'; });
+      const empMap = {};
+      emps.forEach(function(e) { empMap[String(e.employee_id || '')] = e; });
+      const todayMap = {};
+      todayRows.forEach(function(r) { if (!todayMap[r.employee_id]) todayMap[r.employee_id] = r; });
+      const checkedInCount = Object.keys(todayMap).length;
+      const noCheckInCount = Math.max(0, activeEmployees.length - checkedInCount);
+      const noCheckInRate = activeEmployees.length > 0 ? Math.round((noCheckInCount / activeEmployees.length) * 10000) / 100 : 0;
+      let lateCountPeriod = 0;
+      const divLate = {};
+      periodRows.forEach(function(r) {
+        const st = String(r.status || '').toLowerCase();
+        const jm = String(r.jam_masuk || '');
+        const isLate = st === 'terlambat' || (jm && jm > lateAfter);
+        const e = empMap[String(r.employee_id || '')] || {};
+        const div = String(e.divisi || 'Tanpa Divisi');
+        if (!divLate[div]) divLate[div] = { divisi: div, total: 0, late: 0, late_rate: 0 };
+        divLate[div].total += 1;
+        if (isLate) { divLate[div].late += 1; lateCountPeriod += 1; }
+      });
+      Object.keys(divLate).forEach(function(k) {
+        const d = divLate[k];
+        d.late_rate = d.total > 0 ? Math.round((d.late / d.total) * 10000) / 100 : 0;
+      });
+      const periodLateRate = periodRows.length > 0 ? Math.round((lateCountPeriod / periodRows.length) * 10000) / 100 : 0;
+      const topRiskDivisions = Object.values(divLate).sort(function(a1, b1) { return Number(b1.late_rate || 0) - Number(a1.late_rate || 0); }).slice(0, 5);
+      const alerts = [];
+      if (noCheckInRate >= 25) alerts.push({ severity: 'critical', code: 'CHECKIN_GAP', title: 'Kesenjangan Check-in Tinggi', detail: noCheckInCount + ' karyawan aktif belum check-in hari ini (' + noCheckInRate + '%).', action_route: 'att', action_label: 'Buka Attendance Log' });
+      else if (noCheckInRate >= 10) alerts.push({ severity: 'high', code: 'CHECKIN_GAP', title: 'Check-in Belum Optimal', detail: noCheckInCount + ' karyawan aktif belum check-in hari ini (' + noCheckInRate + '%).', action_route: 'att', action_label: 'Lihat Status Hari Ini' });
+      if (leavesPending.length >= 15) alerts.push({ severity: 'critical', code: 'PENDING_LEAVES', title: 'Antrian Approval Cuti Tinggi', detail: leavesPending.length + ' pengajuan cuti menunggu approval.', action_route: 'leave', action_label: 'Proses Leave Approvals' });
+      else if (leavesPending.length >= 5) alerts.push({ severity: 'medium', code: 'PENDING_LEAVES', title: 'Approval Cuti Perlu Ditinjau', detail: leavesPending.length + ' pengajuan cuti masih pending.', action_route: 'leave', action_label: 'Review Pengajuan Cuti' });
+      if (periodLateRate >= 20) alerts.push({ severity: 'high', code: 'LATE_RATE', title: 'Keterlambatan Periode Tinggi', detail: 'Late rate periode ' + startDate + ' s/d ' + endDate + ' mencapai ' + periodLateRate + '%.', action_route: 'kpi', action_label: 'Analisis KPI HR' });
+      const riskDivision = topRiskDivisions[0] || null;
+      if (riskDivision && Number(riskDivision.late_rate || 0) >= 20) alerts.push({ severity: 'medium', code: 'DIVISION_RISK', title: 'Divisi Risiko Tinggi', detail: riskDivision.divisi + ' memiliki late rate ' + riskDivision.late_rate + '%.', action_route: 'kpi', action_label: 'Buka Heatmap Divisi' });
+      if (!alerts.length) alerts.push({ severity: 'info', code: 'STABLE', title: 'Operasional Stabil', detail: 'Tidak ada indikator kritikal pada periode ini.', action_route: 'home', action_label: 'Tetap Pantau Dashboard' });
+      const recommendations = [];
+      if (noCheckInRate >= 10) recommendations.push({ priority: 1, text: 'Prioritaskan follow-up check-in ke unit dengan kehadiran rendah sebelum jam operasional berakhir.' });
+      if (leavesPending.length >= 5) recommendations.push({ priority: 2, text: 'Jadwalkan batch approval cuti untuk menekan backlog dan mengurangi bottleneck HR.' });
+      if (periodLateRate >= 15) recommendations.push({ priority: 3, text: 'Lakukan evaluasi aturan keterlambatan per divisi dan aktifkan coaching untuk tim berisiko.' });
+      if (!recommendations.length) recommendations.push({ priority: 1, text: 'Pertahankan disiplin kehadiran; lakukan review KPI mingguan untuk menjaga tren positif.' });
+      recommendations.sort(function(a1, b1) { return Number(a1.priority || 99) - Number(b1.priority || 99); });
+      return json(res, 200, {
+        ok: true,
+        generated_at: nowIso(),
+        period: { start_date: startDate, end_date: endDate },
+        summary: {
+          active_employees: activeEmployees.length,
+          checked_in_today: checkedInCount,
+          not_checked_in_today: noCheckInCount,
+          no_check_in_rate: noCheckInRate,
+          pending_leaves: leavesPending.length,
+          attendance_records_period: periodRows.length,
+          late_records_period: lateCountPeriod,
+          late_rate_period: periodLateRate,
+          late_after_time: lateAfter
+        },
+        top_risk_divisions: topRiskDivisions,
+        alerts: alerts,
+        recommendations: recommendations
+      });
+    }
+
     if (path === 'admin/reports/employees' && method === 'GET') {
       const a = requireAdmin(req, res); if (!a) return;
       const q = { select: '*', order: 'employee_id.asc', limit: Math.min(Number(req.query.limit || 2000), 5000) };

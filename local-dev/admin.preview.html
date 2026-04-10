@@ -168,6 +168,7 @@
     function setLoading(t){ setContent(`<div class="card"><h3>${escapeHtml(t||'Loading...')}</h3><p class="muted">Please wait a moment.</p></div>`); }
     function renderError(m){ return `<div class="card"><div class="error">${escapeHtml(m||'Error occurred.')}</div></div>`; }
     function normalizeStatusBadge(status){ const s=String(safe(status)).trim().toLowerCase(); if(s==='approved'||s==='active'||s==='true'||s==='hadir') return `<span class="status-badge on-time">${escapeHtml(status)}</span>`; if(s==='rejected'||s==='inactive'||s==='false') return `<span class="status-badge danger">${escapeHtml(status)}</span>`; if(s==='pending'||s==='terlambat') return `<span class="status-badge on-leave">${escapeHtml(status)}</span>`; return `<span class="status-badge neutral">${escapeHtml(status||'-')}</span>`; }
+    function severityBadge(sev){ const s=String(sev||'info').toLowerCase(); if(s==='critical') return '<span class="status-badge danger">Critical</span>'; if(s==='high') return '<span class="status-badge on-leave">High</span>'; if(s==='medium') return '<span class="status-badge neutral">Medium</span>'; return '<span class="status-badge on-time">Info</span>'; }
     function getDriveFileId(url){ const raw=String(url||'').trim(); if(!raw) return ''; const a=raw.match(/\/file\/d\/([a-zA-Z0-9_-]+)/); if(a&&a[1]) return a[1]; const b=raw.match(/[?&]id=([a-zA-Z0-9_-]+)/); if(b&&b[1]) return b[1]; return ''; }
     function isImageAttachment(url){ const raw=String(url||'').toLowerCase(); if(!raw) return false; if(raw.startsWith('data:image/')) return true; if(/(\.jpg|\.jpeg|\.png|\.webp|\.gif)(\?|#|$)/.test(raw)) return true; if(raw.includes('drive.google.com/thumbnail')) return true; const id=getDriveFileId(raw); return !!id; }
     function renderAttachmentThumb(url){ const safeUrl=escapeHtml(url||''); if(!safeUrl) return '-'; if(isImageAttachment(url)){ const id=getDriveFileId(url); const src=id?('https://drive.google.com/thumbnail?id='+id+'&sz=w200'):safeUrl; return '<a href="'+safeUrl+'" target="_blank" title="Lihat lampiran"><img class="thumb-mini" src="'+src+'" alt="Lampiran"></a>'; } return '<a href="'+safeUrl+'" target="_blank" class="thumb-mini-fallback" title="Buka lampiran"><i class="ph ph-file-pdf"></i></a>'; }
@@ -227,6 +228,9 @@
         const kpiOk=!!(kpi&&kpi.summary);
         hrKpiData=kpiOk?kpi:null;
         const s=(kpiOk?kpi.summary:null)||{ start_date:kpiStart,end_date:todayDate,late_records:0,pending_leaves:(pending||[]).length,attendance_records:(today||[]).length,leave_requests:0 };
+        const ops=await api('/api/admin/operations-intelligence/summary?start_date='+encodeURIComponent(kpiStart)+'&end_date='+encodeURIComponent(todayDate)).catch(()=>null);
+        const alerts=((ops&&ops.alerts)||[]).slice(0,4);
+        const recs=((ops&&ops.recommendations)||[]).slice(0,3);
         
         const attMap={}; (today||[]).forEach(r=>{ if(!attMap[r.employee_id]) attMap[r.employee_id]=r; });
         const liveStatus=function(a){ if(!a||!a.jam_masuk) return 'Belum Check In'; if(a.jam_keluar) return 'Selesai Check Out'; if(a.break_active) return 'Sedang Istirahat'; return 'Sedang Kerja'; };
@@ -244,6 +248,29 @@
                 <div class="card"><div class="stat-label">Present Today</div><div class="stat-large">${escapeHtml(Object.keys(attMap).length)}</div></div>
                 <div class="card"><div class="stat-label">Pending Leaves</div><div class="stat-large">${escapeHtml((pending||[]).length)}</div></div>
                 <div class="card"><div class="stat-label">Late (30d)</div><div class="stat-large">${escapeHtml(s.late_records||0)}</div></div>
+            </div>
+
+            <div class="card">
+                <div class="team-header">
+                    <h3 style="font-size:20px;font-weight:700;">Operations Intelligence</h3>
+                    <div class="actions">
+                        <button class="btn btn-primary" onclick="loadKpiHrDashboard()"><i class="ph ph-chart-line-up"></i> Open KPI Command Center</button>
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div>
+                      <div class="stat-label" style="margin-bottom:10px;">Top Alerts</div>
+                      <ul class="clean-list">
+                        ${alerts.length?alerts.map(function(a){ return '<li style="align-items:flex-start;"><div class="list-text"><span class="list-title">'+escapeHtml(a.title||'-')+' '+severityBadge(a.severity)+'</span><span class="list-desc">'+escapeHtml(a.detail||'-')+'</span></div><button class="btn btn-secondary" onclick="'+(String(a.action_route||'')==='leave'?'loadLeaveManagement()':String(a.action_route||'')==='att'?'loadTodayAttendance()':'loadKpiHrDashboard()')+'">'+escapeHtml(a.action_label||'Open')+'</button></li>'; }).join(''):'<li><div class="list-text"><span class="list-desc">No alerts.</span></div></li>'}
+                      </ul>
+                    </div>
+                    <div>
+                      <div class="stat-label" style="margin-bottom:10px;">Recommended Actions</div>
+                      <ul class="clean-list">
+                        ${recs.length?recs.map(function(r){ return '<li><div class="icon-box"><i class="ph ph-lightbulb"></i></div><div class="list-text"><span class="list-title">Priority '+escapeHtml(r.priority||'-')+'</span><span class="list-desc">'+escapeHtml(r.text||'-')+'</span></div></li>'; }).join(''):'<li><div class="list-text"><span class="list-desc">No recommendation.</span></div></li>'}
+                      </ul>
+                    </div>
+                </div>
             </div>
 
             <div class="card">
