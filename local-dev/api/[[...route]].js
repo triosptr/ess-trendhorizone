@@ -1,3 +1,5 @@
+const crypto = require('crypto');
+
 function json(res, status, data) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -95,6 +97,78 @@ function hms() {
 }
 function rid(prefix) { return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 function roleAdmin(role) { const v = String(role || '').toLowerCase(); return v === 'superadmin' || v === 'admin'; }
+function hashSha256(v) { return crypto.createHash('sha256').update(String(v || '')).digest('hex'); }
+function authCredKey(email) { return 'AUTH_CRED_' + hashSha256(String(email || '').trim().toLowerCase()).slice(0, 24); }
+function authSessionKey(token) { return 'AUTH_SESSION_' + String(token || '').trim(); }
+function profileExtraKey(employeeId) { return 'PROFILE_EXTRA_' + String(employeeId || '').trim(); }
+function randomPassword(len) {
+  const size = Math.max(8, Number(len || 10));
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789@#%';
+  let out = '';
+  for (let i = 0; i < size; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out;
+}
+async function getAuthCredByEmail(email) {
+  const e = String(email || '').trim().toLowerCase();
+  if (!e) return null;
+  const r = await db('GET', 'config', { select: 'key,value', key: 'eq.' + authCredKey(e), limit: 1 });
+  if (!r.ok) return null;
+  const row = Array.isArray(r.data) && r.data[0] ? r.data[0] : null;
+  if (!row) return null;
+  const val = safeJsonParse(row.value, {});
+  return Object.assign({}, val, { key: row.key });
+}
+async function upsertAuthCred(email, payload) {
+  const e = String(email || '').trim().toLowerCase();
+  if (!e) return false;
+  const key = authCredKey(e);
+  const value = JSON.stringify(Object.assign({}, payload || {}, { email: e }));
+  const up = await db('POST', 'config', { on_conflict: 'key' }, { key: key, value: value }, { Prefer: 'resolution=merge-duplicates,return=representation' });
+  return !!up.ok;
+}
+async function createSessionForUser(user, ttlHours) {
+  const token = crypto.randomBytes(24).toString('hex');
+  const now = Date.now();
+  const exp = new Date(now + Math.max(1, Number(ttlHours || 12)) * 3600 * 1000).toISOString();
+  const key = authSessionKey(token);
+  const value = JSON.stringify({
+    token: token,
+    employee_id: String(user.employee_id || ''),
+    email: String(user.email || '').trim().toLowerCase(),
+    role: String(user.role || 'employee').trim().toLowerCase(),
+    expires_at: exp,
+    created_at: nowIso()
+  });
+  const up = await db('POST', 'config', { on_conflict: 'key' }, { key: key, value: value }, { Prefer: 'resolution=merge-duplicates,return=minimal' });
+  if (!up.ok) return null;
+  return { token: token, expires_at: exp };
+}
+async function readSession(token) {
+  const t = String(token || '').trim();
+  if (!t) return null;
+  const r = await db('GET', 'config', { select: 'key,value', key: 'eq.' + authSessionKey(t), limit: 1 });
+  if (!r.ok) return null;
+  const row = Array.isArray(r.data) && r.data[0] ? r.data[0] : null;
+  if (!row) return null;
+  const v = safeJsonParse(row.value, {});
+  if (!v || String(v.token || '') !== t) return null;
+  if (v.expires_at && new Date(v.expires_at).getTime() < Date.now()) {
+    await db('DELETE', 'config', { key: 'eq.' + authSessionKey(t) });
+    return null;
+  }
+  return v;
+}
+async function deleteSession(token) {
+  const t = String(token || '').trim();
+  if (!t) return false;
+  const r = await db('DELETE', 'config', { key: 'eq.' + authSessionKey(t) });
+  return !!r.ok;
+}
+function bearerToken(req) {
+  const h = String(req.headers.authorization || req.headers.Authorization || '').trim();
+  if (!/^Bearer\s+/i.test(h)) return '';
+  return h.replace(/^Bearer\s+/i, '').trim();
+}
 function toMoney(v) {
   const n = Number(v || 0);
   if (!Number.isFinite(n)) return 0;
@@ -979,6 +1053,67 @@ module.exports = async function handler(req, res) {
       return json(res, 200, { ok: true, service: 'ess-trendhorizone-api', supabase_ready: !!env(), timestamp: nowIso() });
     }
 
+    if (path === 'auth/login' && method === 'POST') {
+      const b = await readBody(req);
+      const email = String(b.email || '').trim().toLowerCase();
+      const password = String(b.password || '');
+      if (!email || !password) return json(res, 400, { ok: false, message: 'Email dan password wajib diisi.' });
+      const emp = await db('GET', 'employees', { select: '*', email: 'eq.' + email, limit: 1 });
+      if (!emp.ok) return json(res, 500, { ok: false, message: 'Gagal validasi user.', error: emp.error });
+      const user = Array.isArray(emp.data) && emp.data[0] ? emp.data[0] : null;
+      if (!user) return json(res, 401, { ok: false, message: 'Email atau password tidak valid.' });
+      const cred = await getAuthCredByEmail(email);
+      if (!cred || !cred.password_hash) return json(res, 401, { ok: false, message: 'Akun belum diaktivasi. Hubungi admin untuk aktivasi password awal.' });
+      if (String(cred.password_hash) !== hashSha256(password)) return json(res, 401, { ok: false, message: 'Email atau password tidak valid.' });
+      const sess = await createSessionForUser(user, 12);
+      if (!sess) return json(res, 500, { ok: false, message: 'Gagal membuat session login.' });
+      await auditLog(email, 'LOGIN', 'auth', 'Login ESS ' + String(user.employee_id || ''), String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, {
+        ok: true,
+        message: 'Login berhasil.',
+        session_token: sess.token,
+        expires_at: sess.expires_at,
+        first_login_required: cred.must_change_password === true || String(cred.first_login_required).toLowerCase() === 'true',
+        user: {
+          employee_id: String(user.employee_id || ''),
+          email: String(user.email || ''),
+          nama: String(user.nama || ''),
+          role: String(user.role || 'employee').toLowerCase(),
+          is_admin: roleAdmin(user.role)
+        }
+      });
+    }
+
+    if (path === 'auth/logout' && method === 'POST') {
+      const b = await readBody(req);
+      const token = bearerToken(req) || String(b.session_token || '').trim();
+      if (!token) return json(res, 200, { ok: true, message: 'Session sudah berakhir.' });
+      await deleteSession(token);
+      return json(res, 200, { ok: true, message: 'Logout berhasil.' });
+    }
+
+    if (path === 'auth/session/me' && method === 'GET') {
+      const token = bearerToken(req) || String(req.query.session_token || '').trim();
+      if (!token) return json(res, 200, { ok: true, authenticated: false, user: null });
+      const sess = await readSession(token);
+      if (!sess) return json(res, 200, { ok: true, authenticated: false, user: null });
+      const r = await db('GET', 'employees', { select: '*', employee_id: 'eq.' + String(sess.employee_id || ''), limit: 1 });
+      if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil session user.', error: r.error });
+      const user = Array.isArray(r.data) && r.data[0] ? r.data[0] : null;
+      if (!user) return json(res, 200, { ok: true, authenticated: false, user: null });
+      const cred = await getAuthCredByEmail(String(user.email || ''));
+      const extraRes = await db('GET', 'config', { select: 'value', key: 'eq.' + profileExtraKey(user.employee_id), limit: 1 });
+      const extraRow = extraRes.ok && Array.isArray(extraRes.data) && extraRes.data[0] ? extraRes.data[0] : null;
+      const extra = extraRow ? safeJsonParse(extraRow.value, {}) : {};
+      return json(res, 200, {
+        ok: true,
+        authenticated: true,
+        user: Object.assign({}, user, { photo_url: String(extra.photo_url || '') }),
+        first_login_required: !!(cred && (cred.must_change_password === true || String(cred.first_login_required).toLowerCase() === 'true')),
+        session_expires_at: String(sess.expires_at || '')
+      });
+    }
+
     if (path === 'auth/me' && method === 'GET') {
       const u = userCtx(req);
       if (!u.email || !u.employee_id) return json(res, 200, { ok: true, authenticated: false, user: null });
@@ -991,6 +1126,9 @@ module.exports = async function handler(req, res) {
       const u = requireUser(req, res); if (!u) return;
       const r = await db('GET', 'employees', { select: '*', employee_id: 'eq.' + u.employee_id, limit: 1 });
       if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil profile.', error: r.error });
+      const extraRes = await db('GET', 'config', { select: 'value', key: 'eq.' + profileExtraKey(u.employee_id), limit: 1 });
+      const extraRow = extraRes.ok && Array.isArray(extraRes.data) && extraRes.data[0] ? extraRes.data[0] : null;
+      const extra = extraRow ? safeJsonParse(extraRow.value, {}) : {};
       const row = (r.data && r.data[0]) || null;
       if (!row) {
         return json(res, 200, {
@@ -1000,12 +1138,65 @@ module.exports = async function handler(req, res) {
           role: u.role || 'employee',
           divisi: '-',
           jabatan: '-',
+          photo_url: String(extra.photo_url || ''),
+          first_login_completed: !!extra.first_login_completed,
           is_active: true,
           jatah_cuti: 12,
           sisa_cuti: 12
         });
       }
-      return json(res, 200, row);
+      return json(res, 200, Object.assign({}, row, {
+        photo_url: String(extra.photo_url || ''),
+        first_login_completed: !!extra.first_login_completed
+      }));
+    }
+
+    if (path === 'me/profile' && method === 'PATCH') {
+      const u = requireUser(req, res); if (!u) return;
+      const b = await readBody(req);
+      const patch = { updated_at: nowIso() };
+      const allowed = ['nama', 'no_hp', 'alamat', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'npwp', 'bpjs', 'bank', 'no_rekening'];
+      allowed.forEach(function(k) { if (b[k] !== undefined) patch[k] = String(b[k] || '').trim(); });
+      if (b.tanggal_lahir !== undefined) patch.tanggal_lahir = b.tanggal_lahir || null;
+      if (Object.keys(patch).length > 1) {
+        const upd = await db('PATCH', 'employees', { employee_id: 'eq.' + u.employee_id }, patch, { Prefer: 'return=representation' });
+        if (!upd.ok) return json(res, 500, { ok: false, message: 'Gagal update profile.', error: upd.error });
+      }
+      const extraRes = await db('GET', 'config', { select: 'value', key: 'eq.' + profileExtraKey(u.employee_id), limit: 1 });
+      const extraRow = extraRes.ok && Array.isArray(extraRes.data) && extraRes.data[0] ? extraRes.data[0] : null;
+      const extra = extraRow ? safeJsonParse(extraRow.value, {}) : {};
+      if (b.photo && String((b.photo || {}).base64Data || '').trim()) {
+        const n = (await db('GET', 'employees', { select: 'nama', employee_id: 'eq.' + u.employee_id, limit: 1 }));
+        const nm = n.ok && Array.isArray(n.data) && n.data[0] ? String(n.data[0].nama || u.employee_id || 'karyawan') : String(u.employee_id || 'karyawan');
+        const buf = Buffer.from(String(b.photo.base64Data || ''), 'base64');
+        const mime = String((b.photo || {}).mimeType || 'image/jpeg');
+        const ext = mime.indexOf('png') >= 0 ? 'png' : mime.indexOf('webp') >= 0 ? 'webp' : 'jpg';
+        const fileName = toSafeFileToken('profile_' + nm + '_' + Date.now(), 'profile') + '.' + ext;
+        const url = await uploadBufferToDrive(fileName, mime, buf, payrollDriveFolderId());
+        if (!url) return json(res, 500, { ok: false, message: 'Gagal upload photo profile ke Drive.' });
+        extra.photo_url = url;
+      }
+      if (b.new_password !== undefined) {
+        const newPassword = String(b.new_password || '');
+        if (newPassword && newPassword.length < 8) return json(res, 400, { ok: false, message: 'Password minimal 8 karakter.' });
+        if (newPassword) {
+          await upsertAuthCred(u.email, {
+            employee_id: u.employee_id,
+            password_hash: hashSha256(newPassword),
+            must_change_password: false,
+            first_login_required: false,
+            password_last_set_at: nowIso()
+          });
+          extra.first_login_completed = true;
+        }
+      }
+      if (b.first_login_completed !== undefined) extra.first_login_completed = String(b.first_login_completed).toLowerCase() === 'true' || b.first_login_completed === true;
+      const extraUp = await db('POST', 'config', { on_conflict: 'key' }, { key: profileExtraKey(u.employee_id), value: JSON.stringify(extra) }, { Prefer: 'resolution=merge-duplicates,return=minimal' });
+      if (!extraUp.ok) return json(res, 500, { ok: false, message: 'Gagal simpan profil tambahan.', error: extraUp.error });
+      const out = await db('GET', 'employees', { select: '*', employee_id: 'eq.' + u.employee_id, limit: 1 });
+      if (!out.ok) return json(res, 500, { ok: false, message: 'Profile berhasil disimpan, tapi gagal ambil data terbaru.', error: out.error });
+      const row = Array.isArray(out.data) && out.data[0] ? out.data[0] : {};
+      return json(res, 200, { ok: true, message: 'Profile berhasil diperbarui.', data: Object.assign({}, row, { photo_url: String(extra.photo_url || ''), first_login_completed: !!extra.first_login_completed }) });
     }
 
     if (path === 'me/face/profile' && method === 'GET') {
@@ -1659,8 +1850,18 @@ module.exports = async function handler(req, res) {
       if (!vdp.ok) return json(res, 400, { ok: false, message: vdp.message, error: vdp.error });
       const ins = await db('POST', 'employees', null, payload, { Prefer: 'return=representation' });
       if (!ins.ok) return json(res, 500, { ok: false, message: 'Gagal tambah employee.', error: ins.error });
+      const activationPassword = randomPassword(10);
+      await upsertAuthCred(payload.email, {
+        employee_id: payload.employee_id,
+        password_hash: hashSha256(activationPassword),
+        must_change_password: true,
+        first_login_required: true,
+        activation_sent_at: nowIso(),
+        password_last_set_at: nowIso()
+      });
+      await db('POST', 'config', { on_conflict: 'key' }, { key: 'AUTH_ACTIVATION_OUTBOX_' + payload.employee_id, value: JSON.stringify({ to: payload.email, activation_password: activationPassword, created_at: nowIso(), sent_via: 'email_queue_stub' }) }, { Prefer: 'resolution=merge-duplicates,return=minimal' });
       await auditLog(a.email, 'CREATE', 'employees', 'Tambah employee ' + payload.employee_id + ' (' + payload.email + ')', String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
-      return json(res, 200, { ok: true, message: 'Employee berhasil ditambahkan.', data: ins.data });
+      return json(res, 200, { ok: true, message: 'Employee berhasil ditambahkan. Password aktivasi awal sudah dibuat untuk dikirim ke email karyawan.', activation_password: activationPassword, data: ins.data });
     }
 
     if (path === 'admin/employees' && method === 'PATCH') {

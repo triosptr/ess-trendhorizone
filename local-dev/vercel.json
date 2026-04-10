@@ -9,6 +9,10 @@
       "destination": "/employee.preview.html"
     },
     {
+      "source": "/login",
+      "destination": "/login.html"
+    },
+    {
       "source": "/admin",
       "destination": "/admin.preview.html"
     },

@@ -1,7 +1,8 @@
 {
   "rewrites": [
     { "source": "/", "destination": "/local-dev/index.html" },
-    { "source": "/admin", "destination": "/local-dev/admin.preview.html" },
+    { "source": "/login", "destination": "/local-dev/login.html" },
+    { "source": "/admin", "destination": "/local-dev/admin/index.html" },
     { "source": "/employee", "destination": "/local-dev/employee.preview.html" },
     { "source": "/admin.preview.html", "destination": "/local-dev/admin.preview.html" },
     { "source": "/employee.preview.html", "destination": "/local-dev/employee.preview.html" },

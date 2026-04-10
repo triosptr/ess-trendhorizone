@@ -140,6 +140,7 @@
         <div class="header-right">
           <div class="date-display"><i class="ph ph-calendar"></i><span id="header_date">Today</span></div>
           <button class="icon-btn" onclick="loadAdminNotifications()"><i class="ph ph-bell"></i><span class="badge" id="notif_badge" style="display:none;">0</span></button>
+          <button class="icon-btn" onclick="logoutSession()"><i class="ph ph-sign-out"></i></button>
           <div class="user-profile">
             <div class="avatar" id="header_avatar">A</div>
             <div class="user-info"><span class="user-name" id="header_name">Admin</span><span class="user-role" id="header_role">Superadmin</span></div>
@@ -297,6 +298,32 @@
     }
     function base(){ return localStorage.getItem('ess_api_base') || 'https://ess-2026-trendhorizone-id.vercel.app'; }
     async function api(path,method,body){ const r=await fetch(base()+path,{method:method||'GET',headers:hdr(),body:body?JSON.stringify(body):undefined}); const tx=await r.text(); let d=tx; try{d=JSON.parse(tx);}catch(e){} if(!r.ok) throw new Error((d&&d.message)||'Request failed'); return d; }
+    function sessionToken(){ return localStorage.getItem('ess_session_token')||''; }
+    async function ensureSessionLogin(){
+      const token=sessionToken();
+      if(!token){ location.href='/login'; return false; }
+      const r=await fetch(base()+'/api/auth/session/me',{headers:{Authorization:'Bearer '+token}});
+      const j=await r.json();
+      if(!r.ok||!j.authenticated||!j.user){ localStorage.removeItem('ess_session_token'); location.href='/login'; return false; }
+      const user=j.user||{};
+      if(!String(user.role||'').match(/admin|superadmin/i)){ location.href='/employee'; return false; }
+      localStorage.setItem('ess_admin_email',user.email||'');
+      localStorage.setItem('ess_admin_role',user.role||'admin');
+      localStorage.setItem('ess_user_email',user.email||'');
+      localStorage.setItem('ess_user_role',user.role||'admin');
+      localStorage.setItem('ess_employee_id',user.employee_id||'');
+      document.getElementById('header_name').textContent=user.nama||'Admin';
+      document.getElementById('header_role').textContent=user.role||'admin';
+      const av=document.getElementById('header_avatar');
+      if(j.user.photo_url){ av.textContent=''; av.style.backgroundImage='url('+j.user.photo_url+')'; av.style.backgroundSize='cover'; av.style.backgroundPosition='center'; }
+      else { av.style.backgroundImage='none'; av.textContent=String((user.nama||'A')).charAt(0).toUpperCase(); }
+      return true;
+    }
+    async function logoutSession(){
+      try{ await fetch(base()+'/api/auth/logout',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+sessionToken()}}); }catch(_){}
+      localStorage.removeItem('ess_session_token');
+      location.href='/login';
+    }
 
     async function loadSummary(){
       try{
@@ -1086,8 +1113,8 @@
     async function loadAdminNotifications(){ try{ setLoading(); const summary=await api('/api/admin/notifications/leave/summary'); const rows=await api('/api/admin/notifications/leave'); setContent('<div class="cards-row" style="margin-bottom:24px;"><div class="card"><div class="stat-label">Leave Request Baru</div><div class="stat-large" style="color:var(--warning);">'+escapeHtml(summary.unread_leave_requests||0)+'</div></div><div class="card"><div class="stat-label">Total Unread</div><div class="stat-large">'+escapeHtml(summary.total_unread||0)+'</div></div></div><div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Notifikasi Admin</h3><div class="actions"><button class="btn btn-secondary" onclick="markAllAdminNotificationsSeen()"><i class="ph ph-check-double"></i> Mark All Read</button></div></div><ul class="clean-list">'+((rows||[]).map(function(r){return '<li><div class="icon-box" style="background:var(--warning-bg);color:var(--warning);"><i class="ph ph-bell"></i></div><div class="list-text"><span class="list-title">'+escapeHtml(r.title||'Notifikasi')+'</span><span class="list-desc">'+escapeHtml(formatDateTimeDisplay(r.date_value||''))+' - '+escapeHtml(r.message||'')+'</span></div></li>';}).join('')||'<li>Tidak ada notifikasi</li>')+'</ul></div>'); }catch(err){ setContent(renderError(err.message)); } }
     async function markAllAdminNotificationsSeen(){ try{ await api('/api/admin/notifications/leave/mark-seen','POST',{}); await loadAdminNotifications(); }catch(err){ setContent(renderError(err.message)); } }
 
-    observePayrollForm();
-    loadSummary();
+    async function initAdmin(){ if(!(await ensureSessionLogin())) return; observePayrollForm(); loadSummary(); }
+    initAdmin();
   </script>
 </body>
 </html>

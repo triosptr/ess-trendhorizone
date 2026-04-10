@@ -214,6 +214,7 @@
         <div class="header-right">
           <div class="date-display"><i class="ph ph-calendar"></i><span id="header_date">Today</span></div>
           <button class="icon-btn" onclick="loadNotificationCenter()"><i class="ph ph-bell"></i><span class="badge" id="notif_badge" style="display:none;">0</span></button>
+          <button class="icon-btn" onclick="logoutSession()"><i class="ph ph-sign-out"></i></button>
           <div class="user-profile" onclick="loadMyProfile()">
             <div class="avatar" id="header_avatar">U</div>
             <div class="user-info"><span class="user-name" id="header_name">User</span><span class="user-role" id="header_role">Employee</span></div>
@@ -426,6 +427,25 @@
       if(localStorage.getItem('ess_employee_id')&&!localStorage.getItem('ess_demo_employee_id')) localStorage.setItem('ess_demo_employee_id',localStorage.getItem('ess_employee_id'));
       if(!localStorage.getItem('ess_user_role')) localStorage.setItem('ess_user_role','employee');
     }
+    function sessionToken(){ return localStorage.getItem('ess_session_token')||''; }
+    async function ensureSessionLogin(){
+      const token=sessionToken();
+      if(!token){ location.href='/login'; return false; }
+      const r=await fetch(base()+'/api/auth/session/me',{headers:{Authorization:'Bearer '+token}});
+      const j=await r.json();
+      if(!r.ok||!j.authenticated||!j.user){ localStorage.removeItem('ess_session_token'); location.href='/login'; return false; }
+      localStorage.setItem('ess_user_email',j.user.email||'');
+      localStorage.setItem('ess_employee_id',j.user.employee_id||'');
+      localStorage.setItem('ess_user_role',j.user.role||'employee');
+      if(j.first_login_required) localStorage.setItem('ess_force_profile_setup','1'); else localStorage.removeItem('ess_force_profile_setup');
+      return true;
+    }
+    async function logoutSession(){
+      try{ await fetch(base()+'/api/auth/logout',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+sessionToken()}}); }catch(_){}
+      localStorage.removeItem('ess_session_token');
+      localStorage.removeItem('ess_force_profile_setup');
+      location.href='/login';
+    }
     function hdr(){
       resolveIdentity();
       return { 'Content-Type':'application/json', 'x-user-email':localStorage.getItem('ess_user_email')||localStorage.getItem('ess_demo_email')||'demo@contoh.com', 'x-employee-id':localStorage.getItem('ess_employee_id')||localStorage.getItem('ess_demo_employee_id')||'EMP_DEMO_001', 'x-user-role':localStorage.getItem('ess_user_role')||'employee' };
@@ -442,7 +462,9 @@
         const n = p.nama||'User';
         document.getElementById('header_name').textContent=n; 
         document.getElementById('header_role').textContent=p.jabatan||'Employee'; 
-        document.getElementById('header_avatar').textContent=n.charAt(0).toUpperCase();
+        const av=document.getElementById('header_avatar');
+        if(p.photo_url){ av.textContent=''; av.style.backgroundImage='url('+p.photo_url+')'; av.style.backgroundSize='cover'; av.style.backgroundPosition='center'; }
+        else { av.style.backgroundImage='none'; av.textContent=n.charAt(0).toUpperCase(); }
         return p;
     }
 
@@ -981,27 +1003,57 @@
         setContentLayout(html, null); } catch(e){ setContentLayout(renderError(e.message), null); }
     }
 
+    async function fileToBase64(file){ return new Promise(function(resolve,reject){ const fr=new FileReader(); fr.onload=function(){ resolve(String(fr.result||'').split(',')[1]||''); }; fr.onerror=reject; fr.readAsDataURL(file); }); }
+    async function saveMyProfile(){
+      try{
+        const payload={
+          nama:String((document.getElementById('pf_nama')||{}).value||'').trim(),
+          no_hp:String((document.getElementById('pf_no_hp')||{}).value||'').trim(),
+          alamat:String((document.getElementById('pf_alamat')||{}).value||'').trim(),
+          tanggal_lahir:String((document.getElementById('pf_tanggal_lahir')||{}).value||'').trim(),
+          new_password:String((document.getElementById('pf_new_password')||{}).value||'').trim(),
+          first_login_completed:true
+        };
+        const f=(document.getElementById('pf_photo')||{}).files;
+        if(f&&f[0]) payload.photo={ base64Data: await fileToBase64(f[0]), mimeType: f[0].type||'image/jpeg' };
+        await api('/api/me/profile','PATCH',payload);
+        localStorage.removeItem('ess_force_profile_setup');
+        await bootGreeting();
+        await loadMyProfile();
+      }catch(e){ setContentLayout(renderError(e.message), null); }
+    }
     async function loadMyProfile(){ 
         try { setLoading(); const p=await api('/api/me/profile'); 
         const html = `
-            <div class="card payslip-card" style="margin-bottom:24px; padding:32px;">
-                <div class="payslip-content">
-                    <div class="avatar" style="width:100px;height:100px;font-size:40px;">${(p.nama||'U').charAt(0).toUpperCase()}</div>
-                    <div class="payslip-info">
-                        <div class="salary-amount" style="margin-bottom:4px;">${escapeHtml(p.nama||'-')}</div>
-                        <div class="salary-label" style="margin-bottom:16px;">${escapeHtml(p.jabatan||'-')} • ${escapeHtml(p.divisi||'-')}</div>
-                        <div class="salary-meta" style="margin-bottom:0;"><span><i class="ph ph-identification-card"></i> ${escapeHtml(p.employee_id||'-')}</span><span><i class="ph ph-envelope"></i> ${escapeHtml(p.email||'-')}</span></div>
+            <div class="card">
+                <div class="team-header"><h3 style="font-size:20px;font-weight:700;">My Profile</h3><div class="actions"><button class="btn btn-primary" onclick="saveMyProfile()">Simpan Profile</button></div></div>
+                <div class="grid-2">
+                    <div>
+                        <div class="form-group"><label>Nama</label><input id="pf_nama" value="${escapeHtml(p.nama||'')}"></div>
+                        <div class="form-group"><label>Email</label><input value="${escapeHtml(p.email||'')}" readonly></div>
+                        <div class="form-group"><label>No HP</label><input id="pf_no_hp" value="${escapeHtml(p.no_hp||'')}"></div>
+                        <div class="form-group"><label>Alamat</label><textarea id="pf_alamat">${escapeHtml(p.alamat||'')}</textarea></div>
+                        <div class="form-group"><label>Tanggal Lahir</label><input id="pf_tanggal_lahir" type="date" value="${escapeHtml(p.tanggal_lahir||'')}"></div>
+                        <div class="form-group"><label>Password Baru (opsional)</label><input id="pf_new_password" type="password" placeholder="Minimal 8 karakter"></div>
+                    </div>
+                    <div>
+                        <div class="card" style="box-shadow:none;background:var(--bg);">
+                            <div class="avatar" style="width:96px;height:96px;font-size:38px;margin-bottom:10px;${p.photo_url?'background-image:url('+escapeHtml(p.photo_url)+');background-size:cover;background-position:center;color:transparent;':''}">${(p.nama||'U').charAt(0).toUpperCase()}</div>
+                            <div class="form-group"><label>Photo Profile</label><input id="pf_photo" type="file" accept="image/*"></div>
+                            <div class="list-desc">Photo profile tampil di kanan atas dashboard.</div>
+                        </div>
+                        <div class="card" style="box-shadow:none;background:var(--bg);margin-top:12px;">
+                            <div class="list-desc">Employee ID: ${escapeHtml(p.employee_id||'-')}</div>
+                            <div class="list-desc">Role: ${escapeHtml(p.role||'employee')}</div>
+                            <div class="list-desc">Status: ${escapeHtml(p.status_karyawan||'-')}</div>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div class="grid-2">
-                <div class="card"><h3 style="font-size:16px;font-weight:700;margin-bottom:16px;">Contact Info</h3><div class="form-group"><label>Phone</label><div class="list-desc">${escapeHtml(p.no_hp||'-')}</div></div><div class="form-group"><label>Address</label><div class="list-desc">${escapeHtml(p.alamat||'-')}</div></div></div>
-                <div class="card"><h3 style="font-size:16px;font-weight:700;margin-bottom:16px;">Employment</h3><div class="form-group"><label>Join Date</label><div class="list-desc">${escapeHtml(formatDateDisplay(p.tanggal_masuk)||'-')}</div></div><div class="form-group"><label>Status</label><div class="list-desc">${statusBadge(p.status_karyawan||'-')}</div></div></div>
             </div>`;
         setContentLayout(html, null); } catch(e){ setContentLayout(renderError(e.message), null); }
     }
 
-    async function init(){ try { ensureEmployeeResponsiveSchedule(); ensureShiftWatcher(); await refreshShiftWatchSeed(); await bootGreeting(); await loadEmployeeHome(); } catch(e){ document.getElementById('main_content_grid').innerHTML = renderError(e.message); } }
+    async function init(){ try { if(!(await ensureSessionLogin())) return; ensureEmployeeResponsiveSchedule(); ensureShiftWatcher(); await refreshShiftWatchSeed(); await bootGreeting(); if(localStorage.getItem('ess_force_profile_setup')==='1') return loadMyProfile(); await loadEmployeeHome(); } catch(e){ document.getElementById('main_content_grid').innerHTML = renderError(e.message); } }
     init();
   </script>
 </body>
