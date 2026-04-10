@@ -5,65 +5,66 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ESS Login</title>
   <style>
-    :root{--text:#0f172a;--muted:#64748b;--primary:#2563eb;--border:#dbe4f1;--card:#ffffffde}
+    :root{--text:#0f172a;--muted:#64748b;--primary:#2563eb;--border:#e2e8f0}
     *{box-sizing:border-box}
-    body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--text);min-height:100vh;overflow:hidden;background:
-      radial-gradient(1000px 520px at -6% -10%,#ffe4f1 0%,transparent 44%),
-      radial-gradient(1000px 480px at 106% -8%,#e0f2fe 0%,transparent 46%),
-      radial-gradient(780px 420px at 52% 108%,#dcfce7 0%,transparent 48%),
-      linear-gradient(135deg,#fffdfd 0%,#fef7ff 36%,#f5fbff 68%,#f0fdfa 100%)}
-    .bg-orb{position:fixed;border-radius:999px;filter:blur(3px);opacity:.3;z-index:0;animation:float 12s ease-in-out infinite}
-    .o1{width:360px;height:360px;left:-70px;top:-90px;background:#f9a8d4}
-    .o2{width:300px;height:300px;right:-60px;top:18%;background:#93c5fd;animation-delay:-3s}
-    .o3{width:340px;height:340px;left:22%;bottom:-160px;background:#86efac;animation-delay:-6s}
-    @keyframes float{0%,100%{transform:translateY(0) translateX(0)}50%{transform:translateY(-18px) translateX(12px)}}
-    .wrap{position:relative;z-index:1;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-    .card{width:min(980px,100%);display:grid;grid-template-columns:1.15fr 1fr;background:var(--card);backdrop-filter:blur(12px);border:1px solid #ffffffc0;border-radius:32px;box-shadow:0 28px 60px rgba(30,41,59,.16);overflow:hidden}
-    .left{padding:34px;background:linear-gradient(160deg,#2563eb 0%,#0ea5e9 40%,#8b5cf6 100%);color:#fff;position:relative}
-    .left::after{content:'';position:absolute;inset:16px;border:1px solid #ffffff4d;border-radius:20px;pointer-events:none}
-    .brand{display:flex;align-items:center;gap:12px;margin-bottom:18px}
-    .logo-art{width:58px;height:58px;display:flex;align-items:center;justify-content:center;overflow:visible}
-    .logo-art img{width:58px;height:58px;object-fit:contain}
-    .logo-fallback{display:none;font-size:24px;font-weight:900}
-    .title{font-size:24px;font-weight:800;line-height:1.2}
-    .desc{font-size:14px;opacity:.92;max-width:360px}
-    .badge{display:inline-flex;gap:8px;align-items:center;padding:8px 12px;border-radius:999px;background:#ffffff1f;border:1px solid #ffffff52;font-size:12px;margin-top:14px}
-    .right{padding:30px;background:#ffffffe0;display:flex;align-items:center}
-    .form-shell{width:100%;background:#ffffffd9;border:1px solid #e5edf7;border-radius:20px;padding:22px;box-shadow:0 14px 30px rgba(59,130,246,.08)}
-    h1{margin:0;font-size:26px}
+    body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--text);min-height:100vh;background:#f8fbff;overflow:hidden}
+    .bg{position:fixed;inset:0;z-index:0;background:
+      conic-gradient(from 210deg at 86% 10%,#dbeafe 0%,#e0f2fe 25%,#ede9fe 50%,#cffafe 75%,#dbeafe 100%),
+      linear-gradient(125deg,#f8fbff 0%,#eef6ff 40%,#f5f3ff 70%,#f0fdfa 100%)}
+    .mesh{position:fixed;inset:0;z-index:0;opacity:.55;background-image:
+      radial-gradient(circle at 20% 20%,rgba(59,130,246,.18) 0 160px,transparent 210px),
+      radial-gradient(circle at 80% 15%,rgba(168,85,247,.16) 0 140px,transparent 200px),
+      radial-gradient(circle at 72% 80%,rgba(20,184,166,.15) 0 180px,transparent 240px)}
+    .wrap{position:relative;z-index:1;min-height:100vh;display:grid;place-items:center;padding:24px}
+    .login{width:min(1080px,100%);display:grid;grid-template-columns:1.2fr 1fr;gap:0;background:#ffffffc9;border:1px solid #ffffff;border-radius:32px;box-shadow:0 32px 70px rgba(15,23,42,.15);backdrop-filter:blur(8px);overflow:hidden}
+    .hero{padding:40px;background:linear-gradient(155deg,#1d4ed8 0%,#0ea5e9 42%,#7c3aed 100%);color:#fff;position:relative}
+    .hero::after{content:'';position:absolute;inset:20px;border:1px solid #ffffff4a;border-radius:22px;pointer-events:none}
+    .hero h2{margin:0 0 8px;font-size:32px;line-height:1.15}
+    .hero p{margin:0;opacity:.92;max-width:430px;font-size:14px}
+    .hero-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:22px}
+    .hc{padding:12px;border-radius:14px;background:#ffffff1a;border:1px solid #ffffff3d;font-size:13px}
+    .brand{display:flex;align-items:center;gap:12px;margin-bottom:26px}
+    .brand img{width:56px;height:56px;object-fit:contain}
+    .brand-title{font-weight:800;font-size:18px}
+    .panel{padding:34px;background:#ffffffdf;display:flex;align-items:center}
+    .panel-inner{width:100%;background:#fff;border:1px solid var(--border);border-radius:22px;padding:24px;box-shadow:0 12px 28px rgba(148,163,184,.18)}
+    h1{margin:0;font-size:28px}
     .muted{color:var(--muted);font-size:13px;margin-top:6px}
-    label{font-size:12px;font-weight:700;color:#334155;display:block;margin:14px 0 6px}
+    label{display:block;margin:14px 0 7px;font-size:12px;font-weight:700;color:#334155}
     input{width:100%;padding:12px 13px;border:1px solid #cbd5e1;border-radius:12px;font-size:14px;background:#fff}
     input:focus{outline:none;border-color:#93c5fd;box-shadow:0 0 0 3px rgba(37,99,235,.14)}
     button{width:100%;padding:12px;border:none;border-radius:12px;background:linear-gradient(135deg,#2563eb 0%,#4f46e5 100%);color:#fff;font-weight:700;margin-top:16px;cursor:pointer}
     .msg{margin-top:10px;padding:10px 12px;border-radius:10px;font-size:13px;display:none}
     .err{background:#fef2f2;color:#991b1b}.ok{background:#ecfeff;color:#0f766e}
-    @media (max-width:860px){.card{grid-template-columns:1fr}.left{display:none}}
+    @media (max-width:920px){.login{grid-template-columns:1fr}.hero{display:none}}
   </style>
 </head>
 <body>
-  <div class="bg-orb o1"></div><div class="bg-orb o2"></div><div class="bg-orb o3"></div>
+  <div class="bg"></div>
+  <div class="mesh"></div>
   <div class="wrap">
-    <div class="card">
-      <section class="left">
+    <div class="login">
+      <section class="hero">
         <div class="brand">
-          <div class="logo-art">
-            <img src="https://trendhorizone.id/wp-content/uploads/2024/07/output-onlinepngtools.png" alt="Trend Horizon Logo" onerror="this.style.display='none';this.nextElementSibling.style.display='inline';" />
-            <span class="logo-fallback">T</span>
-          </div>
+          <img src="https://trendhorizone.id/wp-content/uploads/2024/07/output-onlinepngtools.png" alt="Trend Horizon Logo" />
           <div>
-            <div style="font-weight:800;font-size:18px;">Tren Gen Horizon</div>
+            <div class="brand-title">Tren Gen Horizon</div>
             <div style="font-size:12px;opacity:.9;">Employee Self Service</div>
           </div>
         </div>
-        <div class="title">Satu portal untuk absensi, payroll, dan profile karyawan.</div>
-        <p class="desc">Masuk aman dengan akun aktivasi. Setelah login pertama, lengkapi profile dan ganti password untuk keamanan akun.</p>
-        <div class="badge">✨ Dashboard modern • Aman • Cepat</div>
+        <h2>One platform for attendance, payroll, and employee productivity.</h2>
+        <p>Login dengan akun aktivasi perusahaan. Setelah login pertama, lakukan setup profile dan ubah password untuk keamanan akun.</p>
+        <div class="hero-cards">
+          <div class="hc">⚡ Real-time shift update</div>
+          <div class="hc">📄 Payroll & payslip terpusat</div>
+          <div class="hc">🔐 Session login aman</div>
+          <div class="hc">🧾 Riwayat absensi lengkap</div>
+        </div>
       </section>
-      <section class="right">
-        <div class="form-shell">
+      <section class="panel">
+        <div class="panel-inner">
           <h1>ESS Login</h1>
-          <div class="muted">Masuk dengan email dan password aktivasi</div>
+          <div class="muted">Masuk dengan email dan password aktivasi perusahaan</div>
           <form id="f">
             <label>Email</label>
             <input id="email" type="email" placeholder="nama@company.com" required />
