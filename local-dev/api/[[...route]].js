@@ -1155,6 +1155,52 @@ module.exports = async function handler(req, res) {
       return json(res, 200, notifications);
     }
 
+    if (path === 'me/incidents/timeline' && method === 'GET') {
+      const u = requireUser(req, res); if (!u) return;
+      const limit = Math.min(Number(req.query.limit || 120), 300);
+      const [att, leaves, ann] = await Promise.all([
+        db('GET', 'attendance', { select: 'attendance_id,tanggal,jam_masuk,jam_keluar,status,created_at', employee_id: 'eq.' + u.employee_id, order: 'tanggal.desc,created_at.desc', limit: 120 }),
+        db('GET', 'leave_requests', { select: 'leave_id,status,jenis_cuti,tanggal_mulai,tanggal_selesai,created_at,updated_at', employee_id: 'eq.' + u.employee_id, order: 'created_at.desc', limit: 120 }),
+        db('GET', 'announcements', { select: 'announcement_id,judul,isi,published_at,target_role,is_active', is_active: 'eq.true', or: '(target_role.eq.all,target_role.eq.' + u.role + ')', order: 'published_at.desc', limit: 60 })
+      ]);
+      if (!att.ok || !leaves.ok || !ann.ok) return json(res, 500, { ok: false, message: 'Gagal ambil timeline personal.', error: (!att.ok ? att.error : (!leaves.ok ? leaves.error : ann.error)) });
+      const timeline = [];
+      (att.data || []).forEach(function(x) {
+        const st = String(x.status || '').toLowerCase();
+        timeline.push({
+          category: 'attendance',
+          severity: st === 'terlambat' ? 'high' : 'info',
+          title: st === 'terlambat' ? 'Kehadiran Terlambat' : 'Kehadiran Tercatat',
+          detail: 'Tanggal ' + String(x.tanggal || '-') + ' • masuk ' + String(x.jam_masuk || '-') + ' • keluar ' + String(x.jam_keluar || '-'),
+          occurred_at: x.created_at || x.tanggal || '',
+          action_route: 'history'
+        });
+      });
+      (leaves.data || []).forEach(function(x) {
+        const st = String(x.status || '').toLowerCase();
+        timeline.push({
+          category: 'leave',
+          severity: st === 'pending' ? 'medium' : (st === 'rejected' ? 'high' : 'info'),
+          title: 'Status Cuti: ' + String(x.status || '-'),
+          detail: String(x.jenis_cuti || '-') + ' (' + String(x.tanggal_mulai || '-') + ' s/d ' + String(x.tanggal_selesai || '-') + ')',
+          occurred_at: x.updated_at || x.created_at || '',
+          action_route: 'leave'
+        });
+      });
+      (ann.data || []).forEach(function(x) {
+        timeline.push({
+          category: 'announcement',
+          severity: 'info',
+          title: String(x.judul || 'Pengumuman'),
+          detail: String(x.isi || '').slice(0, 180),
+          occurred_at: x.published_at || '',
+          action_route: 'notif'
+        });
+      });
+      timeline.sort(function(a1, b1) { return new Date(b1.occurred_at || 0).getTime() - new Date(a1.occurred_at || 0).getTime(); });
+      return json(res, 200, { ok: true, timeline: timeline.slice(0, limit) });
+    }
+
     if (path === 'admin/employees' && method === 'GET') {
       const a = requireAdmin(req, res); if (!a) return;
       const r = await db('GET', 'employees', { select: '*', order: 'created_at.desc', limit: Math.min(Number(req.query.limit || 200), 1000) });
@@ -1915,6 +1961,69 @@ module.exports = async function handler(req, res) {
     if (path === 'admin/notifications/leave/mark-seen' && method === 'POST') {
       const a = requireAdmin(req, res); if (!a) return;
       return json(res, 200, { ok: true, message: 'Notifikasi leave ditandai dilihat.' });
+    }
+
+    if (path === 'admin/incidents/timeline' && method === 'GET') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const limit = Math.min(Number(req.query.limit || 200), 500);
+      const [leaves, audits, attendance, announcements] = await Promise.all([
+        db('GET', 'leave_requests', { select: 'leave_id,email,jenis_cuti,status,created_at,updated_at', order: 'created_at.desc', limit: 120 }),
+        db('GET', 'audit_log', { select: 'timestamp,user_email,aksi,modul,detail', order: 'timestamp.desc', limit: 150 }),
+        db('GET', 'attendance', { select: 'attendance_id,employee_id,status,jam_masuk,tanggal,created_at', order: 'created_at.desc', limit: 150 }),
+        db('GET', 'announcements', { select: 'announcement_id,judul,published_at,target_role,is_active,created_by', order: 'published_at.desc', limit: 100 })
+      ]);
+      if (!leaves.ok || !audits.ok || !attendance.ok || !announcements.ok) return json(res, 500, { ok: false, message: 'Gagal ambil incident timeline.', error: (!leaves.ok ? leaves.error : (!audits.ok ? audits.error : (!attendance.ok ? attendance.error : announcements.error))) });
+      const timeline = [];
+      (leaves.data || []).forEach(function(x) {
+        const st = String(x.status || '').toLowerCase();
+        timeline.push({
+          category: 'leave',
+          severity: st === 'pending' ? 'medium' : (st === 'rejected' ? 'high' : 'info'),
+          title: 'Leave ' + String(x.status || '-'),
+          detail: String(x.email || '-') + ' • ' + String(x.jenis_cuti || '-'),
+          occurred_at: x.updated_at || x.created_at || '',
+          source_ref: String(x.leave_id || ''),
+          action_route: 'leave'
+        });
+      });
+      (audits.data || []).forEach(function(x) {
+        const action = String(x.aksi || '').toUpperCase();
+        timeline.push({
+          category: 'audit',
+          severity: action.indexOf('REJECT') >= 0 ? 'high' : (action.indexOf('APPROVE') >= 0 ? 'medium' : 'info'),
+          title: 'Audit ' + action,
+          detail: String(x.user_email || '-') + ' • ' + String(x.modul || '-') + ' • ' + String(x.detail || ''),
+          occurred_at: x.timestamp || '',
+          source_ref: '',
+          action_route: 'ops'
+        });
+      });
+      (attendance.data || []).forEach(function(x) {
+        const st = String(x.status || '').toLowerCase();
+        if (st !== 'terlambat') return;
+        timeline.push({
+          category: 'attendance',
+          severity: 'high',
+          title: 'Terlambat Tercatat',
+          detail: String(x.employee_id || '-') + ' • ' + String(x.tanggal || '-') + ' • masuk ' + String(x.jam_masuk || '-'),
+          occurred_at: x.created_at || '',
+          source_ref: String(x.attendance_id || ''),
+          action_route: 'att'
+        });
+      });
+      (announcements.data || []).forEach(function(x) {
+        timeline.push({
+          category: 'announcement',
+          severity: String(x.is_active).toLowerCase() === 'true' ? 'info' : 'medium',
+          title: 'Announcement Published',
+          detail: String(x.judul || '-') + ' • target ' + String(x.target_role || 'all'),
+          occurred_at: x.published_at || '',
+          source_ref: String(x.announcement_id || ''),
+          action_route: 'master'
+        });
+      });
+      timeline.sort(function(a1, b1) { return new Date(b1.occurred_at || 0).getTime() - new Date(a1.occurred_at || 0).getTime(); });
+      return json(res, 200, { ok: true, timeline: timeline.slice(0, limit) });
     }
 
     if (path === 'admin/drive/status' && method === 'GET') {

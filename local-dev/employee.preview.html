@@ -200,6 +200,7 @@
         <button class="menu-item" onclick="navTo('schedule', this); loadMyMonthlySchedule()"><i class="ph ph-calendar-check"></i><span>Schedule</span></button>
         <button class="menu-item" onclick="navTo('notif', this); loadNotificationCenter()"><i class="ph ph-bell"></i><span>Notifications</span></button>
         <button class="menu-item" onclick="navTo('profile', this); loadMyProfile()"><i class="ph ph-user"></i><span>Profile</span></button>
+        <button class="menu-item" onclick="navTo('incident', this); loadMyIncidentTimeline()"><i class="ph ph-siren"></i><span>Timeline</span></button>
       </nav>
     </aside>
 
@@ -428,6 +429,13 @@
       if(k==='open_leave_status') return navTo('leave', document.querySelectorAll('.menu-item')[1]), loadLeaveForm();
       return navTo('history', document.querySelectorAll('.menu-item')[2]), loadMyAttendanceHistory();
     }
+    function runEmployeeTimelineAction(route){
+      const r=String(route||'').toLowerCase();
+      if(r==='leave') return navTo('leave', document.querySelectorAll('.menu-item')[1]), loadLeaveForm();
+      if(r==='notif') return navTo('notif', document.querySelectorAll('.menu-item')[5]), loadNotificationCenter();
+      if(r==='history') return navTo('history', document.querySelectorAll('.menu-item')[2]), loadMyAttendanceHistory();
+      return navTo('home', document.querySelectorAll('.menu-item')[0]), loadEmployeeHome();
+    }
 
     async function loadEmployeeHome(){ 
       try{ 
@@ -440,6 +448,7 @@
         let notifications=[];
         let insights={ summary:{ late_rate_period:0,pending_leaves:0 }, alerts:[], recommendations:[], quick_actions:[] };
         let reminderPlan={ reminder:{ action_key:'open_attendance_history', label:'Lihat Riwayat Kehadiran', detail:'Kondisi stabil.', urgency:'low' } };
+        let incidentTimeline={ timeline:[] };
         try { data = await api('/api/me/dashboard-summary'); } catch(e) {}
         try { today = await api('/api/me/attendance/today'); } catch(e) {}
         try { notif = await api('/api/me/notifications/summary'); } catch(e) {}
@@ -447,6 +456,7 @@
         try { notifications = await api('/api/me/notifications'); } catch(e) {}
         try { insights = await api('/api/me/operations-intelligence/summary'); } catch(e) {}
         try { reminderPlan = await api('/api/me/operations-intelligence/reminder-plan'); } catch(e) {}
+        try { incidentTimeline = await api('/api/me/incidents/timeline?limit=6'); } catch(e) {}
 
         const pct = Math.min(100, Math.max(0, Number(data.shift_progress_percent_today||0)));
         const strokeDash = `${pct}, 100`;
@@ -585,6 +595,12 @@
               </div>
               <div class="actions" style="margin-top:16px;">
                 ${(insights.quick_actions||[]).slice(0,3).map(function(a){ return '<button class="btn btn-secondary" onclick="runEmployeeQuickAction(\''+escapeHtml(a.action_key||'')+'\')">'+escapeHtml(a.label||'Open')+'</button>'; }).join('')}
+              </div>
+              <div class="card" style="box-shadow:none;background:var(--bg);margin-top:14px;">
+                <div class="team-header"><h3 style="font-size:16px;font-weight:700;">Recent Incident Timeline</h3><button class="btn btn-secondary" onclick="navTo('incident', document.querySelectorAll('.menu-item')[7]); loadMyIncidentTimeline()">Open Full</button></div>
+                <ul class="clean-list">
+                  ${((incidentTimeline.timeline||[]).slice(0,4).map(function(x){ return '<li><div class="list-text"><span class="list-title">'+escapeHtml(x.title||'-')+'</span><span class="list-desc">'+escapeHtml(x.detail||'-')+'</span></div><button class="btn btn-secondary" onclick="runEmployeeTimelineAction(\''+escapeHtml(x.action_route||'home')+'\')">Open</button></li>'; }).join('')) || '<li><div class="list-text"><span class="list-desc">No incidents.</span></div></li>'}
+                </ul>
               </div>
             </div>
         `;
@@ -824,6 +840,26 @@
                     <button class="btn btn-secondary" onclick="api('/api/me/notifications/mark-seen','POST',{type:'all'}).then(()=>loadNotificationCenter())"><i class="ph ph-check-double"></i> Mark all read</button>
                 </div>
                 <ul class="clean-list" style="gap:24px;">${rows.length?rows.map(r=>{ const unread=String(r.is_unread).toLowerCase()==='true'||r.is_unread===true; return `<li style="align-items:flex-start;"><div class="icon-box" style="background:${unread?'var(--primary-light)':'var(--bg)'};"><i class="ph ph-bell"></i></div><div class="list-text"><span class="list-title" style="font-size:16px;">${escapeHtml(r.title)} ${unread?'<span class="badge" style="position:relative;display:inline-block;top:0;right:0;margin-left:8px;padding:2px 6px;width:auto;height:auto;">New</span>':''}</span><span class="list-desc" style="margin-bottom:8px;">${escapeHtml(formatDateTimeDisplay(r.date_value))}</span><p style="font-size:14px;color:var(--text-sec);">${escapeHtml(r.message)}</p></div></li>`; }).join(''):'<li>No notifications</li>'}</ul>
+            </div>`;
+        setContentLayout(html, null); } catch(e){ setContentLayout(renderError(e.message), null); }
+    }
+
+    async function loadMyIncidentTimeline(){
+        try { setLoading(); const r=await api('/api/me/incidents/timeline?limit=200'); const rows=(r&&r.timeline)||[];
+        const summary={ high:0, medium:0, info:0 };
+        rows.forEach(function(x){ const s=String(x.severity||'info').toLowerCase(); if(s==='high'||s==='critical') summary.high+=1; else if(s==='medium') summary.medium+=1; else summary.info+=1; });
+        const html = `
+            <div class="card">
+                <div class="team-header">
+                    <h3 style="font-size:20px;font-weight:700;">My Incident Timeline</h3>
+                    <button class="btn btn-secondary" onclick="loadMyIncidentTimeline()"><i class="ph ph-arrows-clockwise"></i> Refresh</button>
+                </div>
+                <div class="cards-row" style="margin-bottom:16px;">
+                    <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">High</div><div class="stat-large" style="font-size:28px;color:var(--warning);">${summary.high}</div></div>
+                    <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Medium</div><div class="stat-large" style="font-size:28px;">${summary.medium}</div></div>
+                    <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Info</div><div class="stat-large" style="font-size:28px;">${summary.info}</div></div>
+                </div>
+                <div class="table-wrap"><table><thead><tr><th>Severity</th><th>Category</th><th>Title</th><th>Detail</th><th>Action</th></tr></thead><tbody>${rows.length?rows.map(function(x){ return `<tr><td>${empSeverityBadge(x.severity||'info')}</td><td>${escapeHtml(x.category||'-')}</td><td>${escapeHtml(x.title||'-')}</td><td>${escapeHtml(x.detail||'-')}</td><td><button class="btn btn-secondary" onclick="runEmployeeTimelineAction('${escapeHtml(x.action_route||'home')}')">Open</button></td></tr>`; }).join(''):'<tr><td colspan="5">No incidents</td></tr>'}</tbody></table></div>
             </div>`;
         setContentLayout(html, null); } catch(e){ setContentLayout(renderError(e.message), null); }
     }
