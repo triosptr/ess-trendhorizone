@@ -351,6 +351,23 @@
       }).join('') || '<tr><td colspan="'+String(cols.length+1)+'">Tidak ada data heatmap</td></tr>';
       return '<div class="table-wrap"><table><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>';
     }
+    function getHeatmapThreshold(){
+      const raw=String(localStorage.getItem('ess_kpi_heatmap_threshold')||'20').trim();
+      const n=Number(raw);
+      if(!Number.isFinite(n)) return 20;
+      return Math.max(0,Math.min(100,n));
+    }
+    function setHeatmapThreshold(v){
+      const n=Math.max(0,Math.min(100,Number(v||20)));
+      localStorage.setItem('ess_kpi_heatmap_threshold',String(n));
+      return n;
+    }
+    function applyHeatmapThreshold(){
+      const el=document.getElementById('kpi_heat_threshold');
+      const n=setHeatmapThreshold((el&&el.value)||20);
+      if(el) el.value=String(n);
+      loadKpiHrDashboard();
+    }
     function summarizeHeatmapWarnings(rows, threshold){
       const t=Number(threshold||20);
       const data=(rows||[]).filter(function(r){ return Number(r.attendance_records||0)>0 && Number(r.late_rate||0)>=t; });
@@ -413,8 +430,9 @@
         const divisionLateRows=(data.late_by_division||[]).map(function(r){
           return '<tr><td>'+escapeHtml(r.divisi||'-')+'</td><td>'+escapeHtml(r.attendance_records||0)+'</td><td>'+escapeHtml(r.late_records||0)+'</td><td>'+escapeHtml(r.ontime_records||0)+'</td><td>'+escapeHtml(r.late_rate||0)+'%</td></tr>';
         }).join('') || '<tr><td colspan="5">Tidak ada data</td></tr>';
+        const heatThreshold=getHeatmapThreshold();
         const heatmapHtml=renderLateHeatmapMatrix(data.late_heatmap||[]);
-        const warn=summarizeHeatmapWarnings(data.late_heatmap||[],20);
+        const warn=summarizeHeatmapWarnings(data.late_heatmap||[],heatThreshold);
         const warnText=warn.divisions.length
           ? warn.divisions.slice(0,5).map(function(x){ return String(x.divisi)+' ('+String(x.days)+' hari, puncak '+String(x.worst_rate)+'%)'; }).join(' • ')
           : 'Tidak ada divisi yang melewati ambang warning.';
@@ -435,6 +453,10 @@
                 <div class="actions" style="margin-bottom:24px;">
                     <button class="btn btn-primary" onclick="loadKpiHrDashboard()">Apply Filter</button>
                     <button class="btn btn-secondary" onclick="resetKpiHrFilter()">Reset</button>
+                </div>
+                <div class="grid-2" style="margin-bottom:24px;">
+                  <div class="form-group"><label>Threshold Warning Heatmap (%)</label><input id="kpi_heat_threshold" type="number" min="0" max="100" step="1"></div>
+                  <div class="form-group"><label> </label><button class="btn btn-secondary" onclick="applyHeatmapThreshold()">Apply Threshold</button></div>
                 </div>
                 <div class="cards-row" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom:24px;">
                     <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Active Employees</div><div class="stat-large">${escapeHtml(s.active_employees||0)}</div></div>
@@ -460,6 +482,7 @@
         setContent(html);
         if(document.getElementById('kpi_start')) document.getElementById('kpi_start').value=String(s.start_date||startDate||'');
         if(document.getElementById('kpi_end')) document.getElementById('kpi_end').value=String(s.end_date||endDate||'');
+        if(document.getElementById('kpi_heat_threshold')) document.getElementById('kpi_heat_threshold').value=String(heatThreshold);
         const defaultDate=String(s.end_date||''); if(defaultDate){ loadKpiHrDayDetail(defaultDate); }
       }catch(err){ setContent(renderError(err.message)); }
     }
