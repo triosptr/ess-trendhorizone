@@ -11,10 +11,6 @@
     {
       "source": "/admin",
       "destination": "/admin.preview.html"
-    },
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/index"
     }
   ]
 }

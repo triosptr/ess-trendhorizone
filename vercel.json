@@ -4,7 +4,6 @@
     { "source": "/admin", "destination": "/local-dev/admin.preview.html" },
     { "source": "/employee", "destination": "/local-dev/employee.preview.html" },
     { "source": "/admin.preview.html", "destination": "/local-dev/admin.preview.html" },
-    { "source": "/employee.preview.html", "destination": "/local-dev/employee.preview.html" },
-    { "source": "/api/(.*)", "destination": "/api/index" }
+    { "source": "/employee.preview.html", "destination": "/local-dev/employee.preview.html" }
   ]
 }
