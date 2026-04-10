@@ -1018,6 +1018,77 @@ module.exports = async function handler(req, res) {
       return json(res, 200, { unread_announcements: unreadA, unread_payroll_docs: unreadP, total_unread: unreadA + unreadP });
     }
 
+    if (path === 'me/operations-intelligence/summary' && method === 'GET') {
+      const u = requireUser(req, res); if (!u) return;
+      const today = ymd();
+      const startDate = dateShift(today, -13);
+      const rCfg = await db('GET', 'config', { select: 'key,value', key: 'in.(LATE_AFTER_TIME,OPS_LATE_RATE_HIGH)', limit: 10 });
+      const rAtt = await db('GET', 'attendance', {
+        select: 'attendance_id,employee_id,tanggal,jam_masuk,jam_keluar,status',
+        employee_id: 'eq.' + u.employee_id,
+        and: '(tanggal.gte.' + startDate + ',tanggal.lte.' + today + ')',
+        order: 'tanggal.asc,created_at.asc',
+        limit: 2000
+      });
+      const rLeavePending = await db('GET', 'leave_requests', { select: 'leave_id,status', employee_id: 'eq.' + u.employee_id, status: 'eq.pending', limit: 500 });
+      const rLeaveApproved = await db('GET', 'leave_requests', { select: 'leave_id,status,tanggal_mulai,tanggal_selesai,jenis_cuti', employee_id: 'eq.' + u.employee_id, status: 'eq.approved', limit: 500 });
+      if (!rCfg.ok || !rAtt.ok || !rLeavePending.ok || !rLeaveApproved.ok) {
+        const err = !rCfg.ok ? rCfg.error : !rAtt.ok ? rAtt.error : !rLeavePending.ok ? rLeavePending.error : rLeaveApproved.error;
+        return json(res, 500, { ok: false, message: 'Gagal ambil employee intelligence.', error: err });
+      }
+      const cfgMap = {};
+      (rCfg.data || []).forEach(function(x) { cfgMap[String(x.key || '')] = String(x.value || ''); });
+      const lateAfter = cfgMap.LATE_AFTER_TIME || '08:30:00';
+      const lateHigh = Number(cfgMap.OPS_LATE_RATE_HIGH || '20');
+      const rows = rAtt.data || [];
+      const presentCount = rows.length;
+      const lateCount = rows.filter(function(r) {
+        const st = String(r.status || '').toLowerCase();
+        const jm = String(r.jam_masuk || '');
+        return st === 'terlambat' || (jm && jm > lateAfter);
+      }).length;
+      const ontimeCount = Math.max(0, presentCount - lateCount);
+      const lateRate = presentCount > 0 ? Math.round((lateCount / presentCount) * 10000) / 100 : 0;
+      const todayRow = rows.filter(function(r) { return String(r.tanggal || '') === today; }).slice(-1)[0] || null;
+      const pendingLeaves = Array.isArray(rLeavePending.data) ? rLeavePending.data.length : 0;
+      const approvedLeaveToday = (rLeaveApproved.data || []).find(function(r) {
+        const s = String(r.tanggal_mulai || '');
+        const e = String(r.tanggal_selesai || '');
+        return s && e && s <= today && e >= today;
+      }) || null;
+      const alerts = [];
+      if (approvedLeaveToday) alerts.push({ severity: 'info', code: 'ON_LEAVE', title: 'Status Hari Ini: Cuti', detail: 'Kamu sedang cuti (' + String(approvedLeaveToday.jenis_cuti || '-') + ').' });
+      else if (!todayRow) alerts.push({ severity: 'high', code: 'NO_CHECKIN', title: 'Belum Check-in Hari Ini', detail: 'Silakan lakukan check-in agar jam kerja mulai tercatat.' });
+      else if (!todayRow.jam_keluar) alerts.push({ severity: 'medium', code: 'CHECKOUT_PENDING', title: 'Belum Check-out', detail: 'Jangan lupa check-out saat jam kerja selesai.' });
+      if (lateRate >= lateHigh) alerts.push({ severity: 'high', code: 'LATE_TREND', title: 'Tren Keterlambatan Tinggi', detail: 'Late rate 14 hari terakhir: ' + lateRate + '%.' });
+      if (pendingLeaves >= 2) alerts.push({ severity: 'medium', code: 'LEAVE_PENDING', title: 'Pengajuan Cuti Masih Pending', detail: pendingLeaves + ' pengajuan cuti belum diproses admin.' });
+      if (!alerts.length) alerts.push({ severity: 'info', code: 'STABLE', title: 'Kondisi Kehadiran Stabil', detail: 'Pertahankan ritme kehadiran dan performa kerja harian.' });
+      const recommendations = [];
+      if (!todayRow && !approvedLeaveToday) recommendations.push({ priority: 1, text: 'Lakukan check-in sekarang untuk memulai perhitungan jam kerja.' });
+      if (todayRow && !todayRow.jam_keluar) recommendations.push({ priority: 2, text: 'Pastikan check-out tepat waktu agar data absensi lengkap.' });
+      if (lateRate >= lateHigh) recommendations.push({ priority: 3, text: 'Atur pengingat datang lebih awal 15-30 menit dari batas keterlambatan.' });
+      if (pendingLeaves >= 2) recommendations.push({ priority: 4, text: 'Cek menu leave untuk memastikan dokumen pendukung sudah lengkap.' });
+      if (!recommendations.length) recommendations.push({ priority: 1, text: 'Kehadiran bagus. Pertahankan konsistensi dan disiplin waktu.' });
+      recommendations.sort(function(a1, b1) { return Number(a1.priority || 99) - Number(b1.priority || 99); });
+      return json(res, 200, {
+        ok: true,
+        generated_at: nowIso(),
+        period: { start_date: startDate, end_date: today },
+        summary: {
+          attendance_records_period: presentCount,
+          late_records_period: lateCount,
+          ontime_records_period: ontimeCount,
+          late_rate_period: lateRate,
+          pending_leaves: pendingLeaves,
+          checked_in_today: !!(todayRow && todayRow.jam_masuk),
+          checked_out_today: !!(todayRow && todayRow.jam_keluar),
+          on_leave_today: !!approvedLeaveToday
+        },
+        alerts: alerts,
+        recommendations: recommendations
+      });
+    }
+
     if (path === 'me/notifications/mark-seen' && method === 'POST') {
       const u = requireUser(req, res); if (!u) return;
       const b = await readBody(req);
@@ -1785,12 +1856,55 @@ module.exports = async function handler(req, res) {
       return json(res, 200, { ok: true, summary: summary, attendance: attendance, leaves: leaves, late_rows: lateRows });
     }
 
+    if (path === 'admin/operations-intelligence/rules' && method === 'GET') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const keys = ['OPS_CHECKIN_GAP_HIGH', 'OPS_CHECKIN_GAP_CRITICAL', 'OPS_PENDING_LEAVES_MEDIUM', 'OPS_PENDING_LEAVES_CRITICAL', 'OPS_LATE_RATE_HIGH', 'OPS_DIVISION_RISK_MEDIUM'];
+      const r = await db('GET', 'config', { select: 'key,value', key: 'in.(' + keys.join(',') + ')', limit: 100 });
+      if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil rules operations.', error: r.error });
+      const map = {};
+      (r.data || []).forEach(function(x) { map[String(x.key || '')] = String(x.value || ''); });
+      return json(res, 200, {
+        ok: true,
+        rules: {
+          checkin_gap_high: Number(map.OPS_CHECKIN_GAP_HIGH || 10),
+          checkin_gap_critical: Number(map.OPS_CHECKIN_GAP_CRITICAL || 25),
+          pending_leaves_medium: Number(map.OPS_PENDING_LEAVES_MEDIUM || 5),
+          pending_leaves_critical: Number(map.OPS_PENDING_LEAVES_CRITICAL || 15),
+          late_rate_high: Number(map.OPS_LATE_RATE_HIGH || 20),
+          division_risk_medium: Number(map.OPS_DIVISION_RISK_MEDIUM || 20)
+        }
+      });
+    }
+
+    if (path === 'admin/operations-intelligence/rules' && method === 'PATCH') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const pairs = [
+        { key: 'OPS_CHECKIN_GAP_HIGH', v: Number(b.checkin_gap_high) },
+        { key: 'OPS_CHECKIN_GAP_CRITICAL', v: Number(b.checkin_gap_critical) },
+        { key: 'OPS_PENDING_LEAVES_MEDIUM', v: Number(b.pending_leaves_medium) },
+        { key: 'OPS_PENDING_LEAVES_CRITICAL', v: Number(b.pending_leaves_critical) },
+        { key: 'OPS_LATE_RATE_HIGH', v: Number(b.late_rate_high) },
+        { key: 'OPS_DIVISION_RISK_MEDIUM', v: Number(b.division_risk_medium) }
+      ].filter(function(x) { return Number.isFinite(x.v); });
+      if (!pairs.length) return json(res, 400, { ok: false, message: 'Tidak ada rule yang diupdate.' });
+      for (const p of pairs) {
+        const n = Math.max(0, Math.min(1000, Number(p.v)));
+        const up = await db('PATCH', 'config', { key: 'eq.' + p.key }, { value: String(n), updated_at: nowIso() }, { Prefer: 'return=representation' });
+        if (up.ok && Array.isArray(up.data) && up.data.length > 0) continue;
+        const ins = await db('POST', 'config', null, { key: p.key, value: String(n), updated_at: nowIso() }, { Prefer: 'return=representation' });
+        if (!ins.ok) return json(res, 500, { ok: false, message: 'Gagal simpan rule ' + p.key + '.', error: ins.error });
+      }
+      await auditLog(a.email, 'UPDATE', 'operations_rules', 'Update operations intelligence rules', String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, { ok: true, message: 'Rules operations intelligence berhasil diperbarui.' });
+    }
+
     if (path === 'admin/operations-intelligence/summary' && method === 'GET') {
       const a = requireAdmin(req, res); if (!a) return;
       const today = ymd();
       const startDate = String(req.query.start_date || dateShift(today, -13)).trim();
       const endDate = String(req.query.end_date || today).trim();
-      const rCfg = await db('GET', 'config', { select: 'key,value', key: 'eq.LATE_AFTER_TIME', limit: 1 });
+      const rCfg = await db('GET', 'config', { select: 'key,value', key: 'in.(LATE_AFTER_TIME,OPS_CHECKIN_GAP_HIGH,OPS_CHECKIN_GAP_CRITICAL,OPS_PENDING_LEAVES_MEDIUM,OPS_PENDING_LEAVES_CRITICAL,OPS_LATE_RATE_HIGH,OPS_DIVISION_RISK_MEDIUM)', limit: 100 });
       const rEmp = await db('GET', 'employees', { select: 'employee_id,nama,divisi,jabatan,is_active', order: 'employee_id.asc', limit: 5000 });
       const rToday = await db('GET', 'attendance', { select: 'employee_id,jam_masuk,jam_keluar,status,tanggal', tanggal: 'eq.' + today, order: 'created_at.desc', limit: 10000 });
       const rLeavesPending = await db('GET', 'leave_requests', { select: 'leave_id,employee_id,jenis_cuti,tanggal_mulai,tanggal_selesai,status,created_at', status: 'eq.pending', order: 'created_at.desc', limit: 5000 });
@@ -1804,7 +1918,15 @@ module.exports = async function handler(req, res) {
         const err = !rCfg.ok ? rCfg.error : !rEmp.ok ? rEmp.error : !rToday.ok ? rToday.error : !rLeavesPending.ok ? rLeavesPending.error : rAttendancePeriod.error;
         return json(res, 500, { ok: false, message: 'Gagal menghitung operations intelligence.', error: err });
       }
-      const lateAfter = String((rCfg.data && rCfg.data[0] && rCfg.data[0].value) || '08:30:00');
+      const cfgMap = {};
+      (rCfg.data || []).forEach(function(x) { cfgMap[String(x.key || '')] = String(x.value || ''); });
+      const lateAfter = cfgMap.LATE_AFTER_TIME || '08:30:00';
+      const thCheckinHigh = Number(cfgMap.OPS_CHECKIN_GAP_HIGH || 10);
+      const thCheckinCritical = Number(cfgMap.OPS_CHECKIN_GAP_CRITICAL || 25);
+      const thPendingMedium = Number(cfgMap.OPS_PENDING_LEAVES_MEDIUM || 5);
+      const thPendingCritical = Number(cfgMap.OPS_PENDING_LEAVES_CRITICAL || 15);
+      const thLateHigh = Number(cfgMap.OPS_LATE_RATE_HIGH || 20);
+      const thDivMedium = Number(cfgMap.OPS_DIVISION_RISK_MEDIUM || 20);
       const emps = rEmp.data || [];
       const todayRows = rToday.data || [];
       const leavesPending = rLeavesPending.data || [];
@@ -1836,18 +1958,18 @@ module.exports = async function handler(req, res) {
       const periodLateRate = periodRows.length > 0 ? Math.round((lateCountPeriod / periodRows.length) * 10000) / 100 : 0;
       const topRiskDivisions = Object.values(divLate).sort(function(a1, b1) { return Number(b1.late_rate || 0) - Number(a1.late_rate || 0); }).slice(0, 5);
       const alerts = [];
-      if (noCheckInRate >= 25) alerts.push({ severity: 'critical', code: 'CHECKIN_GAP', title: 'Kesenjangan Check-in Tinggi', detail: noCheckInCount + ' karyawan aktif belum check-in hari ini (' + noCheckInRate + '%).', action_route: 'att', action_label: 'Buka Attendance Log' });
-      else if (noCheckInRate >= 10) alerts.push({ severity: 'high', code: 'CHECKIN_GAP', title: 'Check-in Belum Optimal', detail: noCheckInCount + ' karyawan aktif belum check-in hari ini (' + noCheckInRate + '%).', action_route: 'att', action_label: 'Lihat Status Hari Ini' });
-      if (leavesPending.length >= 15) alerts.push({ severity: 'critical', code: 'PENDING_LEAVES', title: 'Antrian Approval Cuti Tinggi', detail: leavesPending.length + ' pengajuan cuti menunggu approval.', action_route: 'leave', action_label: 'Proses Leave Approvals' });
-      else if (leavesPending.length >= 5) alerts.push({ severity: 'medium', code: 'PENDING_LEAVES', title: 'Approval Cuti Perlu Ditinjau', detail: leavesPending.length + ' pengajuan cuti masih pending.', action_route: 'leave', action_label: 'Review Pengajuan Cuti' });
-      if (periodLateRate >= 20) alerts.push({ severity: 'high', code: 'LATE_RATE', title: 'Keterlambatan Periode Tinggi', detail: 'Late rate periode ' + startDate + ' s/d ' + endDate + ' mencapai ' + periodLateRate + '%.', action_route: 'kpi', action_label: 'Analisis KPI HR' });
+      if (noCheckInRate >= thCheckinCritical) alerts.push({ severity: 'critical', code: 'CHECKIN_GAP', title: 'Kesenjangan Check-in Tinggi', detail: noCheckInCount + ' karyawan aktif belum check-in hari ini (' + noCheckInRate + '%).', action_route: 'att', action_label: 'Buka Attendance Log' });
+      else if (noCheckInRate >= thCheckinHigh) alerts.push({ severity: 'high', code: 'CHECKIN_GAP', title: 'Check-in Belum Optimal', detail: noCheckInCount + ' karyawan aktif belum check-in hari ini (' + noCheckInRate + '%).', action_route: 'att', action_label: 'Lihat Status Hari Ini' });
+      if (leavesPending.length >= thPendingCritical) alerts.push({ severity: 'critical', code: 'PENDING_LEAVES', title: 'Antrian Approval Cuti Tinggi', detail: leavesPending.length + ' pengajuan cuti menunggu approval.', action_route: 'leave', action_label: 'Proses Leave Approvals' });
+      else if (leavesPending.length >= thPendingMedium) alerts.push({ severity: 'medium', code: 'PENDING_LEAVES', title: 'Approval Cuti Perlu Ditinjau', detail: leavesPending.length + ' pengajuan cuti masih pending.', action_route: 'leave', action_label: 'Review Pengajuan Cuti' });
+      if (periodLateRate >= thLateHigh) alerts.push({ severity: 'high', code: 'LATE_RATE', title: 'Keterlambatan Periode Tinggi', detail: 'Late rate periode ' + startDate + ' s/d ' + endDate + ' mencapai ' + periodLateRate + '%.', action_route: 'kpi', action_label: 'Analisis KPI HR' });
       const riskDivision = topRiskDivisions[0] || null;
-      if (riskDivision && Number(riskDivision.late_rate || 0) >= 20) alerts.push({ severity: 'medium', code: 'DIVISION_RISK', title: 'Divisi Risiko Tinggi', detail: riskDivision.divisi + ' memiliki late rate ' + riskDivision.late_rate + '%.', action_route: 'kpi', action_label: 'Buka Heatmap Divisi' });
+      if (riskDivision && Number(riskDivision.late_rate || 0) >= thDivMedium) alerts.push({ severity: 'medium', code: 'DIVISION_RISK', title: 'Divisi Risiko Tinggi', detail: riskDivision.divisi + ' memiliki late rate ' + riskDivision.late_rate + '%.', action_route: 'kpi', action_label: 'Buka Heatmap Divisi' });
       if (!alerts.length) alerts.push({ severity: 'info', code: 'STABLE', title: 'Operasional Stabil', detail: 'Tidak ada indikator kritikal pada periode ini.', action_route: 'home', action_label: 'Tetap Pantau Dashboard' });
       const recommendations = [];
-      if (noCheckInRate >= 10) recommendations.push({ priority: 1, text: 'Prioritaskan follow-up check-in ke unit dengan kehadiran rendah sebelum jam operasional berakhir.' });
-      if (leavesPending.length >= 5) recommendations.push({ priority: 2, text: 'Jadwalkan batch approval cuti untuk menekan backlog dan mengurangi bottleneck HR.' });
-      if (periodLateRate >= 15) recommendations.push({ priority: 3, text: 'Lakukan evaluasi aturan keterlambatan per divisi dan aktifkan coaching untuk tim berisiko.' });
+      if (noCheckInRate >= thCheckinHigh) recommendations.push({ priority: 1, text: 'Prioritaskan follow-up check-in ke unit dengan kehadiran rendah sebelum jam operasional berakhir.' });
+      if (leavesPending.length >= thPendingMedium) recommendations.push({ priority: 2, text: 'Jadwalkan batch approval cuti untuk menekan backlog dan mengurangi bottleneck HR.' });
+      if (periodLateRate >= (thLateHigh - 5)) recommendations.push({ priority: 3, text: 'Lakukan evaluasi aturan keterlambatan per divisi dan aktifkan coaching untuk tim berisiko.' });
       if (!recommendations.length) recommendations.push({ priority: 1, text: 'Pertahankan disiplin kehadiran; lakukan review KPI mingguan untuk menjaga tren positif.' });
       recommendations.sort(function(a1, b1) { return Number(a1.priority || 99) - Number(b1.priority || 99); });
       return json(res, 200, {
@@ -1864,6 +1986,14 @@ module.exports = async function handler(req, res) {
           late_records_period: lateCountPeriod,
           late_rate_period: periodLateRate,
           late_after_time: lateAfter
+        },
+        rules: {
+          checkin_gap_high: thCheckinHigh,
+          checkin_gap_critical: thCheckinCritical,
+          pending_leaves_medium: thPendingMedium,
+          pending_leaves_critical: thPendingCritical,
+          late_rate_high: thLateHigh,
+          division_risk_medium: thDivMedium
         },
         top_risk_divisions: topRiskDivisions,
         alerts: alerts,

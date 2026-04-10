@@ -415,6 +415,12 @@
             </li>
         `).join('');
     }
+    function empSeverityBadge(sev){
+      const s=String(sev||'info').toLowerCase();
+      if(s==='critical'||s==='high') return '<span class="status-badge on-leave">Needs Action</span>';
+      if(s==='medium') return '<span class="status-badge neutral">Watch</span>';
+      return '<span class="status-badge on-time">Good</span>';
+    }
 
     async function loadEmployeeHome(){ 
       try{ 
@@ -425,11 +431,13 @@
         let notif={ total_unread:0 };
         let announcements=[];
         let notifications=[];
+        let insights={ summary:{ late_rate_period:0,pending_leaves:0 }, alerts:[], recommendations:[] };
         try { data = await api('/api/me/dashboard-summary'); } catch(e) {}
         try { today = await api('/api/me/attendance/today'); } catch(e) {}
         try { notif = await api('/api/me/notifications/summary'); } catch(e) {}
         try { announcements = await api('/api/me/announcements?limit=3'); } catch(e) {}
         try { notifications = await api('/api/me/notifications'); } catch(e) {}
+        try { insights = await api('/api/me/operations-intelligence/summary'); } catch(e) {}
 
         const pct = Math.min(100, Math.max(0, Number(data.shift_progress_percent_today||0)));
         const strokeDash = `${pct}, 100`;
@@ -532,6 +540,27 @@
                         </li>
                     </ul>
                 </div>
+            </div>
+
+            <div class="card">
+              <div class="team-header">
+                <h3 style="font-size:18px;font-weight:700;">Employee Intelligence</h3>
+                ${empSeverityBadge((((insights.alerts||[])[0]||{}).severity||'info'))}
+              </div>
+              <div class="grid-2">
+                <div>
+                  <div class="stat-label" style="margin-bottom:10px;">Alerts</div>
+                  <ul class="clean-list">
+                    ${(insights.alerts||[]).slice(0,3).map(function(a){ return '<li><div class="list-text"><span class="list-title">'+escapeHtml(a.title||'-')+'</span><span class="list-desc">'+escapeHtml(a.detail||'-')+'</span></div></li>'; }).join('') || '<li><div class="list-text"><span class="list-desc">No alerts.</span></div></li>'}
+                  </ul>
+                </div>
+                <div>
+                  <div class="stat-label" style="margin-bottom:10px;">Recommendations</div>
+                  <ul class="clean-list">
+                    ${(insights.recommendations||[]).slice(0,3).map(function(r){ return '<li><div class="list-text"><span class="list-title">Priority '+escapeHtml(r.priority||'-')+'</span><span class="list-desc">'+escapeHtml(r.text||'-')+'</span></div></li>'; }).join('') || '<li><div class="list-text"><span class="list-desc">No recommendation.</span></div></li>'}
+                  </ul>
+                </div>
+              </div>
             </div>
         `;
 
