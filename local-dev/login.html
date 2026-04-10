@@ -7,23 +7,32 @@
   <style>
     :root{--text:#0f172a;--muted:#64748b;--primary:#2563eb;--border:#dbe4f1;--card:#ffffffde}
     *{box-sizing:border-box}
-    body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--text);min-height:100vh;overflow:hidden;background:linear-gradient(125deg,#e0ecff 0%,#eef3ff 35%,#f5ecff 100%)}
-    .bg-orb{position:fixed;border-radius:999px;filter:blur(4px);opacity:.42;z-index:0;animation:float 12s ease-in-out infinite}
-    .o1{width:340px;height:340px;left:-80px;top:-70px;background:#60a5fa}
-    .o2{width:280px;height:280px;right:-60px;top:18%;background:#a78bfa;animation-delay:-3s}
-    .o3{width:300px;height:300px;left:20%;bottom:-140px;background:#22d3ee;animation-delay:-6s}
+    body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--text);min-height:100vh;overflow:hidden;background:
+      radial-gradient(1200px 500px at 12% -8%,#67e8f9 0%,transparent 42%),
+      radial-gradient(900px 420px at 92% -6%,#c4b5fd 0%,transparent 45%),
+      radial-gradient(760px 420px at 50% 108%,#93c5fd 0%,transparent 48%),
+      linear-gradient(138deg,#0f172a 0%,#1e293b 26%,#334155 52%,#0f172a 100%)}
+    body::before{content:'';position:fixed;inset:0;z-index:0;opacity:.22;background-image:
+      linear-gradient(rgba(255,255,255,.25) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,255,255,.2) 1px,transparent 1px);
+      background-size:44px 44px,44px 44px}
+    .bg-orb{position:fixed;border-radius:999px;filter:blur(3px);opacity:.3;z-index:0;animation:float 12s ease-in-out infinite}
+    .o1{width:360px;height:360px;left:-70px;top:-90px;background:#22d3ee}
+    .o2{width:300px;height:300px;right:-60px;top:18%;background:#8b5cf6;animation-delay:-3s}
+    .o3{width:340px;height:340px;left:22%;bottom:-160px;background:#3b82f6;animation-delay:-6s}
     @keyframes float{0%,100%{transform:translateY(0) translateX(0)}50%{transform:translateY(-18px) translateX(12px)}}
     .wrap{position:relative;z-index:1;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
     .card{width:min(920px,100%);display:grid;grid-template-columns:1.1fr 1fr;background:var(--card);backdrop-filter:blur(12px);border:1px solid #ffffffc0;border-radius:28px;box-shadow:0 28px 60px rgba(30,41,59,.16);overflow:hidden}
-    .left{padding:34px;background:linear-gradient(160deg,#1e3a8a 0%,#2563eb 35%,#7c3aed 100%);color:#fff;position:relative}
+    .left{padding:34px;background:linear-gradient(160deg,#1d4ed8 0%,#0ea5e9 40%,#7c3aed 100%);color:#fff;position:relative}
     .left::after{content:'';position:absolute;inset:16px;border:1px solid #ffffff4d;border-radius:20px;pointer-events:none}
     .brand{display:flex;align-items:center;gap:12px;margin-bottom:18px}
-    .logo-art{width:56px;height:56px;border-radius:16px;background:#ffffff26;display:flex;align-items:center;justify-content:center;border:1px solid #ffffff57}
-    .logo-art svg{width:34px;height:34px}
+    .logo-art{width:56px;height:56px;border-radius:16px;background:#ffffff2b;display:flex;align-items:center;justify-content:center;border:1px solid #ffffff64;overflow:hidden}
+    .logo-art img{width:46px;height:46px;object-fit:contain}
+    .logo-fallback{display:none;font-size:24px;font-weight:900}
     .title{font-size:24px;font-weight:800;line-height:1.2}
     .desc{font-size:14px;opacity:.92;max-width:360px}
     .badge{display:inline-flex;gap:8px;align-items:center;padding:8px 12px;border-radius:999px;background:#ffffff1f;border:1px solid #ffffff52;font-size:12px;margin-top:14px}
-    .right{padding:34px;background:#ffffffc4}
+    .right{padding:34px;background:#ffffffe0}
     h1{margin:0;font-size:26px}
     .muted{color:var(--muted);font-size:13px;margin-top:6px}
     label{font-size:12px;font-weight:700;color:#334155;display:block;margin:14px 0 6px}
@@ -42,10 +51,8 @@
       <section class="left">
         <div class="brand">
           <div class="logo-art">
-            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="6" y="6" width="52" height="52" rx="12" fill="white"/>
-              <path d="M20 45V19H29.5L35.5 28L41.5 19H44V45H35V32L29.5 40L24 32V45H20Z" fill="#2563EB"/>
-            </svg>
+            <img src="https://ess-tren-gen-horizon.vercel.app/logo-trend-horizon.jpg" alt="Trend Horizon Logo" onerror="this.style.display='none';this.nextElementSibling.style.display='inline';" />
+            <span class="logo-fallback">T</span>
           </div>
           <div>
             <div style="font-weight:800;font-size:18px;">Tren Gen Horizon</div>
