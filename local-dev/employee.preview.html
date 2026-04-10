@@ -263,6 +263,8 @@
     let employeeCurrentSection='home';
     let employeeScheduleRefreshTimer=null;
     let employeeTodayShiftCode='PAGI';
+    let employeeShiftWatchTimer=null;
+    let employeeShiftWatchVersion='';
     function navTo(id, el){ employeeCurrentSection=String(id||'home'); document.querySelectorAll('.menu-item').forEach(e=>e.classList.remove('active')); el.classList.add('active'); if(window.innerWidth<=992) document.getElementById('sidebar').classList.remove('open'); }
     if(window.innerWidth<=992) { document.getElementById('mobileToggle').style.display='block'; document.querySelector('.mobile-close').style.display='block'; }
     document.getElementById('header_date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long', day:'2-digit', month:'short'});
@@ -276,6 +278,43 @@
         try{ await loadEmployeeHome(); }catch(_){}
       }, 45000);
       window.addEventListener('focus', async function(){ if(employeeCurrentSection==='home'){ try{ await loadEmployeeHome(); }catch(_){} } });
+    }
+    function showShiftToast(message){
+      const id='shift_change_toast';
+      let el=document.getElementById(id);
+      if(!el){
+        el=document.createElement('div');
+        el.id=id;
+        el.style.cssText='position:fixed;right:18px;bottom:18px;z-index:3000;background:#0b1220;color:#fff;padding:12px 14px;border-radius:12px;box-shadow:0 12px 28px rgba(0,0,0,.2);font-size:13px;max-width:min(360px,90vw);';
+        document.body.appendChild(el);
+      }
+      el.textContent=String(message||'Jadwal shift diperbarui.');
+      el.style.display='block';
+      clearTimeout(el.__hideTimer);
+      el.__hideTimer=setTimeout(function(){ el.style.display='none'; }, 4200);
+    }
+    async function refreshShiftWatchSeed(){
+      try{
+        const watch=await api('/api/me/schedule/watch');
+        const v=String((watch&&watch.version)||'');
+        if(v) employeeShiftWatchVersion=v;
+      }catch(_){}
+    }
+    function ensureShiftWatcher(){
+      if(employeeShiftWatchTimer) return;
+      employeeShiftWatchTimer=setInterval(async function(){
+        try{
+          const watch=await api('/api/me/schedule/watch');
+          const v=String((watch&&watch.version)||'');
+          if(!employeeShiftWatchVersion){ employeeShiftWatchVersion=v; return; }
+          if(v && v!==employeeShiftWatchVersion){
+            employeeShiftWatchVersion=v;
+            employeeTodayShiftCode=String((watch&&watch.shift_code)||employeeTodayShiftCode||'PAGI');
+            showShiftToast('Jadwal shift diperbarui oleh admin: ' + employeeTodayShiftCode);
+            if(employeeCurrentSection==='home') await loadEmployeeHome();
+          }
+        }catch(_){}
+      }, 12000);
     }
     function safe(v){ return v===null||v===undefined?'':v; }
     function escapeHtml(v){ return String(safe(v)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
@@ -962,7 +1001,7 @@
         setContentLayout(html, null); } catch(e){ setContentLayout(renderError(e.message), null); }
     }
 
-    async function init(){ try { ensureEmployeeResponsiveSchedule(); await bootGreeting(); await loadEmployeeHome(); } catch(e){ document.getElementById('main_content_grid').innerHTML = renderError(e.message); } }
+    async function init(){ try { ensureEmployeeResponsiveSchedule(); ensureShiftWatcher(); await refreshShiftWatchSeed(); await bootGreeting(); await loadEmployeeHome(); } catch(e){ document.getElementById('main_content_grid').innerHTML = renderError(e.message); } }
     init();
   </script>
 </body>

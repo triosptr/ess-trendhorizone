@@ -1284,6 +1284,24 @@ module.exports = async function handler(req, res) {
       });
     }
 
+    if (path === 'me/schedule/watch' && method === 'GET') {
+      const u = requireUser(req, res); if (!u) return;
+      const tanggal = String(req.query.tanggal || ymd()).trim().slice(0, 10);
+      const resolved = await resolveEmployeeShiftForDate(u.employee_id, tanggal);
+      const shiftCode = String(resolved.shift_code || 'PAGI');
+      const publishedAt = String(resolved.published_at || '');
+      const version = shiftCode + '|' + publishedAt + '|' + tanggal;
+      return json(res, 200, {
+        ok: true,
+        tanggal: tanggal,
+        employee_id: u.employee_id,
+        shift_code: shiftCode,
+        off_day: !!resolved.off_day,
+        published_at: publishedAt,
+        version: version
+      });
+    }
+
     if (path === 'leave-types/active' && method === 'GET') {
       const r = await db('GET', 'leave_types', { select: '*', is_active: 'eq.true', order: 'nama_jenis_cuti.asc' });
       if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil leave types.', error: r.error });
