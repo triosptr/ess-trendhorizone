@@ -573,6 +573,10 @@ function leaveDriveFolderId() {
   const folderRaw = String(process.env.LEAVE_ATTACHMENT_DRIVE_FOLDER || '1mpbIt5CEkPOVFGd1MXHSh1VnDs2hwoKy').trim();
   return parseDriveFolderId(folderRaw);
 }
+function profilePhotoDriveFolderId() {
+  const folderRaw = String(process.env.PROFILE_PHOTO_DRIVE_FOLDER || 'https://drive.google.com/drive/folders/1Z8QW_W_iAFvOiDfHfcMEjIgRc6I24woQ').trim();
+  return parseDriveFolderId(folderRaw);
+}
 async function getDriveAccessToken() {
   const directToken = String(process.env.GOOGLE_DRIVE_ACCESS_TOKEN || '').trim();
   if (directToken) return { ok: true, token: directToken, source: 'access_token' };
@@ -1202,8 +1206,8 @@ module.exports = async function handler(req, res) {
         const mime = String((b.photo || {}).mimeType || 'image/jpeg');
         const ext = mime.indexOf('png') >= 0 ? 'png' : mime.indexOf('webp') >= 0 ? 'webp' : 'jpg';
         const fileName = toSafeFileToken('profile_' + nm + '_' + Date.now(), 'profile') + '.' + ext;
-        const url = await uploadBufferToDrive(fileName, mime, buf, payrollDriveFolderId());
-        if (!url) return json(res, 500, { ok: false, message: 'Gagal upload photo profile ke Drive.' });
+        const url = await uploadBufferToDrive(fileName, mime, buf, profilePhotoDriveFolderId());
+        if (!url) return json(res, 500, { ok: false, message: 'Gagal upload photo profile ke folder Drive perusahaan. Pastikan folder dibagikan ke akun service dan kredensial Drive aktif.' });
         extra.photo_url = url;
       }
       if (b.new_password !== undefined) {
