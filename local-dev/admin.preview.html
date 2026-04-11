@@ -294,7 +294,7 @@
     }
 
     function hdr(){
-      return { 'Content-Type':'application/json', 'x-user-email':localStorage.getItem('ess_admin_email')||localStorage.getItem('ess_demo_admin_email')||'admin@perusahaan.com', 'x-user-role':localStorage.getItem('ess_admin_role')||'superadmin' };
+      return { 'Content-Type':'application/json', 'x-user-email':localStorage.getItem('ess_admin_email')||localStorage.getItem('ess_demo_admin_email')||'admin@perusahaan.com', 'x-user-role':localStorage.getItem('ess_admin_role')||'superadmin', 'x-employee-id':localStorage.getItem('ess_employee_id')||localStorage.getItem('ess_admin_employee_id')||'' };
     }
     function base(){ return localStorage.getItem('ess_api_base') || 'https://ess-2026-trendhorizone-id.vercel.app'; }
     async function api(path,method,body){ const r=await fetch(base()+path,{method:method||'GET',headers:hdr(),body:body?JSON.stringify(body):undefined}); const tx=await r.text(); let d=tx; try{d=JSON.parse(tx);}catch(e){} if(!r.ok) throw new Error((d&&d.message)||'Request failed'); return d; }
@@ -312,6 +312,7 @@
       localStorage.setItem('ess_user_email',user.email||'');
       localStorage.setItem('ess_user_role',user.role||'admin');
       localStorage.setItem('ess_employee_id',user.employee_id||'');
+      localStorage.setItem('ess_admin_employee_id',user.employee_id||'');
       document.getElementById('header_name').textContent=user.nama||'Admin';
       document.getElementById('header_role').textContent=user.role||'admin';
       const av=document.getElementById('header_avatar');
