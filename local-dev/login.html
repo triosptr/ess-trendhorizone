@@ -78,27 +78,31 @@
     </div>
   </div>
   <script>
+    const CANONICAL_API='https://ess-2026-trendhorizone-id.vercel.app';
     async function resolveApiBase(){
       const saved=String(localStorage.getItem('ess_api_base')||'').trim().replace(/\/+$/,'');
       const origin=String(location.origin||'').trim().replace(/\/+$/,'');
       const host=String(location.hostname||'').toLowerCase();
       const candidates=[];
+      candidates.push(CANONICAL_API);
       if(saved) candidates.push(saved);
       if(host==='localhost'||host==='127.0.0.1') candidates.push('https://ess-trendhorizone-id.vercel.app');
       if(origin) candidates.push(origin);
-      candidates.push('https://ess-2026-trendhorizone-id.vercel.app');
       const uniq=[...new Set(candidates.filter(Boolean))];
+      const healths=[];
       for(const b of uniq){
         try{
           const r=await fetch(b+'/api/health',{method:'GET'});
           const j=await r.json().catch(()=>({}));
-          if(r.ok&&j&&j.supabase_ready===true){
-            localStorage.setItem('ess_api_base',b);
-            return b;
-          }
+          if(r.ok&&j&&j.supabase_ready===true) healths.push({base:b,resendReady:j.resend_ready===true});
         }catch(_){}
       }
-      const fallback='https://ess-2026-trendhorizone-id.vercel.app';
+      const best=healths.find(function(x){ return x.base===CANONICAL_API && x.resendReady; }) || healths.find(function(x){ return x.resendReady; }) || healths.find(function(x){ return x.base===CANONICAL_API; }) || healths[0];
+      if(best&&best.base){
+        localStorage.setItem('ess_api_base',best.base);
+        return best.base;
+      }
+      const fallback=CANONICAL_API;
       localStorage.setItem('ess_api_base',fallback);
       return fallback;
     }

@@ -1302,7 +1302,9 @@ module.exports = async function handler(req, res) {
     const method = String(req.method || 'GET').toUpperCase();
 
     if (path === 'health' && method === 'GET') {
-      return json(res, 200, { ok: true, service: 'ess-trendhorizone-api', supabase_ready: !!env(), timestamp: nowIso() });
+      const resendKeyReady = !!String(process.env.RESEND_API_KEY || process.env.RESEND_KEY || process.env.EMAIL_RESEND_API_KEY || '').trim();
+      const resendFromReady = !!String(process.env.RESEND_FROM || '').trim();
+      return json(res, 200, { ok: true, service: 'ess-trendhorizone-api', supabase_ready: !!env(), resend_ready: resendKeyReady && resendFromReady, key_source: process.env.RESEND_API_KEY ? 'RESEND_API_KEY' : (process.env.RESEND_KEY ? 'RESEND_KEY' : (process.env.EMAIL_RESEND_API_KEY ? 'EMAIL_RESEND_API_KEY' : 'none')), timestamp: nowIso() });
     }
     const needsSession = path.startsWith('me/') || path.startsWith('admin/');
     if (needsSession) {

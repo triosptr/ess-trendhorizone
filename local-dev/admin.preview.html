@@ -369,7 +369,7 @@
     function hdr(){
       return { 'Content-Type':'application/json', 'x-user-email':localStorage.getItem('ess_admin_email')||localStorage.getItem('ess_demo_admin_email')||'admin@perusahaan.com', 'x-user-role':localStorage.getItem('ess_admin_role')||'superadmin', 'x-employee-id':localStorage.getItem('ess_employee_id')||localStorage.getItem('ess_admin_employee_id')||'', 'Authorization':'Bearer '+sessionToken() };
     }
-    function base(){ return localStorage.getItem('ess_api_base') || 'https://ess-2026-trendhorizone-id.vercel.app'; }
+    function base(){ const fixed='https://ess-2026-trendhorizone-id.vercel.app'; const host=String(location.hostname||'').toLowerCase(); if(host==='localhost'||host==='127.0.0.1') return localStorage.getItem('ess_api_base') || fixed; return fixed; }
     async function api(path,method,body){ const r=await fetch(base()+path,{method:method||'GET',headers:hdr(),body:body?JSON.stringify(body):undefined}); const tx=await r.text(); let d=tx; try{d=JSON.parse(tx);}catch(e){} if(!r.ok) throw new Error((d&&d.message)||'Request failed'); return d; }
     function sessionToken(){ return localStorage.getItem('ess_session_token')||''; }
     async function ensureSessionLogin(){
