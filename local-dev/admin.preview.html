@@ -121,6 +121,22 @@
     .admin-anim-box .title { font-weight:700; color:var(--text-main); }
     .admin-anim-box .sub { font-size:12px; color:var(--text-sec); }
     .admin-att-top-actions { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+    .admin-aw { background:linear-gradient(180deg,var(--primary-light) 0%, var(--card) 100%); border-radius:var(--radius-lg); padding:20px; border:1px solid var(--border); }
+    .admin-aw-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+    .admin-aw-header h3 { font-size:28px; color:var(--primary); font-weight:800; letter-spacing:-0.02em; margin-top:6px; }
+    .admin-aw-title { font-size:28px; font-weight:800; letter-spacing:-0.02em; }
+    .admin-aw-sub { font-size:11px; color:var(--text-sec); text-transform:uppercase; letter-spacing:0.08em; font-weight:700; margin-top:2px; }
+    .admin-aw-main-btn { width:100%; border:none; border-radius:14px; background:var(--primary); color:#fff; padding:12px 14px; font-size:18px; font-weight:700; margin:8px 0 14px; cursor:pointer; }
+    .admin-aw-status { margin:14px 0; border:1px dashed var(--border); border-radius:14px; min-height:92px; display:flex; align-items:center; justify-content:center; background:#fff; text-align:center; }
+    .admin-aw-status i { font-size:38px; color:#94a3b8; margin-bottom:8px; display:block; }
+    .admin-aw-status .title { font-weight:700; color:var(--text-main); }
+    .admin-aw-status .sub { font-size:12px; color:var(--text-sec); }
+    .admin-aw-info { display:flex; flex-direction:column; gap:12px; margin-bottom:14px; }
+    .admin-aw-info-box { display:flex; align-items:center; gap:12px; background:var(--card); padding:13px; border-radius:12px; border:1px solid var(--border); }
+    .admin-aw-info-box i { font-size:22px; color:var(--primary); background:var(--primary-light); padding:8px; border-radius:10px; }
+    .admin-aw-break { display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin-bottom:10px; }
+    .admin-aw-progress { height:10px; border-radius:999px; background:#e5e7eb; overflow:hidden; }
+    .admin-aw-progress > span { display:block; height:100%; width:0%; background:linear-gradient(90deg,var(--primary),var(--secondary)); transition:width .5s ease; }
     @keyframes adminPulse { 0%{ transform:scale(1); opacity:.95; } 50%{ transform:scale(1.5); opacity:.45; } 100%{ transform:scale(1); opacity:.95; } }
     
     @media (max-width: 992px) { .sidebar { position: fixed; transform: translateX(-100%); height: 100vh; box-shadow: var(--shadow-lg); } .sidebar.open { transform: translateX(0); } .header { padding: 0 24px; } .search-bar { display: none; } }
@@ -313,13 +329,13 @@
       adminStatusTimer=setInterval(tick,1000);
     }
     function startAdminPersonalTicker(data){
-      const workEl=document.getElementById('admin_work_timer');
-      const breakEl=document.getElementById('admin_break_timer');
-      const progressEl=document.getElementById('admin_shift_progress');
+      const workEl=document.getElementById('admin_aw_digital')||document.getElementById('admin_work_timer');
+      const breakEl=document.getElementById('admin_aw_break')||document.getElementById('admin_break_timer');
+      const progressEl=document.getElementById('admin_aw_progress')||document.getElementById('admin_shift_progress');
       const ring=document.getElementById('admin_shift_ring');
       const ringPercent=document.getElementById('admin_shift_percent');
-      const chip=document.getElementById('admin_break_chip');
-      if(!workEl||!breakEl||!progressEl||!ring||!ringPercent) return;
+      const chip=document.getElementById('admin_aw_break_chip')||document.getElementById('admin_break_chip');
+      if(!workEl||!breakEl||!progressEl) return;
       const masuk=String(data&&data.jam_masuk||'');
       const keluar=String(data&&data.jam_keluar||'');
       const breakActive=!!(data&&data.break_active);
@@ -331,8 +347,7 @@
           workEl.textContent='00:00:00';
           breakEl.textContent='00:00:00';
           progressEl.style.width='0%';
-          ring.style.background='conic-gradient(var(--primary) 0deg, #e5e7eb 0deg)';
-          ringPercent.textContent='0%';
+          if(ring&&ringPercent){ ring.style.background='conic-gradient(var(--primary) 0deg, #e5e7eb 0deg)'; ringPercent.textContent='0%'; }
           return;
         }
         const now=nowHmsWIB();
@@ -344,8 +359,7 @@
         workEl.textContent=secToDigital(eff);
         breakEl.textContent=secToDigital(breakSec);
         progressEl.style.width=String(percent)+'%';
-        ring.style.background='conic-gradient(var(--primary) '+String(percent*3.6)+'deg, #e5e7eb 0deg)';
-        ringPercent.textContent=String(percent)+'%';
+        if(ring&&ringPercent){ ring.style.background='conic-gradient(var(--primary) '+String(percent*3.6)+'deg, #e5e7eb 0deg)'; ringPercent.textContent=String(percent)+'%'; }
       };
       if(chip) chip.style.display = breakActive && !keluar ? 'inline-flex' : 'none';
       tick();
@@ -450,40 +464,43 @@
             </div>
 
             <div class="grid-2">
-            <div class="card">
-                <div class="team-header">
-                    <h3 style="font-size:20px;font-weight:700;">Absensi Admin (Pribadi)</h3>
-                    <div class="stat-label">${escapeHtml(formatDateDisplay(meToday.tanggal||todayDate)||todayDate)}</div>
+            <div class="card admin-aw">
+                <div class="admin-aw-header">
+                    <div>
+                        <div class="admin-aw-title">Attendance Tracker</div>
+                        <div class="stat-label">${escapeHtml(formatDateDisplay(meToday.tanggal||todayDate)||todayDate)}</div>
+                    </div>
+                    <button class="btn btn-secondary" onclick="loadSummary()"><i class="ph ph-arrow-clockwise"></i></button>
                 </div>
-                <div class="admin-att-top-actions">
-                    ${adminCanCheckIn?'<button class="btn btn-primary" onclick="adminDoCheckIn()"><i class="ph ph-sign-in"></i> Check In</button>':''}
-                    ${adminCanCheckOut?'<button class="btn btn-primary" onclick="adminDoCheckOut()"><i class="ph ph-sign-out"></i> Check Out</button>':''}
-                    ${adminCanStartBreak?'<button class="btn btn-secondary" onclick="adminStartBreak()"><i class="ph ph-coffee"></i> Start Break</button>':''}
-                    ${adminCanEndBreak?'<button class="btn btn-secondary" onclick="adminEndBreak()"><i class="ph ph-coffee"></i> End Break</button>':''}
-                    ${(!adminCanCheckIn&&!adminCanCheckOut&&!adminCanStartBreak&&!adminCanEndBreak)?'<button class="btn btn-secondary" onclick="loadSummary()">Refresh</button>':''}
+                ${adminCanCheckIn?'<button class="admin-aw-main-btn" onclick="adminDoCheckIn()">Check In Now</button>':''}
+                ${adminCanCheckOut?'<button class="admin-aw-main-btn" onclick="adminDoCheckOut()">Check Out</button>':''}
+                ${(!adminCanCheckIn&&!adminCanCheckOut)?'<button class="admin-aw-main-btn" style="opacity:.75;cursor:default;" disabled>Completed</button>':''}
+                <div class="admin-aw-header" style="display:block;text-align:center;margin-top:2px;">
+                    <h3 id="admin_aw_digital">${escapeHtml(meToday.work_duration_digital||'00:00:00')}</h3>
+                    <div class="admin-aw-sub">Active Working Hours</div>
                 </div>
-                <div class="admin-anim-box">${adminAnimHtml}</div>
-                <div class="admin-live-wrap">
-                    <div class="admin-live-box"><div class="admin-live-label">Jam Login</div><div class="admin-live-value">${escapeHtml(meToday.jam_masuk||'--:--')}</div></div>
-                    <div class="admin-live-box"><div class="admin-live-label">Jam Logout</div><div class="admin-live-value">${escapeHtml(meToday.jam_keluar||'--:--')}</div></div>
-                    <div class="admin-live-box"><div class="admin-live-label">Durasi Kerja</div><div id="admin_work_timer" class="admin-live-value" style="font-size:22px;">${escapeHtml(meToday.work_duration_digital||'00:00:00')}</div></div>
-                    <div class="admin-live-box"><div class="admin-live-label">Durasi Break</div><div id="admin_break_timer" class="admin-live-value" style="font-size:22px;color:var(--warning);">${escapeHtml(meToday.break_duration_digital||'00:00:00')}</div></div>
-                </div>
-                <div class="admin-ring-wrap">
-                    <div id="admin_shift_ring" class="admin-ring">
-                        <div class="admin-ring-inner">
-                            <div id="admin_shift_percent" class="admin-ring-percent">0%</div>
-                            <div class="admin-ring-label">Shift Progress</div>
-                        </div>
+                <div class="admin-aw-status">${adminAnimHtml}</div>
+                <div class="admin-aw-info">
+                    <div class="admin-aw-info-box">
+                        <i class="ph ph-sign-in"></i>
+                        <div class="list-text"><span class="list-title">Check In</span><span class="list-desc">${escapeHtml(meToday.jam_masuk||'--:--')}</span></div>
+                    </div>
+                    <div class="admin-aw-info-box" style="${meToday.jam_keluar?'':'display:none;'}">
+                        <i class="ph ph-sign-out"></i>
+                        <div class="list-text"><span class="list-title">Check Out</span><span class="list-desc">${escapeHtml(meToday.jam_keluar||'--:--')}</span></div>
                     </div>
                 </div>
-                <div class="admin-live-box" style="margin-bottom:14px;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-                        <div class="admin-live-label" style="margin:0;">Status: ${normalizeStatusBadge(meToday.status||'Belum Absen')}</div>
-                        <span id="admin_break_chip" class="admin-break-chip"><span class="admin-break-dot"></span> Break Time Active</span>
-                    </div>
-                    <div class="admin-progress"><span id="admin_shift_progress"></span></div>
+                <div class="admin-aw-break">
+                    <div class="break-text"><i class="ph ph-coffee"></i><span>Break Time</span></div>
+                    ${adminCanStartBreak?'<button class="btn btn-secondary" style="padding:8px 12px;" onclick="adminStartBreak()">Start Break</button>':''}
+                    ${adminCanEndBreak?'<button class="btn btn-secondary" style="padding:8px 12px;background:var(--warning);color:#fff;" onclick="adminEndBreak()">End Break</button>':''}
+                    <span id="admin_aw_break" style="font-weight:700;">${escapeHtml(meToday.break_duration_digital||'00:00:00')}</span>
                 </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;">
+                    <span id="admin_aw_break_chip" class="admin-break-chip"><span class="admin-break-dot"></span> Break Time Active</span>
+                    <span class="stat-label">${normalizeStatusBadge(meToday.status||'Belum Absen')}</span>
+                </div>
+                <div class="admin-aw-progress"><span id="admin_aw_progress"></span></div>
             </div>
 
             <div class="card">
