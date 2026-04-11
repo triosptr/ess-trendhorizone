@@ -78,17 +78,35 @@
     </div>
   </div>
   <script>
-    const apiBase=(function(){
-      const saved=String(localStorage.getItem('ess_api_base')||'').trim();
-      if(saved) return saved.replace(/\/+$/,'');
+    async function resolveApiBase(){
+      const saved=String(localStorage.getItem('ess_api_base')||'').trim().replace(/\/+$/,'');
+      const origin=String(location.origin||'').trim().replace(/\/+$/,'');
       const host=String(location.hostname||'').toLowerCase();
-      if(host==='localhost'||host==='127.0.0.1') return 'https://ess-trendhorizone-id.vercel.app';
-      return String(location.origin||'https://ess-trendhorizone-id.vercel.app').replace(/\/+$/,'');
-    })();
+      const candidates=[];
+      if(saved) candidates.push(saved);
+      if(host==='localhost'||host==='127.0.0.1') candidates.push('https://ess-trendhorizone-id.vercel.app');
+      if(origin) candidates.push(origin);
+      candidates.push('https://ess-2026-trendhorizone-id.vercel.app');
+      const uniq=[...new Set(candidates.filter(Boolean))];
+      for(const b of uniq){
+        try{
+          const r=await fetch(b+'/api/health',{method:'GET'});
+          if(r.ok){
+            localStorage.setItem('ess_api_base',b);
+            return b;
+          }
+        }catch(_){}
+      }
+      const fallback='https://ess-2026-trendhorizone-id.vercel.app';
+      localStorage.setItem('ess_api_base',fallback);
+      return fallback;
+    }
+    let apiBasePromise=resolveApiBase();
     const $=id=>document.getElementById(id);
     function show(t,ok){ const m=$('msg'); m.className='msg '+(ok?'ok':'err'); m.textContent=t; m.style.display='block'; }
-    async function sessionMe(token){ const r=await fetch(apiBase+'/api/auth/session/me',{headers:{Authorization:'Bearer '+token}}); return r.json(); }
+    async function sessionMe(token){ const apiBase=await apiBasePromise; const r=await fetch(apiBase+'/api/auth/session/me',{headers:{Authorization:'Bearer '+token}}); return r.json(); }
     async function boot(){
+      await apiBasePromise;
       const token=localStorage.getItem('ess_session_token')||'';
       if(!token) return;
       try{
@@ -106,6 +124,7 @@
       const email=$('email').value.trim().toLowerCase();
       const password=$('password').value;
       try{
+        const apiBase=await apiBasePromise;
         const r=await fetch(apiBase+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
         const j=await r.json();
         if(!r.ok||!j.ok) throw new Error(j.message||'Login gagal');
