@@ -349,6 +349,19 @@
         
         const attMap={}; (today||[]).forEach(r=>{ if(!attMap[r.employee_id]) attMap[r.employee_id]=r; });
         const liveStatus=function(a){ if(!a||!a.jam_masuk) return 'Belum Check In'; if(a.jam_keluar) return 'Selesai Check Out'; if(a.break_active) return 'Sedang Istirahat'; return 'Sedang Kerja'; };
+        const activeEmployees=(emps||[]).filter(function(e){ return String(e.is_active).toLowerCase()==='true'; });
+        const checkedInToday=(today||[]).filter(function(r){ return !!r.jam_masuk; }).length;
+        const checkedOutToday=(today||[]).filter(function(r){ return !!r.jam_keluar; }).length;
+        const notCheckedInToday=Math.max(0, activeEmployees.length-checkedInToday);
+        const stillWorkingToday=Math.max(0, checkedInToday-checkedOutToday);
+        const loginLogoutRows=(today||[]).slice().sort(function(a,b){
+          const ta=String(a.jam_masuk||'00:00:00');
+          const tb=String(b.jam_masuk||'00:00:00');
+          return tb.localeCompare(ta);
+        }).slice(0,12).map(function(r){
+          const emp=(emps||[]).find(function(e){ return String(e.employee_id||'')===String(r.employee_id||''); })||{};
+          return '<tr><td>'+escapeHtml(r.employee_id||'-')+'</td><td>'+escapeHtml(emp.nama||'-')+'</td><td>'+escapeHtml(r.jam_masuk||'-')+'</td><td>'+escapeHtml(r.jam_keluar||'-')+'</td><td>'+normalizeStatusBadge(r.status||liveStatus(r))+'</td></tr>';
+        }).join('') || '<tr><td colspan="5">Belum ada aktivitas login/logout hari ini.</td></tr>';
         
         const statusRows=(emps||[]).map(function(e,i){ const a=attMap[e.employee_id]||null; return '<tr data-live-row="1" data-masuk="'+escapeHtml((a&&a.jam_masuk)||'')+'" data-keluar="'+escapeHtml((a&&a.jam_keluar)||'')+'" data-break-seconds="'+escapeHtml((a&&a.break_total_seconds)||0)+'" data-break-active="'+(a&&a.break_active?'1':'0')+'" data-break-start="'+escapeHtml((a&&a.break_active_start)||'')+'"><td>'+escapeHtml(e.employee_id||'-')+'</td><td>'+escapeHtml(e.nama||'-')+'</td><td>'+normalizeStatusBadge(liveStatus(a))+'</td><td>'+escapeHtml((a&&a.shift_code)||'-')+'</td><td>'+escapeHtml((a&&a.jam_masuk)||'-')+'</td><td>'+escapeHtml((a&&a.jam_keluar)||'-')+'</td><td data-cell="work" style="font-family:monospace;font-weight:600;color:var(--primary);">'+escapeHtml((a&&a.work_duration_digital)||'00:00:00')+'</td><td data-cell="break" style="font-family:monospace;">'+escapeHtml((a&&a.break_duration_digital)||'00:00:00')+'</td></tr>'; }).join('') || '<tr><td colspan="8">Tidak ada data karyawan</td></tr>';
         
@@ -363,6 +376,27 @@
                 <div class="card"><div class="stat-label">Present Today</div><div class="stat-large">${escapeHtml(Object.keys(attMap).length)}</div></div>
                 <div class="card"><div class="stat-label">Pending Leaves</div><div class="stat-large">${escapeHtml((pending||[]).length)}</div></div>
                 <div class="card"><div class="stat-label">Late (30d)</div><div class="stat-large">${escapeHtml(s.late_records||0)}</div></div>
+            </div>
+
+            <div class="card">
+                <div class="team-header">
+                    <h3 style="font-size:20px;font-weight:700;">Dashboard Absensi Login / Logout</h3>
+                    <div class="actions">
+                        <button class="btn btn-primary" onclick="loadTodayAttendance()"><i class="ph ph-clock"></i> Buka Log Hari Ini</button>
+                    </div>
+                </div>
+                <div class="cards-row" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom:14px;">
+                    <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Sudah Login</div><div class="stat-large">${escapeHtml(checkedInToday)}</div></div>
+                    <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Sudah Logout</div><div class="stat-large">${escapeHtml(checkedOutToday)}</div></div>
+                    <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Masih Bekerja</div><div class="stat-large" style="color:var(--primary);">${escapeHtml(stillWorkingToday)}</div></div>
+                    <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Belum Login</div><div class="stat-large" style="color:var(--warning);">${escapeHtml(notCheckedInToday)}</div></div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>ID</th><th>Nama</th><th>Login</th><th>Logout</th><th>Status</th></tr></thead>
+                        <tbody>${loginLogoutRows}</tbody>
+                    </table>
+                </div>
             </div>
 
             <div class="card">
