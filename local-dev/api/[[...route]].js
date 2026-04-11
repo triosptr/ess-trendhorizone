@@ -111,9 +111,10 @@ function randomPassword(len) {
 async function deliverActivationEmail(toEmail, employeeName, passwordPlain, options) {
   const opt = options || {};
   const to = String(toEmail || '').trim().toLowerCase();
-  if (!to) return { sent: false, channel: 'none', message: 'Email tujuan kosong.' };
-  const apiKey = String(process.env.RESEND_API_KEY || '').trim();
+  if (!to) return { sent: false, channel: 'none', message: 'Email tujuan kosong.', debug: { to: to } };
+  const apiKey = String(process.env.RESEND_API_KEY || process.env.RESEND_KEY || process.env.EMAIL_RESEND_API_KEY || '').trim();
   const from = String(process.env.RESEND_FROM || 'ESS Trendhorizone <no-reply@trendhorizone.space>').trim();
+  const fallbackFrom = String(process.env.RESEND_FROM_FALLBACK || 'Trendhorizone ESS <onboarding@resend.dev>').trim();
   const appUrl = String(process.env.APP_BASE_URL || 'https://ess-trendhorizone-id.vercel.app').trim().replace(/\/+$/,'');
   const username = String(opt.username || to).trim().toLowerCase();
   const mode = String(opt.mode || 'activation').toLowerCase();
@@ -140,20 +141,33 @@ async function deliverActivationEmail(toEmail, employeeName, passwordPlain, opti
     + '</div>'
     + '</div>'
     + '</div>';
-  if (!apiKey) return { sent: false, channel: 'manual', message: 'RESEND_API_KEY belum diset.' };
-  try {
+  const keySource = process.env.RESEND_API_KEY ? 'RESEND_API_KEY' : (process.env.RESEND_KEY ? 'RESEND_KEY' : (process.env.EMAIL_RESEND_API_KEY ? 'EMAIL_RESEND_API_KEY' : 'none'));
+  if (!apiKey) return { sent: false, channel: 'manual', message: 'RESEND_API_KEY belum diset.', debug: { key_source: keySource, from: from, fallback_from: fallbackFrom, to: to } };
+  async function sendWithFrom(fromAddress) {
     const r = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: from, to: [to], subject: subject, html: html })
+      body: JSON.stringify({ from: fromAddress, to: [to], subject: subject, html: html })
     });
     const tx = await r.text();
     let data = null;
     try { data = JSON.parse(tx); } catch (_) { data = null; }
-    if (!r.ok) return { sent: false, channel: 'resend', message: 'Gagal kirim email aktivasi.', error: data || tx };
-    return { sent: true, channel: 'resend', provider_id: data && data.id ? data.id : '' };
+    return { ok: r.ok, status: r.status, data: data, raw: tx };
+  }
+  try {
+    const primary = await sendWithFrom(from);
+    if (primary.ok) return { sent: true, channel: 'resend', provider_id: primary.data && primary.data.id ? primary.data.id : '', sender: from, debug: { key_source: keySource, from: from, to: to, status: primary.status } };
+    const detailPrimary = primary.data && (primary.data.message || primary.data.error || primary.data.name) ? String(primary.data.message || primary.data.error || primary.data.name) : String(primary.raw || '');
+    const shouldFallback = /domain|sender|from|verify|validation|unauthor/i.test(detailPrimary) || primary.status === 401 || primary.status === 403 || primary.status === 422;
+    if (shouldFallback && fallbackFrom && fallbackFrom.toLowerCase() !== from.toLowerCase()) {
+      const secondary = await sendWithFrom(fallbackFrom);
+      if (secondary.ok) return { sent: true, channel: 'resend', provider_id: secondary.data && secondary.data.id ? secondary.data.id : '', sender: fallbackFrom, warning: 'Primary sender gagal, fallback sender dipakai.', debug: { key_source: keySource, from: from, fallback_from: fallbackFrom, to: to, primary_status: primary.status, fallback_status: secondary.status } };
+      const detailSecondary = secondary.data && (secondary.data.message || secondary.data.error || secondary.data.name) ? String(secondary.data.message || secondary.data.error || secondary.data.name) : String(secondary.raw || '');
+      return { sent: false, channel: 'resend', message: 'Gagal kirim email (primary & fallback sender).', error: 'Primary: ' + detailPrimary + ' | Fallback: ' + detailSecondary, sender: from, fallback_sender: fallbackFrom, debug: { key_source: keySource, from: from, fallback_from: fallbackFrom, to: to, primary_status: primary.status, fallback_status: secondary.status } };
+    }
+    return { sent: false, channel: 'resend', message: 'Gagal kirim email.', error: detailPrimary, sender: from, debug: { key_source: keySource, from: from, fallback_from: fallbackFrom, to: to, primary_status: primary.status } };
   } catch (e) {
-    return { sent: false, channel: 'resend', message: 'Error kirim email aktivasi.', error: String(e && e.message || e || '') };
+    return { sent: false, channel: 'resend', message: 'Error kirim email aktivasi.', error: String(e && e.message || e || ''), debug: { key_source: keySource, from: from, fallback_from: fallbackFrom, to: to } };
   }
 }
 async function getAuthCredByEmail(email) {
