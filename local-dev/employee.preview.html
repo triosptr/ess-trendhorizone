@@ -755,6 +755,11 @@
                     </div>
                     <button class="btn-icon-light" onclick="navTo('history', document.querySelectorAll('.menu-item')[2]); loadMyAttendanceHistory()"><i class="ph ph-clock-counter-clockwise"></i></button>
                 </div>
+                <div class="actions" style="margin-top:0;margin-bottom:12px;">
+                    ${canCheckIn ? '<button class="btn-signout" style="background:var(--primary);margin:0;" onclick="openCheckInCameraFlow()">Check In Now</button>' : ''}
+                    ${canCheckOut ? '<button class="btn-signout" style="margin:0;" onclick="openCheckOutModal()">Check Out</button>' : ''}
+                    ${(!canCheckIn && !canCheckOut) ? '<button class="btn-signout" style="margin:0;" disabled>Completed</button>' : ''}
+                </div>
                 
                 <div class="timer-display">
                     <div class="timer-value" id="digitalTimer">00:00:00</div>
@@ -791,10 +796,6 @@
                     ${canEndBreak ? '<button class="btn-outline-light" onclick="endBreak()" style="background:var(--warning);color:#fff;border:none;">End Break</button>' : ''}
                     ${(!canStartBreak && !canEndBreak) ? '<span style="font-weight:600;font-size:14px;">'+escapeHtml(today.break_duration_digital||'00:00:00')+'</span>' : ''}
                 </div>
-
-                ${canCheckIn ? '<button class="btn-signout" style="background:var(--primary);" onclick="openCheckInCameraFlow()">Check In Now</button>' : ''}
-                ${canCheckOut ? '<button class="btn-signout" onclick="openCheckOutModal()">Check Out</button>' : ''}
-                ${(!canCheckIn && !canCheckOut) ? '<button class="btn-signout" disabled>Completed</button>' : ''}
             </div>
         `;
 
