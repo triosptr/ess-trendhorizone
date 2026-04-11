@@ -116,6 +116,11 @@ async function deliverActivationEmail(toEmail, employeeName, passwordPlain, opti
   const from = String(process.env.RESEND_FROM || 'ESS Trendhorizone <no-reply@trendhorizone.space>').trim();
   const fallbackFrom = String(process.env.RESEND_FROM_FALLBACK || 'Trendhorizone ESS <onboarding@resend.dev>').trim();
   const appUrl = String(process.env.APP_BASE_URL || 'https://ess-trendhorizone-id.vercel.app').trim().replace(/\/+$/,'');
+  let autoFrom = '';
+  try {
+    const host = String(new URL(appUrl).hostname || '').trim().toLowerCase();
+    if (host) autoFrom = 'ESS Trendhorizone <no-reply@' + host + '>';
+  } catch (_) { autoFrom = ''; }
   const username = String(opt.username || to).trim().toLowerCase();
   const mode = String(opt.mode || 'activation').toLowerCase();
   const isResetLike = mode === 'reset' || mode === 'set';
@@ -155,19 +160,21 @@ async function deliverActivationEmail(toEmail, employeeName, passwordPlain, opti
     return { ok: r.ok, status: r.status, data: data, raw: tx };
   }
   try {
-    const primary = await sendWithFrom(from);
-    if (primary.ok) return { sent: true, channel: 'resend', provider_id: primary.data && primary.data.id ? primary.data.id : '', sender: from, debug: { key_source: keySource, from: from, to: to, status: primary.status } };
-    const detailPrimary = primary.data && (primary.data.message || primary.data.error || primary.data.name) ? String(primary.data.message || primary.data.error || primary.data.name) : String(primary.raw || '');
-    const shouldFallback = /domain|sender|from|verify|validation|unauthor/i.test(detailPrimary) || primary.status === 401 || primary.status === 403 || primary.status === 422;
-    if (shouldFallback && fallbackFrom && fallbackFrom.toLowerCase() !== from.toLowerCase()) {
-      const secondary = await sendWithFrom(fallbackFrom);
-      if (secondary.ok) return { sent: true, channel: 'resend', provider_id: secondary.data && secondary.data.id ? secondary.data.id : '', sender: fallbackFrom, warning: 'Primary sender gagal, fallback sender dipakai.', debug: { key_source: keySource, from: from, fallback_from: fallbackFrom, to: to, primary_status: primary.status, fallback_status: secondary.status } };
-      const detailSecondary = secondary.data && (secondary.data.message || secondary.data.error || secondary.data.name) ? String(secondary.data.message || secondary.data.error || secondary.data.name) : String(secondary.raw || '');
-      return { sent: false, channel: 'resend', message: 'Gagal kirim email (primary & fallback sender).', error: 'Primary: ' + detailPrimary + ' | Fallback: ' + detailSecondary, sender: from, fallback_sender: fallbackFrom, debug: { key_source: keySource, from: from, fallback_from: fallbackFrom, to: to, primary_status: primary.status, fallback_status: secondary.status } };
+    const senderCandidates = [from, autoFrom, fallbackFrom].filter(Boolean).filter(function(v, idx, arr) { return arr.findIndex(function(x) { return String(x).toLowerCase() === String(v).toLowerCase(); }) === idx; });
+    const attempts = [];
+    for (let i = 0; i < senderCandidates.length; i += 1) {
+      const sender = senderCandidates[i];
+      const rs = await sendWithFrom(sender);
+      const detail = rs.data && (rs.data.message || rs.data.error || rs.data.name) ? String(rs.data.message || rs.data.error || rs.data.name) : String(rs.raw || '');
+      attempts.push({ sender: sender, status: rs.status, detail: detail });
+      if (rs.ok) return { sent: true, channel: 'resend', provider_id: rs.data && rs.data.id ? rs.data.id : '', sender: sender, warning: i > 0 ? 'Sender fallback dipakai.' : '', debug: { key_source: keySource, from: from, auto_from: autoFrom, fallback_from: fallbackFrom, to: to, attempts: attempts } };
+      const retryable = /domain|sender|from|verify|validation|unauthor/i.test(detail) || rs.status === 401 || rs.status === 403 || rs.status === 422;
+      if (!retryable) break;
     }
-    return { sent: false, channel: 'resend', message: 'Gagal kirim email.', error: detailPrimary, sender: from, debug: { key_source: keySource, from: from, fallback_from: fallbackFrom, to: to, primary_status: primary.status } };
+    const compact = attempts.map(function(x) { return x.sender + ' => ' + x.detail; }).join(' | ');
+    return { sent: false, channel: 'resend', message: 'Gagal kirim email.', error: compact, sender: from, fallback_sender: fallbackFrom, debug: { key_source: keySource, from: from, auto_from: autoFrom, fallback_from: fallbackFrom, to: to, attempts: attempts } };
   } catch (e) {
-    return { sent: false, channel: 'resend', message: 'Error kirim email aktivasi.', error: String(e && e.message || e || ''), debug: { key_source: keySource, from: from, fallback_from: fallbackFrom, to: to } };
+    return { sent: false, channel: 'resend', message: 'Error kirim email aktivasi.', error: String(e && e.message || e || ''), debug: { key_source: keySource, from: from, auto_from: autoFrom, fallback_from: fallbackFrom, to: to } };
   }
 }
 async function getAuthCredByEmail(email) {
