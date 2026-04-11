@@ -53,14 +53,14 @@
     .user-name { font-weight: 600; font-size: 14px; }
     .user-role { font-size: 12px; color: var(--text-sec); }
     
-    .content-grid { display: grid; grid-template-columns: 1fr; gap: 24px; padding: 32px; overflow-y: auto; height: calc(100vh - 80px); }
-    .middle-col { display: flex; flex-direction: column; gap: 24px; }
+    .content-grid { display: grid; grid-template-columns: 1fr; gap: 20px; padding: clamp(18px, 2vw, 28px); overflow-y: auto; height: calc(100vh - 80px); }
+    .middle-col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
     
     .greeting h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }
     .greeting p { color: var(--text-sec); font-size: 15px; }
-    .cards-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 24px; }
+    .cards-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; align-items: stretch; }
     
-    .card { background-color: var(--card); border-radius: var(--radius-lg); border: 1px solid var(--border); box-shadow: var(--shadow-sm); padding: 24px; transition: box-shadow 0.3s ease, transform 0.3s ease; }
+    .card { background-color: var(--card); border-radius: var(--radius-lg); border: 1px solid var(--border); box-shadow: var(--shadow-sm); padding: 22px; transition: box-shadow 0.3s ease, transform 0.3s ease; }
     .card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
     
     .stat-large { font-size: 42px; font-weight: 800; color: var(--primary); line-height: 1; margin-bottom: 4px; letter-spacing: -0.02em; }
@@ -88,7 +88,7 @@
     .btn-secondary:hover { background: #E0E7FF; transform: translateY(-1px); }
     .btn-danger { background: var(--danger); color: #fff; }
     .btn-danger:hover { background: #DC2626; transform: translateY(-1px); }
-    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
     .muted { color: var(--text-sec); font-size: 14px; }
     .error { background: var(--danger-bg); color: var(--danger); border: 1px solid #fecaca; border-radius: var(--radius-sm); padding: 12px 14px; font-size: 14px; font-weight: 600; }
     .clean-list { list-style: none; display: flex; flex-direction: column; gap: 16px; }
