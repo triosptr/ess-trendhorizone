@@ -648,57 +648,54 @@
                     </div>
                 </div>
 
-                <div class="card team-card">
-                    <div class="team-header">
-                        <div class="team-stat">
-                            <div class="stat-large"><i class="ph ph-wallet"></i></div>
-                            <div class="stat-label">Payroll Snapshot</div>
+                <div class="cards-row">
+                    <div class="card team-card">
+                        <div class="team-header">
+                            <div class="team-stat">
+                                <div class="stat-large"><i class="ph ph-wallet"></i></div>
+                                <div class="stat-label">Payroll Snapshot</div>
+                            </div>
                         </div>
+                        <ul class="clean-list team-list">
+                            <li><div class="list-text"><span class="list-title">Total Slip</span><span class="list-desc">${escapeHtml((payrollSummary.summary||{}).total_docs||0)} dokumen</span></div></li>
+                            <li><div class="list-text"><span class="list-title">Slip Tahun Ini</span><span class="list-desc">${escapeHtml((payrollSummary.summary||{}).docs_this_year||0)} dokumen</span></div></li>
+                            <li><div class="list-text"><span class="list-title">THP Terbaru</span><span class="list-desc">${escapeHtml(moneyId((payrollSummary.summary||{}).latest_take_home_pay||0))}</span></div></li>
+                            <li><div class="list-text"><span class="list-title">Slip Terbaru</span><span class="list-desc">${escapeHtml((((payrollSummary.latest_doc||{}).bulan)||'-')+' '+(((payrollSummary.latest_doc||{}).tahun)||''))}</span></div><a class="btn btn-secondary" href="${escapeHtml(((payrollSummary.latest_doc||{}).file_url)||'#')}" target="_blank">Open</a></li>
+                        </ul>
+                        <div class="actions"><button class="btn btn-secondary" onclick="navTo('salary', document.querySelectorAll('.menu-item')[3]); loadMyPayrollDocs()">Open Salary Slips</button></div>
                     </div>
-                    <ul class="clean-list team-list">
-                        <li><div class="list-text"><span class="list-title">Total Slip</span><span class="list-desc">${escapeHtml((payrollSummary.summary||{}).total_docs||0)} dokumen</span></div></li>
-                        <li><div class="list-text"><span class="list-title">Slip Tahun Ini</span><span class="list-desc">${escapeHtml((payrollSummary.summary||{}).docs_this_year||0)} dokumen</span></div></li>
-                        <li><div class="list-text"><span class="list-title">THP Terbaru</span><span class="list-desc">${escapeHtml(moneyId((payrollSummary.summary||{}).latest_take_home_pay||0))}</span></div></li>
-                        <li><div class="list-text"><span class="list-title">Slip Terbaru</span><span class="list-desc">${escapeHtml((((payrollSummary.latest_doc||{}).bulan)||'-')+' '+(((payrollSummary.latest_doc||{}).tahun)||''))}</span></div><a class="btn btn-secondary" href="${escapeHtml(((payrollSummary.latest_doc||{}).file_url)||'#')}" target="_blank">Open</a></li>
-                    </ul>
-                    <div class="actions"><button class="btn btn-secondary" onclick="navTo('salary', document.querySelectorAll('.menu-item')[3]); loadMyPayrollDocs()">Open Salary Slips</button></div>
+                    <div class="card team-card">
+                        <div class="team-header">
+                            <div class="team-stat">
+                                <div class="stat-large"><i class="ph ph-clock-counter-clockwise"></i></div>
+                                <div class="stat-label">Recent Activity</div>
+                            </div>
+                        </div>
+                        <ul class="clean-list team-list">
+                            <li>
+                                <div class="icon-box" style="width:36px;height:36px;font-size:16px;"><i class="ph ph-sign-in"></i></div>
+                                <div class="list-text"><span class="list-title">Last Login</span><span class="list-desc">Today</span></div>
+                                <span class="status-badge on-time">Active</span>
+                            </li>
+                            <li>
+                                <div class="icon-box" style="width:36px;height:36px;font-size:16px;background:var(--warning-bg);color:var(--warning);"><i class="ph ph-coffee"></i></div>
+                                <div class="list-text"><span class="list-title">Total Break</span><span class="list-desc">${escapeHtml(today.break_duration_digital||'00:00:00')}</span></div>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
             </div>
 
-            <div class="cards-row bottom-row">
-                <!-- Activity Tabs -->
-                <div class="card todo-card">
-                    <div class="tab-nav">
-                        <button class="tab-btn active" onclick="switchTab(this, 'tab-announcements')">Announcements</button>
-                        <button class="tab-btn" onclick="switchTab(this, 'tab-notifs')">Notifications <span style="background:var(--danger);color:#fff;border-radius:10px;padding:2px 6px;font-size:10px;">${notif.total_unread||0}</span></button>
-                    </div>
-                    <div class="tab-content active" id="tab-announcements">
-                        <ul class="clean-list">${renderNotifRows(announcements, 'ph-megaphone')}</ul>
-                    </div>
-                    <div class="tab-content" id="tab-notifs">
-                        <ul class="clean-list">${renderNotifRows(notifications.slice(0,3), 'ph-bell')}</ul>
-                    </div>
+            <div class="card todo-card">
+                <div class="tab-nav">
+                    <button class="tab-btn active" onclick="switchTab(this, 'tab-announcements')">Announcements</button>
+                    <button class="tab-btn" onclick="switchTab(this, 'tab-notifs')">Notifications <span style="background:var(--danger);color:#fff;border-radius:10px;padding:2px 6px;font-size:10px;">${notif.total_unread||0}</span></button>
                 </div>
-
-                <!-- Recent Attendance -->
-                <div class="card team-card">
-                    <div class="team-header">
-                        <div class="team-stat">
-                            <div class="stat-large"><i class="ph ph-clock-counter-clockwise"></i></div>
-                            <div class="stat-label">Recent Activity</div>
-                        </div>
-                    </div>
-                    <ul class="clean-list team-list">
-                        <li>
-                            <div class="icon-box" style="width:36px;height:36px;font-size:16px;"><i class="ph ph-sign-in"></i></div>
-                            <div class="list-text"><span class="list-title">Last Login</span><span class="list-desc">Today</span></div>
-                            <span class="status-badge on-time">Active</span>
-                        </li>
-                        <li>
-                            <div class="icon-box" style="width:36px;height:36px;font-size:16px;background:var(--warning-bg);color:var(--warning);"><i class="ph ph-coffee"></i></div>
-                            <div class="list-text"><span class="list-title">Total Break</span><span class="list-desc">${escapeHtml(today.break_duration_digital||'00:00:00')}</span></div>
-                        </li>
-                    </ul>
+                <div class="tab-content active" id="tab-announcements">
+                    <ul class="clean-list">${renderNotifRows(announcements, 'ph-megaphone')}</ul>
+                </div>
+                <div class="tab-content" id="tab-notifs">
+                    <ul class="clean-list">${renderNotifRows(notifications.slice(0,3), 'ph-bell')}</ul>
                 </div>
             </div>
 
