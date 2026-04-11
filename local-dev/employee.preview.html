@@ -456,7 +456,7 @@
     }
     function hdr(){
       resolveIdentity();
-      return { 'Content-Type':'application/json', 'x-user-email':localStorage.getItem('ess_user_email')||localStorage.getItem('ess_demo_email')||'demo@contoh.com', 'x-employee-id':localStorage.getItem('ess_employee_id')||localStorage.getItem('ess_demo_employee_id')||'EMP_DEMO_001', 'x-user-role':localStorage.getItem('ess_user_role')||'employee' };
+      return { 'Content-Type':'application/json', 'x-user-email':localStorage.getItem('ess_user_email')||localStorage.getItem('ess_demo_email')||'demo@contoh.com', 'x-employee-id':localStorage.getItem('ess_employee_id')||localStorage.getItem('ess_demo_employee_id')||'EMP_DEMO_001', 'x-user-role':localStorage.getItem('ess_user_role')||'employee', 'Authorization':'Bearer '+sessionToken() };
     }
     function base(){ return localStorage.getItem('ess_api_base') || 'https://ess-2026-trendhorizone-id.vercel.app'; }
     async function api(path,method,body){ const r=await fetch(base()+path,{method:method||'GET',headers:hdr(),body:body?JSON.stringify(body):undefined}); const tx=await r.text(); let d=tx; try{d=JSON.parse(tx);}catch(e){} if(!r.ok){ const err=new Error((d&&d.message)||'Request failed'); err.status=r.status; err.path=path; throw err; } return d; }

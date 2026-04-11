@@ -948,12 +948,35 @@ async function auditLog(userEmail, aksi, modul, detail, ipInfo) {
 }
 
 function userCtx(req) {
+  if (req && req._session_user && req._session_user.email) {
+    return {
+      email: String(req._session_user.email || '').trim().toLowerCase(),
+      employee_id: String(req._session_user.employee_id || '').trim(),
+      role: String(req._session_user.role || 'employee').trim().toLowerCase()
+    };
+  }
   const q = req.query || {};
   return {
     email: String(req.headers['x-user-email'] || q.email || '').trim().toLowerCase(),
     employee_id: String(req.headers['x-employee-id'] || q.employee_id || '').trim(),
     role: String(req.headers['x-user-role'] || q.role || 'employee').trim().toLowerCase()
   };
+}
+async function attachSessionUser(req) {
+  const token = bearerToken(req) || String((req.query || {}).session_token || '').trim();
+  if (!token) return null;
+  const sess = await readSession(token);
+  if (!sess) return null;
+  const r = await db('GET', 'employees', { select: 'employee_id,email,role', employee_id: 'eq.' + String(sess.employee_id || ''), limit: 1 });
+  if (!r.ok) return null;
+  const row = Array.isArray(r.data) && r.data[0] ? r.data[0] : null;
+  if (!row) return null;
+  req._session_user = {
+    email: String(row.email || '').trim().toLowerCase(),
+    employee_id: String(row.employee_id || '').trim(),
+    role: String(row.role || 'employee').trim().toLowerCase()
+  };
+  return req._session_user;
 }
 
 function requireUser(req, res) {
@@ -1085,6 +1108,11 @@ module.exports = async function handler(req, res) {
 
     if (path === 'health' && method === 'GET') {
       return json(res, 200, { ok: true, service: 'ess-trendhorizone-api', supabase_ready: !!env(), timestamp: nowIso() });
+    }
+    const needsSession = path.startsWith('me/') || path.startsWith('admin/');
+    if (needsSession) {
+      const su = await attachSessionUser(req);
+      if (!su) return json(res, 401, { ok: false, message: 'Session login tidak valid. Silakan login kembali.' });
     }
 
     if (path === 'auth/login' && method === 'POST') {
