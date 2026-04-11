@@ -365,7 +365,7 @@
       const j=await r.json();
       if(!r.ok||!j.authenticated||!j.user){ localStorage.removeItem('ess_session_token'); location.href='/login'; return false; }
       const user=j.user||{};
-      if(!String(user.role||'').match(/admin|superadmin/i)){ location.href='/employee'; return false; }
+      if(!String(user.role||'').match(/admin|superadmin|manager/i)){ location.href='/employee'; return false; }
       localStorage.setItem('ess_admin_email',user.email||'');
       localStorage.setItem('ess_admin_role',user.role||'admin');
       localStorage.setItem('ess_user_email',user.email||'');

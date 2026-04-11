@@ -78,7 +78,13 @@
     </div>
   </div>
   <script>
-    const apiBase=(localStorage.getItem('ess_api_base')||'https://ess-2026-trendhorizone-id.vercel.app').replace(/\/+$/,'');
+    const apiBase=(function(){
+      const saved=String(localStorage.getItem('ess_api_base')||'').trim();
+      if(saved) return saved.replace(/\/+$/,'');
+      const host=String(location.hostname||'').toLowerCase();
+      if(host==='localhost'||host==='127.0.0.1') return 'https://ess-trendhorizone-id.vercel.app';
+      return String(location.origin||'https://ess-trendhorizone-id.vercel.app').replace(/\/+$/,'');
+    })();
     const $=id=>document.getElementById(id);
     function show(t,ok){ const m=$('msg'); m.className='msg '+(ok?'ok':'err'); m.textContent=t; m.style.display='block'; }
     async function sessionMe(token){ const r=await fetch(apiBase+'/api/auth/session/me',{headers:{Authorization:'Bearer '+token}}); return r.json(); }

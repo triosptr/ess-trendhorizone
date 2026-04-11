@@ -96,7 +96,7 @@ function hms() {
   return p.hour + ':' + p.minute + ':' + p.second;
 }
 function rid(prefix) { return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
-function roleAdmin(role) { const v = String(role || '').toLowerCase(); return v === 'superadmin' || v === 'admin'; }
+function roleAdmin(role) { const v = String(role || '').toLowerCase(); return v === 'superadmin' || v === 'admin' || v === 'manager'; }
 function hashSha256(v) { return crypto.createHash('sha256').update(String(v || '')).digest('hex'); }
 function authCredKey(email) { return 'AUTH_CRED_' + hashSha256(String(email || '').trim().toLowerCase()).slice(0, 24); }
 function authSessionKey(token) { return 'AUTH_SESSION_' + String(token || '').trim(); }
@@ -1142,7 +1142,7 @@ module.exports = async function handler(req, res) {
       return json(res, 200, {
         ok: true,
         authenticated: true,
-        user: Object.assign({}, user, { photo_url: String(extra.photo_url || '') }),
+        user: Object.assign({}, user, { photo_url: String(extra.photo_url || ''), is_admin: roleAdmin(user.role) }),
         first_login_required: !!(cred && (cred.must_change_password === true || String(cred.first_login_required).toLowerCase() === 'true')),
         session_expires_at: String(sess.expires_at || '')
       });
@@ -1871,7 +1871,7 @@ module.exports = async function handler(req, res) {
         created_at: nowIso(),
         updated_at: nowIso()
       };
-      const allowedRoles = ['employee', 'admin', 'superadmin'];
+      const allowedRoles = ['employee', 'admin', 'superadmin', 'manager'];
       const allowedStatus = ['Tetap', 'Kontrak', 'Magang', 'Probation', 'Outsource'];
       if (!payload.email || !payload.nama) return json(res, 400, { ok: false, message: 'email dan nama wajib diisi.' });
       if (!isValidEmail(payload.email)) return json(res, 400, { ok: false, message: 'Format email tidak valid.' });
@@ -1950,7 +1950,7 @@ module.exports = async function handler(req, res) {
       }
       if (b.no_hp !== undefined) patch.no_hp = String(b.no_hp || '').trim();
       if (b.alamat !== undefined) patch.alamat = String(b.alamat || '').trim();
-      const allowedRoles = ['employee', 'admin', 'superadmin'];
+      const allowedRoles = ['employee', 'admin', 'superadmin', 'manager'];
       const allowedStatus = ['Tetap', 'Kontrak', 'Magang', 'Probation', 'Outsource'];
       if (patch.email !== undefined && patch.email && !isValidEmail(patch.email)) return json(res, 400, { ok: false, message: 'Format email tidak valid.' });
       if (patch.role !== undefined && !allowedRoles.includes(patch.role)) return json(res, 400, { ok: false, message: 'Role tidak valid.' });
