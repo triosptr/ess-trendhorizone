@@ -91,7 +91,8 @@
       for(const b of uniq){
         try{
           const r=await fetch(b+'/api/health',{method:'GET'});
-          if(r.ok){
+          const j=await r.json().catch(()=>({}));
+          if(r.ok&&j&&j.supabase_ready===true){
             localStorage.setItem('ess_api_base',b);
             return b;
           }
