@@ -665,6 +665,63 @@ function normalizeApiErrorMessage(err, fallback) {
   if (err.message) return String(err.message);
   return String(fallback || 'Request failed');
 }
+function protectedEmployeeIds() {
+  const fromEnv = String(process.env.PROTECTED_EMPLOYEE_IDS || '').split(',').map(function(x) { return String(x || '').trim(); }).filter(Boolean);
+  const defaults = ['EMP_ADMIN_001'];
+  return Array.from(new Set(defaults.concat(fromEnv)));
+}
+function protectedEmployeeEmails() {
+  const fromEnv = String(process.env.PROTECTED_EMPLOYEE_EMAILS || '').split(',').map(function(x) { return String(x || '').trim().toLowerCase(); }).filter(Boolean);
+  const defaults = ['admin@company.com'];
+  return Array.from(new Set(defaults.concat(fromEnv)));
+}
+function authResetRateKey(employeeId) {
+  return 'AUTH_RESET_RATE_' + String(employeeId || '').trim();
+}
+async function consumeResetRateLimit(employeeId, actorEmail) {
+  const id = String(employeeId || '').trim();
+  if (!id) return { ok: false, message: 'employee_id wajib diisi.' };
+  const key = authResetRateKey(id);
+  const now = Date.now();
+  const windowMs = 15 * 60 * 1000;
+  const maxCount = 3;
+  const cur = await db('GET', 'config', { select: 'value', key: 'eq.' + key, limit: 1 });
+  let rec = { window_start: now, count: 0, updated_by: String(actorEmail || ''), updated_at: nowIso() };
+  if (cur.ok && Array.isArray(cur.data) && cur.data[0] && cur.data[0].value) {
+    const old = safeJsonParse(cur.data[0].value, {});
+    const ws = Number(old.window_start || 0);
+    const cnt = Number(old.count || 0);
+    if (ws > 0 && now - ws < windowMs) rec = { window_start: ws, count: cnt, updated_by: String(old.updated_by || ''), updated_at: String(old.updated_at || '') };
+  }
+  if (rec.count >= maxCount && now - rec.window_start < windowMs) {
+    return { ok: false, message: 'Reset password terlalu sering. Coba lagi beberapa menit.', retry_seconds: Math.max(1, Math.ceil((windowMs - (now - rec.window_start)) / 1000)) };
+  }
+  rec.count = (now - rec.window_start >= windowMs) ? 1 : (rec.count + 1);
+  if (now - rec.window_start >= windowMs) rec.window_start = now;
+  rec.updated_by = String(actorEmail || '');
+  rec.updated_at = nowIso();
+  await db('POST', 'config', { on_conflict: 'key' }, { key: key, value: JSON.stringify(rec) }, { Prefer: 'resolution=merge-duplicates,return=minimal' });
+  return { ok: true, remaining: Math.max(0, maxCount - rec.count) };
+}
+async function recordActivationDelivery(employeeId, email, passwordPlain, delivery, mode, actorEmail) {
+  const id = String(employeeId || '').trim();
+  const mail = String(email || '').trim().toLowerCase();
+  const d = delivery || {};
+  const payload = {
+    to: mail,
+    activation_password: String(passwordPlain || ''),
+    created_at: nowIso(),
+    mode: String(mode || 'activation'),
+    sent_via: d.channel || 'manual',
+    sent: !!d.sent,
+    sender: String(d.sender || ''),
+    provider_id: String(d.provider_id || ''),
+    warning: String(d.warning || ''),
+    error: d.sent ? '' : String(d.error || d.message || '')
+  };
+  await db('POST', 'config', { on_conflict: 'key' }, { key: 'AUTH_ACTIVATION_OUTBOX_' + id, value: JSON.stringify(payload) }, { Prefer: 'resolution=merge-duplicates,return=minimal' });
+  await db('POST', 'config', null, { key: 'AUTH_EMAIL_AUDIT_' + id + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6), value: JSON.stringify(Object.assign({}, payload, { actor: String(actorEmail || ''), debug: d.debug || null })) }, { Prefer: 'return=minimal' });
+}
 async function createEmployeeWithActivation(payload, options) {
   const opts = options || {};
   const val = employeePayloadValidationMessage(payload);
@@ -685,7 +742,7 @@ async function createEmployeeWithActivation(payload, options) {
     password_last_set_at: nowIso()
   });
   const delivery = await deliverActivationEmail(payload.email, payload.nama, activationPassword, { username: payload.email, mode: 'activation' });
-  await db('POST', 'config', { on_conflict: 'key' }, { key: 'AUTH_ACTIVATION_OUTBOX_' + payload.employee_id, value: JSON.stringify({ to: payload.email, activation_password: activationPassword, created_at: nowIso(), sent_via: delivery.channel || 'manual', sent: !!delivery.sent, provider_id: String(delivery.provider_id || ''), error: delivery.sent ? '' : String(delivery.message || '') }) }, { Prefer: 'resolution=merge-duplicates,return=minimal' });
+  await recordActivationDelivery(payload.employee_id, payload.email, activationPassword, delivery, 'activation', String(opts.actor_email || ''));
   return {
     ok: true,
     message: delivery.sent ? 'Employee berhasil ditambahkan. Password aktivasi terkirim ke email.' : 'Employee berhasil ditambahkan. Password aktivasi dibuat, kirim manual jika email belum aktif.',
@@ -694,7 +751,7 @@ async function createEmployeeWithActivation(payload, options) {
     data: ins.data
   };
 }
-async function deleteEmployeeCompletely(employeeId, actorEmail, ip) {
+async function deleteEmployeeCompletely(employeeId, actorEmail, ip, actorEmployeeId) {
   const id = String(employeeId || '').trim();
   if (!id) return { ok: false, status: 400, message: 'employee_id wajib diisi.' };
   const cur = await db('GET', 'employees', { select: 'employee_id,email,nama', employee_id: 'eq.' + id, limit: 1 });
@@ -702,6 +759,10 @@ async function deleteEmployeeCompletely(employeeId, actorEmail, ip) {
   const row = Array.isArray(cur.data) && cur.data[0] ? cur.data[0] : null;
   if (!row) return { ok: false, status: 404, message: 'Employee tidak ditemukan.' };
   const email = String(row.email || '').trim().toLowerCase();
+  const actorMail = String(actorEmail || '').trim().toLowerCase();
+  const actorEmp = String(actorEmployeeId || '').trim();
+  if ((actorEmp && actorEmp === id) || (actorMail && actorMail === email)) return { ok: false, status: 403, message: 'Tidak dapat menghapus akun yang sedang digunakan login.' };
+  if (protectedEmployeeIds().includes(id) || protectedEmployeeEmails().includes(email)) return { ok: false, status: 403, message: 'Akun protected tidak dapat dihapus.' };
   await db('DELETE', 'attendance', { employee_id: 'eq.' + id });
   await db('DELETE', 'leave_requests', { employee_id: 'eq.' + id });
   await db('DELETE', 'payroll_docs', { employee_id: 'eq.' + id });
@@ -2147,6 +2208,11 @@ module.exports = async function handler(req, res) {
       if (!e.ok) return json(res, 500, { ok: false, message: 'Gagal ambil employee.', error: e.error });
       const row = Array.isArray(e.data) && e.data[0] ? e.data[0] : null;
       if (!row) return json(res, 404, { ok: false, message: 'Employee tidak ditemukan.' });
+      const actorEmp = String(a.employee_id || '').trim();
+      const actorMail = String(a.email || '').trim().toLowerCase();
+      if ((actorEmp && actorEmp === employeeId) || (actorMail && actorMail === String(row.email || '').trim().toLowerCase())) return json(res, 403, { ok: false, message: 'Tidak dapat reset password akun yang sedang digunakan login.' });
+      const rl = await consumeResetRateLimit(employeeId, a.email);
+      if (!rl.ok) return json(res, 429, { ok: false, message: rl.message, retry_seconds: rl.retry_seconds });
       const requestedPassword = String(b.new_password || '').trim();
       if (requestedPassword && requestedPassword.length < 8) return json(res, 400, { ok: false, message: 'Password minimal 8 karakter.' });
       const activationPassword = requestedPassword || randomPassword(10);
@@ -2159,9 +2225,28 @@ module.exports = async function handler(req, res) {
         password_last_set_at: nowIso()
       });
       const delivery = await deliverActivationEmail(String(row.email || ''), String(row.nama || ''), activationPassword, { username: String(row.email || ''), mode: requestedPassword ? 'set' : 'reset' });
-      await db('POST', 'config', { on_conflict: 'key' }, { key: 'AUTH_ACTIVATION_OUTBOX_' + employeeId, value: JSON.stringify({ to: String(row.email || ''), activation_password: activationPassword, created_at: nowIso(), sent_via: delivery.channel || 'manual', sent: !!delivery.sent, provider_id: String(delivery.provider_id || ''), error: delivery.sent ? '' : String(delivery.message || '') }) }, { Prefer: 'resolution=merge-duplicates,return=minimal' });
+      await recordActivationDelivery(employeeId, String(row.email || ''), activationPassword, delivery, requestedPassword ? 'set' : 'reset', a.email);
       await auditLog(a.email, 'UPDATE', 'auth', 'Reset password aktivasi ' + employeeId, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, { ok: true, message: delivery.sent ? 'Password aktivasi baru terkirim ke email.' : 'Password aktivasi baru dibuat. Kirim manual jika email belum aktif.', employee_id: employeeId, email: row.email, role: row.role, activation_password: activationPassword, activation_delivery: delivery });
+    }
+
+    if (path === 'admin/auth/activation/resend' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const employeeId = String(b.employee_id || '').trim();
+      if (!employeeId) return json(res, 400, { ok: false, message: 'employee_id wajib diisi.' });
+      const e = await db('GET', 'employees', { select: 'employee_id,email,nama,role', employee_id: 'eq.' + employeeId, limit: 1 });
+      if (!e.ok) return json(res, 500, { ok: false, message: 'Gagal ambil employee.', error: e.error });
+      const row = Array.isArray(e.data) && e.data[0] ? e.data[0] : null;
+      if (!row) return json(res, 404, { ok: false, message: 'Employee tidak ditemukan.' });
+      const out = await db('GET', 'config', { select: 'value', key: 'eq.' + 'AUTH_ACTIVATION_OUTBOX_' + employeeId, limit: 1 });
+      const outVal = out.ok && Array.isArray(out.data) && out.data[0] ? safeJsonParse(out.data[0].value, {}) : {};
+      const lastPassword = String(outVal.activation_password || '').trim();
+      if (!lastPassword) return json(res, 400, { ok: false, message: 'Tidak ada password aktivasi terakhir. Gunakan Reset Password terlebih dahulu.' });
+      const delivery = await deliverActivationEmail(String(row.email || ''), String(row.nama || ''), lastPassword, { username: String(row.email || ''), mode: 'resend' });
+      await recordActivationDelivery(employeeId, String(row.email || ''), lastPassword, delivery, 'resend', a.email);
+      await auditLog(a.email, 'UPDATE', 'auth', 'Resend activation email ' + employeeId, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, { ok: true, message: delivery.sent ? 'Email aktivasi berhasil dikirim ulang.' : 'Gagal kirim ulang email aktivasi.', employee_id: employeeId, email: row.email, activation_delivery: delivery });
     }
 
     if (path === 'admin/employees' && method === 'PATCH') {
@@ -2218,7 +2303,7 @@ module.exports = async function handler(req, res) {
       const a = requireAdmin(req, res); if (!a) return;
       const b = await readBody(req);
       const employeeId = String(b.employee_id || '').trim();
-      const del = await deleteEmployeeCompletely(employeeId, a.email, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      const del = await deleteEmployeeCompletely(employeeId, a.email, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''), a.employee_id);
       if (!del.ok) return json(res, Number(del.status || 500), { ok: false, message: del.message || 'Gagal hapus employee.', error: del.error });
       return json(res, 200, { ok: true, message: del.message, employee_id: del.employee_id, email: del.email, nama: del.nama });
     }
@@ -2233,7 +2318,7 @@ module.exports = async function handler(req, res) {
       const failed = [];
       for (let i = 0; i < uniqueIds.length; i += 1) {
         const id = uniqueIds[i];
-        const del = await deleteEmployeeCompletely(id, a.email, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+        const del = await deleteEmployeeCompletely(id, a.email, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''), a.employee_id);
         if (del.ok) deleted.push({ employee_id: id, email: del.email || '', nama: del.nama || '' });
         else failed.push({ employee_id: id, message: del.message || 'Gagal hapus employee.' });
       }

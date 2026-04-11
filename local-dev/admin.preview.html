@@ -959,6 +959,7 @@
               <button class="btn btn-secondary" onclick="showEmployeeDetail('${id}')">Detail</button>
               <button class="btn btn-primary" onclick="loadEditEmployeeForm('${id}')">Edit</button>
               <button class="btn btn-secondary" onclick="resetEmployeeActivationPassword('${id}')">Password</button>
+              <button class="btn btn-secondary" onclick="resendEmployeeActivation('${id}')">Resend Email</button>
               <button class="btn ${actionClass}" onclick="toggleEmployeeActive('${id}')">${actionLabel}</button>
               <button class="btn btn-danger" onclick="deleteEmployee('${id}')">Delete</button>
             </div>
@@ -1145,6 +1146,19 @@
         const sender=String(del.sender||'');
         const debug=del.debug?JSON.stringify(del.debug):'';
         alert('Password baru: '+pw+'\\nUsername: '+String(r.email||row.email||'')+'\\nStatus kirim email: '+(sent?'TERKIRIM':'BELUM TERKIRIM')+(sender?('\\nSender: '+sender):'')+(detail?('\\nDetail: '+detail):'')+(debug?('\\nDebug: '+debug):''));
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    async function resendEmployeeActivation(id){
+      try{
+        const row=employeeFindById(id); if(!row) throw new Error('Employee tidak ditemukan.');
+        if(!confirm('Kirim ulang email aktivasi terakhir untuk '+String(row.nama||row.employee_id)+'? Password tidak diubah.')) return;
+        const r=await api('/api/admin/auth/activation/resend','POST',{employee_id:row.employee_id});
+        const del=((r||{}).activation_delivery)||{};
+        const sent=!!del.sent;
+        const detail=String(del.message||del.error||'');
+        const sender=String(del.sender||'');
+        const debug=del.debug?JSON.stringify(del.debug):'';
+        alert('Kirim ulang email aktivasi: '+(sent?'TERKIRIM':'GAGAL')+'\\nUsername: '+String(r.email||row.email||'')+(sender?('\\nSender: '+sender):'')+(detail?('\\nDetail: '+detail):'')+(debug?('\\nDebug: '+debug):''));
       }catch(err){ setContent(renderError(err.message)); }
     }
     async function loadEditEmployeeForm(id){
