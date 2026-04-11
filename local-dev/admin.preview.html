@@ -330,12 +330,13 @@
         setLoading('Loading dashboard...');
         const todayDate=(new Date().toISOString().slice(0,10));
         const kpiStart=(new Date(Date.now()-29*24*60*60*1000).toISOString().slice(0,10));
-        const [emps,pending,ann,pay,today]=await Promise.all([
+        const [emps,pending,ann,pay,today,meToday]=await Promise.all([
           api('/api/admin/employees?limit=500').catch(()=>[]),
           api('/api/admin/leaves/pending').catch(()=>[]),
           api('/api/admin/announcements').catch(()=>[]),
           api('/api/admin/payroll-docs').catch(()=>[]),
-          api('/api/admin/attendance/today?tanggal='+todayDate).catch(()=>[])
+          api('/api/admin/attendance/today?tanggal='+todayDate).catch(()=>[]),
+          api('/api/me/attendance/today').catch(()=>({ tanggal:todayDate,jam_masuk:'',jam_keluar:'',break_active:false,break_duration_digital:'00:00:00',status:'Belum Absen' }))
         ]);
         
         let kpiErr='';
@@ -354,6 +355,10 @@
         const checkedOutToday=(today||[]).filter(function(r){ return !!r.jam_keluar; }).length;
         const notCheckedInToday=Math.max(0, activeEmployees.length-checkedInToday);
         const stillWorkingToday=Math.max(0, checkedInToday-checkedOutToday);
+        const adminCanCheckIn=!meToday.jam_masuk;
+        const adminCanCheckOut=!!meToday.jam_masuk && !meToday.jam_keluar;
+        const adminCanStartBreak=!!meToday.jam_masuk && !meToday.jam_keluar && !meToday.break_active;
+        const adminCanEndBreak=!!meToday.jam_masuk && !meToday.jam_keluar && !!meToday.break_active;
         const loginLogoutRows=(today||[]).slice().sort(function(a,b){
           const ta=String(a.jam_masuk||'00:00:00');
           const tb=String(b.jam_masuk||'00:00:00');
@@ -376,6 +381,26 @@
                 <div class="card"><div class="stat-label">Present Today</div><div class="stat-large">${escapeHtml(Object.keys(attMap).length)}</div></div>
                 <div class="card"><div class="stat-label">Pending Leaves</div><div class="stat-large">${escapeHtml((pending||[]).length)}</div></div>
                 <div class="card"><div class="stat-label">Late (30d)</div><div class="stat-large">${escapeHtml(s.late_records||0)}</div></div>
+            </div>
+
+            <div class="card">
+                <div class="team-header">
+                    <h3 style="font-size:20px;font-weight:700;">Absensi Admin (Pribadi)</h3>
+                    <div class="stat-label">${escapeHtml(formatDateDisplay(meToday.tanggal||todayDate)||todayDate)}</div>
+                </div>
+                <div class="cards-row" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom:14px;">
+                    <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Login</div><div class="stat-large">${escapeHtml(meToday.jam_masuk||'--:--')}</div></div>
+                    <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Logout</div><div class="stat-large">${escapeHtml(meToday.jam_keluar||'--:--')}</div></div>
+                    <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Break</div><div class="stat-large">${escapeHtml(meToday.break_duration_digital||'00:00:00')}</div></div>
+                    <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Status</div><div class="stat-large" style="font-size:20px;">${normalizeStatusBadge(meToday.status||'Belum Absen')}</div></div>
+                </div>
+                <div class="actions">
+                    ${adminCanCheckIn?'<button class="btn btn-primary" onclick="adminDoCheckIn()"><i class="ph ph-sign-in"></i> Check In</button>':''}
+                    ${adminCanCheckOut?'<button class="btn btn-primary" onclick="adminDoCheckOut()"><i class="ph ph-sign-out"></i> Check Out</button>':''}
+                    ${adminCanStartBreak?'<button class="btn btn-secondary" onclick="adminStartBreak()"><i class="ph ph-coffee"></i> Start Break</button>':''}
+                    ${adminCanEndBreak?'<button class="btn btn-secondary" onclick="adminEndBreak()"><i class="ph ph-coffee"></i> End Break</button>':''}
+                    ${(!adminCanCheckIn&&!adminCanCheckOut&&!adminCanStartBreak&&!adminCanEndBreak)?'<button class="btn btn-secondary" onclick="loadSummary()">Refresh</button>':''}
+                </div>
             </div>
 
             <div class="card">
@@ -457,6 +482,30 @@
             if(n.total_unread>0){b.style.display='flex';b.textContent=n.total_unread;}else{b.style.display='none';}
         }).catch(()=>{});
 
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    async function adminDoCheckIn(){
+      try{
+        await api('/api/me/attendance/check-in','POST',{ work_mode:'office', shift_karyawan:'PAGI', lokasi:'', catatan:'Admin check in', status:'Hadir' });
+        await loadSummary();
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    async function adminDoCheckOut(){
+      try{
+        await api('/api/me/attendance/check-out','POST',{ lokasi:'', catatan:'Admin check out', status:'Hadir' });
+        await loadSummary();
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    async function adminStartBreak(){
+      try{
+        await api('/api/me/attendance/break/start','POST',{});
+        await loadSummary();
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    async function adminEndBreak(){
+      try{
+        await api('/api/me/attendance/break/end','POST',{});
+        await loadSummary();
       }catch(err){ setContent(renderError(err.message)); }
     }
 
