@@ -2180,6 +2180,23 @@ module.exports = async function handler(req, res) {
       return json(res, 200, { ok: true, message: del.message, employee_id: del.employee_id, email: del.email, nama: del.nama });
     }
 
+    if (path === 'admin/employees/batch-delete' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const ids = Array.isArray(b.employee_ids) ? b.employee_ids : [];
+      const uniqueIds = Array.from(new Set(ids.map(function(x) { return String(x || '').trim(); }).filter(Boolean))).slice(0, 300);
+      if (!uniqueIds.length) return json(res, 400, { ok: false, message: 'employee_ids wajib diisi.' });
+      const deleted = [];
+      const failed = [];
+      for (let i = 0; i < uniqueIds.length; i += 1) {
+        const id = uniqueIds[i];
+        const del = await deleteEmployeeCompletely(id, a.email, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+        if (del.ok) deleted.push({ employee_id: id, email: del.email || '', nama: del.nama || '' });
+        else failed.push({ employee_id: id, message: del.message || 'Gagal hapus employee.' });
+      }
+      return json(res, 200, { ok: true, message: 'Batch delete selesai.', total: uniqueIds.length, deleted_count: deleted.length, failed_count: failed.length, deleted: deleted, failed: failed });
+    }
+
     if (path === 'admin/employees/detail' && method === 'GET') {
       const a = requireAdmin(req, res); if (!a) return;
       const employeeId = String(req.query.employee_id || '').trim();

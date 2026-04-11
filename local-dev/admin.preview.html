@@ -923,10 +923,13 @@
     let employeeRowsCache = [];
     let selectedEmployeeId = '';
     let selectedEmployeeDetail = null;
+    let selectedEmployeeIds = {};
     function employeeFindById(id){ return (employeeRowsCache||[]).find(function(r){ return String(r.employee_id||'')===String(id||''); }) || null; }
     function employeeFilters(){ return { q:String((document.getElementById('emp_filter_q')||{}).value||'').trim().toLowerCase(), role:String((document.getElementById('emp_filter_role')||{}).value||'').trim().toLowerCase(), status:String((document.getElementById('emp_filter_status')||{}).value||''), divisi:String((document.getElementById('emp_filter_divisi')||{}).value||'').trim().toLowerCase() }; }
     function employeeFilteredRows(){ const f=employeeFilters(); return (employeeRowsCache||[]).filter(function(r){ const text=(String(r.employee_id||'')+' '+String(r.email||'')+' '+String(r.nama||'')+' '+String(r.nik||'')+' '+String(r.divisi||'')+' '+String(r.jabatan||'')).toLowerCase(); const okQ=!f.q||text.indexOf(f.q)>=0; const okRole=!f.role||String(r.role||'').toLowerCase()===f.role; const active=String(r.is_active).toLowerCase()==='true'; const okStatus=!f.status||(f.status==='active'?active:!active); const okDiv=!f.divisi||String(r.divisi||'').toLowerCase()===f.divisi; return okQ&&okRole&&okStatus&&okDiv; }); }
-    async function loadAllEmployees(){ try{ setLoading('Memuat data karyawan...'); employeeRowsCache=await api('/api/admin/employees?limit=800'); selectedEmployeeDetail=null; renderEmployeeTable(); }catch(err){ setContent(renderError(err.message)); } }
+    async function loadAllEmployees(){ try{ setLoading('Memuat data karyawan...'); employeeRowsCache=await api('/api/admin/employees?limit=800'); selectedEmployeeDetail=null; selectedEmployeeIds={}; renderEmployeeTable(); }catch(err){ setContent(renderError(err.message)); } }
+    function toggleEmployeeSelect(id, checked){ const k=String(id||''); if(!k) return; if(checked) selectedEmployeeIds[k]=true; else delete selectedEmployeeIds[k]; }
+    function toggleEmployeeSelectVisible(checked){ (employeeFilteredRows()||[]).forEach(function(r){ const k=String(r.employee_id||''); if(!k) return; if(checked) selectedEmployeeIds[k]=true; else delete selectedEmployeeIds[k]; }); renderEmployeeTable(); }
     function renderEmployeeTable(){
       const divisions = Array.from(new Set((employeeRowsCache||[]).map(function(r){ return String(r.divisi||'').trim(); }).filter(Boolean))).sort();
       const current = employeeFilters();
@@ -936,12 +939,16 @@
         const v = String(d||'').toLowerCase();
         return `<option value="${escapeHtml(v)}" ${current.divisi===v?'selected':''}>${escapeHtml(d)}</option>`;
       }).join('');
+      const selectedCount=Object.keys(selectedEmployeeIds||{}).length;
+      const allVisibleSelected = (rows||[]).length>0 && (rows||[]).every(function(r){ return !!selectedEmployeeIds[String(r.employee_id||'')]; });
       const tableRows = (rows||[]).map(function(r){
         const id = escapeHtml(r.employee_id||'');
         const isActive = String(r.is_active).toLowerCase()==='true';
         const actionLabel = isActive ? 'Disable' : 'Enable';
         const actionClass = isActive ? 'btn-danger' : 'btn-secondary';
+        const checked = !!selectedEmployeeIds[String(r.employee_id||'')];
         return `<tr>
+          <td><input type="checkbox" ${checked?'checked':''} onchange="toggleEmployeeSelect('${id}',this.checked)"></td>
           <td><div style="font-weight:600;color:var(--text-main);">${escapeHtml(r.nama||'')}</div><div style="font-size:12px;color:var(--text-sec);">${id}</div></td>
           <td>${escapeHtml(r.email||'')}</td>
           <td>${escapeHtml(r.divisi||'-')}</td>
@@ -957,7 +964,7 @@
             </div>
           </td>
         </tr>`;
-      }).join('') || '<tr><td colspan="6">Tidak ada data</td></tr>';
+      }).join('') || '<tr><td colspan="7">Tidak ada data</td></tr>';
       
       const detailHtml = !detail ? '' : `<div class="card">
         <div class="team-header"><h3 style="font-size:20px;font-weight:700;">Employee Detail: ${escapeHtml(detail.nama||'-')}</h3><div class="stat-label">${escapeHtml(detail.employee_id||'-')}</div></div>
@@ -977,13 +984,15 @@
                 <div class="actions">
                     <button class="btn btn-primary" onclick="loadAddEmployeeForm()"><i class="ph ph-plus"></i> Add Employee</button>
                     <button class="btn btn-secondary" onclick="exportEmployeesCsv()"><i class="ph ph-file-csv"></i> Export</button>
+                    <button class="btn btn-secondary" onclick="toggleEmployeeSelectVisible(${allVisibleSelected?'false':'true'})">${allVisibleSelected?'Unselect Visible':'Select Visible'}</button>
+                    <button class="btn btn-danger" onclick="deleteSelectedEmployees()">Delete Selected (${selectedCount})</button>
                 </div>
             </div>
             <div class="grid-2">
               <div class="form-group"><label>Search</label><input id="emp_filter_q" placeholder="ID / Name / Email" value="${escapeHtml(current.q)}" oninput="renderEmployeeTable()"></div>
               <div class="form-group"><label>Division</label><select id="emp_filter_divisi" onchange="renderEmployeeTable()"><option value="">All Divisions</option>${divisionOptions}</select></div>
             </div>
-            <div class="table-wrap"><table><thead><tr><th>Employee</th><th>Email</th><th>Division</th><th>Position</th><th>Status</th><th>Actions</th></tr></thead><tbody>${tableRows}</tbody></table></div>
+            <div class="table-wrap"><table><thead><tr><th style="width:44px;">#</th><th>Employee</th><th>Email</th><th>Division</th><th>Position</th><th>Status</th><th>Actions</th></tr></thead><tbody>${tableRows}</tbody></table></div>
         </div>${detailHtml}${detailRichHtml}
       `);
     }
@@ -1015,6 +1024,22 @@
         alert('Employee berhasil dihapus: '+String(row.employee_id||''));
         selectedEmployeeId='';
         selectedEmployeeDetail=null;
+        await loadAllEmployees();
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    async function deleteSelectedEmployees(){
+      try{
+        const ids=Object.keys(selectedEmployeeIds||{});
+        if(!ids.length) throw new Error('Pilih employee yang ingin dihapus.');
+        if(!confirm('Hapus '+ids.length+' employee terpilih? Data terkait attendance/leave/payroll juga akan dibersihkan.')) return;
+        const res=await api('/api/admin/employees/batch-delete','POST',{employee_ids:ids});
+        const ok=Number((res||{}).deleted_count||0);
+        const fail=Number((res||{}).failed_count||0);
+        const errList=((res||{}).failed||[]).slice(0,10).map(function(x){ return String(x.employee_id||'-')+': '+String(x.message||'Gagal'); }).join('\n');
+        alert('Batch delete selesai. Berhasil: '+ok+' | Gagal: '+fail+(errList?('\n\nDetail gagal:\n'+errList):''));
+        selectedEmployeeId='';
+        selectedEmployeeDetail=null;
+        selectedEmployeeIds={};
         await loadAllEmployees();
       }catch(err){ setContent(renderError(err.message)); }
     }
