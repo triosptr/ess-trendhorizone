@@ -1103,6 +1103,10 @@ async function handleMeAttendanceCheckOut(req, res, user) {
 
 module.exports = async function handler(req, res) {
   try {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-user-email, x-user-role, x-employee-id');
+    if (String(req.method || '').toUpperCase() === 'OPTIONS') return json(res, 200, { ok: true });
     const path = routePath(req);
     const method = String(req.method || 'GET').toUpperCase();
 
