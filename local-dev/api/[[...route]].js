@@ -655,6 +655,28 @@ async function createEmployeeWithActivation(payload, options) {
     data: ins.data
   };
 }
+async function deleteEmployeeCompletely(employeeId, actorEmail, ip) {
+  const id = String(employeeId || '').trim();
+  if (!id) return { ok: false, status: 400, message: 'employee_id wajib diisi.' };
+  const cur = await db('GET', 'employees', { select: 'employee_id,email,nama', employee_id: 'eq.' + id, limit: 1 });
+  if (!cur.ok) return { ok: false, status: 500, message: 'Gagal validasi employee.', error: cur.error };
+  const row = Array.isArray(cur.data) && cur.data[0] ? cur.data[0] : null;
+  if (!row) return { ok: false, status: 404, message: 'Employee tidak ditemukan.' };
+  const email = String(row.email || '').trim().toLowerCase();
+  await db('DELETE', 'attendance', { employee_id: 'eq.' + id });
+  await db('DELETE', 'leave_requests', { employee_id: 'eq.' + id });
+  await db('DELETE', 'payroll_docs', { employee_id: 'eq.' + id });
+  await db('DELETE', 'employee_schedules', { employee_id: 'eq.' + id });
+  await db('DELETE', 'employees', { employee_id: 'eq.' + id });
+  if (email) {
+    await db('DELETE', 'notification_seen', { email: 'eq.' + email });
+    await db('DELETE', 'config', { key: 'eq.' + authCredKey(email) });
+  }
+  await db('DELETE', 'config', { key: 'eq.' + profileExtraKey(id) });
+  await db('DELETE', 'config', { key: 'eq.' + 'AUTH_ACTIVATION_OUTBOX_' + id });
+  await auditLog(actorEmail, 'DELETE', 'employees', 'Hapus employee ' + id + ' (' + email + ')', String(ip || ''));
+  return { ok: true, message: 'Employee berhasil dihapus.', employee_id: id, email: email, nama: String(row.nama || '') };
+}
 function toDataUrlFromFileObject(obj) {
   if (!obj || typeof obj !== 'object') return '';
   const base64 = String(obj.base64Data || '').trim();
@@ -2147,6 +2169,15 @@ module.exports = async function handler(req, res) {
       if (!Array.isArray(upd.data) || upd.data.length === 0) return json(res, 404, { ok: false, message: 'Employee tidak ditemukan.' });
       await auditLog(a.email, 'UPDATE', 'employees', 'Update employee ' + employeeId, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, { ok: true, message: 'Employee berhasil diperbarui.', data: upd.data });
+    }
+
+    if (path === 'admin/employees' && method === 'DELETE') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const employeeId = String(b.employee_id || '').trim();
+      const del = await deleteEmployeeCompletely(employeeId, a.email, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      if (!del.ok) return json(res, Number(del.status || 500), { ok: false, message: del.message || 'Gagal hapus employee.', error: del.error });
+      return json(res, 200, { ok: true, message: del.message, employee_id: del.employee_id, email: del.email, nama: del.nama });
     }
 
     if (path === 'admin/employees/detail' && method === 'GET') {

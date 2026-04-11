@@ -953,6 +953,7 @@
               <button class="btn btn-primary" onclick="loadEditEmployeeForm('${id}')">Edit</button>
               <button class="btn btn-secondary" onclick="resetEmployeeActivationPassword('${id}')">Password</button>
               <button class="btn ${actionClass}" onclick="toggleEmployeeActive('${id}')">${actionLabel}</button>
+              <button class="btn btn-danger" onclick="deleteEmployee('${id}')">Delete</button>
             </div>
           </td>
         </tr>`;
@@ -1004,6 +1005,19 @@
       const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='employees_export.csv'; a.click(); URL.revokeObjectURL(url);
     }
     async function toggleEmployeeActive(id){ try{ const row=employeeFindById(id); if(!row) throw new Error('Not found'); const next=String(row.is_active).toLowerCase()!=='true'; await api('/api/admin/employees','PATCH',{employee_id:row.employee_id,is_active:next}); await loadAllEmployees(); selectedEmployeeId=row.employee_id; }catch(err){ setContent(renderError(err.message)); } }
+    async function deleteEmployee(id){
+      try{
+        const row=employeeFindById(id);
+        if(!row) throw new Error('Employee tidak ditemukan.');
+        const label=String(row.nama||row.employee_id||'');
+        if(!confirm('Hapus employee '+label+'? Data terkait attendance/leave/payroll akan ikut dibersihkan.')) return;
+        await api('/api/admin/employees','DELETE',{employee_id:row.employee_id});
+        alert('Employee berhasil dihapus: '+String(row.employee_id||''));
+        selectedEmployeeId='';
+        selectedEmployeeDetail=null;
+        await loadAllEmployees();
+      }catch(err){ setContent(renderError(err.message)); }
+    }
     let employeeMasterData={ divisions:[], positions:[] };
     async function loadEmployeeMasterData(){
       const [divisions,positions]=await Promise.all([
