@@ -518,6 +518,140 @@ async function validateDivisionAndPosition(divisi, jabatan) {
   if (String(posRow.division_id || '').trim() && String(posRow.division_id || '').trim() !== String(divRow.division_id || '').trim()) return { ok: false, message: 'Jabatan tidak sesuai dengan divisi terpilih.' };
   return { ok: true };
 }
+function parseCsvTextRows(csvText) {
+  const src = String(csvText || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let inQuotes = false;
+  for (let i = 0; i < src.length; i += 1) {
+    const ch = src[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (src[i + 1] === '"') {
+          cell += '"';
+          i += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cell += ch;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inQuotes = true;
+      continue;
+    }
+    if (ch === ',') {
+      row.push(cell);
+      cell = '';
+      continue;
+    }
+    if (ch === '\n') {
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = '';
+      continue;
+    }
+    cell += ch;
+  }
+  row.push(cell);
+  rows.push(row);
+  while (rows.length && rows[rows.length - 1].every(function(c) { return String(c || '').trim() === ''; })) rows.pop();
+  return rows;
+}
+function csvRowsToObjects(csvText) {
+  const matrix = parseCsvTextRows(csvText);
+  if (!matrix.length) return [];
+  const headers = (matrix[0] || []).map(function(h) { return String(h || '').replace(/^\uFEFF/, '').trim(); });
+  const out = [];
+  for (let i = 1; i < matrix.length; i += 1) {
+    const row = matrix[i] || [];
+    const obj = {};
+    let hasValue = false;
+    headers.forEach(function(key, idx) {
+      if (!key) return;
+      const val = row[idx] === undefined ? '' : row[idx];
+      if (String(val || '').trim() !== '') hasValue = true;
+      obj[key] = val;
+    });
+    if (hasValue) out.push(obj);
+  }
+  return out;
+}
+function toBoolDefaultTrue(v) {
+  if (v === undefined || v === null || String(v).trim() === '') return true;
+  return String(v).toLowerCase() === 'true' || v === true || String(v) === '1';
+}
+function employeePayloadFromInput(input) {
+  const b = input || {};
+  return {
+    employee_id: String(b.employee_id || rid('EMP')).trim(),
+    email: String(b.email || '').trim().toLowerCase(),
+    nama: String(b.nama || '').trim(),
+    nik: String(b.nik || '').trim(),
+    divisi: String(b.divisi || '').trim(),
+    jabatan: String(b.jabatan || '').trim(),
+    atasan_email: String(b.atasan_email || '').trim().toLowerCase(),
+    status_karyawan: String(b.status_karyawan || 'Tetap').trim(),
+    tanggal_masuk: b.tanggal_masuk || null,
+    jatah_cuti: Number(b.jatah_cuti || 12),
+    sisa_cuti: Number(b.sisa_cuti || b.jatah_cuti || 12),
+    role: String(b.role || 'employee').trim().toLowerCase(),
+    is_active: toBoolDefaultTrue(b.is_active),
+    no_hp: String(b.no_hp || '').trim(),
+    alamat: String(b.alamat || '').trim(),
+    created_at: nowIso(),
+    updated_at: nowIso()
+  };
+}
+function employeePayloadValidationMessage(payload) {
+  const allowedRoles = ['employee', 'admin', 'superadmin', 'manager'];
+  const allowedStatus = ['Tetap', 'Kontrak', 'Magang', 'Probation', 'Outsource'];
+  if (!payload.email || !payload.nama) return 'email dan nama wajib diisi.';
+  if (!isValidEmail(payload.email)) return 'Format email tidak valid.';
+  if (!allowedRoles.includes(payload.role)) return 'Role tidak valid.';
+  if (!allowedStatus.includes(payload.status_karyawan)) return 'Status karyawan tidak valid.';
+  if (!payload.tanggal_masuk || !isValidDateYmd(payload.tanggal_masuk)) return 'tanggal_masuk wajib format YYYY-MM-DD.';
+  if (Number(payload.jatah_cuti) < 0 || Number(payload.sisa_cuti) < 0) return 'Jatah/sisa cuti tidak boleh negatif.';
+  if (Number(payload.sisa_cuti) > Number(payload.jatah_cuti)) return 'Sisa cuti tidak boleh lebih besar dari jatah cuti.';
+  return '';
+}
+function normalizeApiErrorMessage(err, fallback) {
+  if (!err) return String(fallback || 'Request failed');
+  if (typeof err === 'string') return err;
+  if (Array.isArray(err) && err[0] && err[0].message) return String(err[0].message);
+  if (err.message) return String(err.message);
+  return String(fallback || 'Request failed');
+}
+async function createEmployeeWithActivation(payload) {
+  const val = employeePayloadValidationMessage(payload);
+  if (val) return { ok: false, status: 400, message: val };
+  const vdp = await validateDivisionAndPosition(payload.divisi, payload.jabatan);
+  if (!vdp.ok) return { ok: false, status: 400, message: vdp.message, error: vdp.error };
+  const ins = await db('POST', 'employees', null, payload, { Prefer: 'return=representation' });
+  if (!ins.ok) return { ok: false, status: 500, message: 'Gagal tambah employee.', error: ins.error };
+  const activationPassword = randomPassword(10);
+  await upsertAuthCred(payload.email, {
+    employee_id: payload.employee_id,
+    password_hash: hashSha256(activationPassword),
+    must_change_password: true,
+    first_login_required: true,
+    activation_sent_at: nowIso(),
+    password_last_set_at: nowIso()
+  });
+  const delivery = await deliverActivationEmail(payload.email, payload.nama, activationPassword);
+  await db('POST', 'config', { on_conflict: 'key' }, { key: 'AUTH_ACTIVATION_OUTBOX_' + payload.employee_id, value: JSON.stringify({ to: payload.email, activation_password: activationPassword, created_at: nowIso(), sent_via: delivery.channel || 'manual', sent: !!delivery.sent, provider_id: String(delivery.provider_id || ''), error: delivery.sent ? '' : String(delivery.message || '') }) }, { Prefer: 'resolution=merge-duplicates,return=minimal' });
+  return {
+    ok: true,
+    message: delivery.sent ? 'Employee berhasil ditambahkan. Password aktivasi terkirim ke email.' : 'Employee berhasil ditambahkan. Password aktivasi dibuat, kirim manual jika email belum aktif.',
+    activation_password: activationPassword,
+    activation_delivery: delivery,
+    data: ins.data
+  };
+}
 function toDataUrlFromFileObject(obj) {
   if (!obj || typeof obj !== 'object') return '';
   const base64 = String(obj.base64Data || '').trim();
@@ -1884,51 +2018,58 @@ module.exports = async function handler(req, res) {
     if (path === 'admin/employees' && method === 'POST') {
       const a = requireAdmin(req, res); if (!a) return;
       const b = await readBody(req);
-      const payload = {
-        employee_id: String(b.employee_id || rid('EMP')).trim(),
-        email: String(b.email || '').trim().toLowerCase(),
-        nama: String(b.nama || '').trim(),
-        nik: String(b.nik || '').trim(),
-        divisi: String(b.divisi || '').trim(),
-        jabatan: String(b.jabatan || '').trim(),
-        atasan_email: String(b.atasan_email || '').trim().toLowerCase(),
-        status_karyawan: String(b.status_karyawan || 'Tetap').trim(),
-        tanggal_masuk: b.tanggal_masuk || null,
-        jatah_cuti: Number(b.jatah_cuti || 12),
-        sisa_cuti: Number(b.sisa_cuti || b.jatah_cuti || 12),
-        role: String(b.role || 'employee').trim().toLowerCase(),
-        is_active: b.is_active === undefined ? true : String(b.is_active).toLowerCase() === 'true',
-        no_hp: String(b.no_hp || '').trim(),
-        alamat: String(b.alamat || '').trim(),
-        created_at: nowIso(),
-        updated_at: nowIso()
-      };
-      const allowedRoles = ['employee', 'admin', 'superadmin', 'manager'];
-      const allowedStatus = ['Tetap', 'Kontrak', 'Magang', 'Probation', 'Outsource'];
-      if (!payload.email || !payload.nama) return json(res, 400, { ok: false, message: 'email dan nama wajib diisi.' });
-      if (!isValidEmail(payload.email)) return json(res, 400, { ok: false, message: 'Format email tidak valid.' });
-      if (!allowedRoles.includes(payload.role)) return json(res, 400, { ok: false, message: 'Role tidak valid.' });
-      if (!allowedStatus.includes(payload.status_karyawan)) return json(res, 400, { ok: false, message: 'Status karyawan tidak valid.' });
-      if (!payload.tanggal_masuk || !isValidDateYmd(payload.tanggal_masuk)) return json(res, 400, { ok: false, message: 'tanggal_masuk wajib format YYYY-MM-DD.' });
-      if (Number(payload.jatah_cuti) < 0 || Number(payload.sisa_cuti) < 0) return json(res, 400, { ok: false, message: 'Jatah/sisa cuti tidak boleh negatif.' });
-      if (Number(payload.sisa_cuti) > Number(payload.jatah_cuti)) return json(res, 400, { ok: false, message: 'Sisa cuti tidak boleh lebih besar dari jatah cuti.' });
-      const vdp = await validateDivisionAndPosition(payload.divisi, payload.jabatan);
-      if (!vdp.ok) return json(res, 400, { ok: false, message: vdp.message, error: vdp.error });
-      const ins = await db('POST', 'employees', null, payload, { Prefer: 'return=representation' });
-      if (!ins.ok) return json(res, 500, { ok: false, message: 'Gagal tambah employee.', error: ins.error });
-      const activationPassword = randomPassword(10);
-      await upsertAuthCred(payload.email, {
-        employee_id: payload.employee_id,
-        password_hash: hashSha256(activationPassword),
-        must_change_password: true,
-        first_login_required: true,
-        activation_sent_at: nowIso(),
-        password_last_set_at: nowIso()
-      });
-      const delivery = await deliverActivationEmail(payload.email, payload.nama, activationPassword);
-      await db('POST', 'config', { on_conflict: 'key' }, { key: 'AUTH_ACTIVATION_OUTBOX_' + payload.employee_id, value: JSON.stringify({ to: payload.email, activation_password: activationPassword, created_at: nowIso(), sent_via: delivery.channel || 'manual', sent: !!delivery.sent, provider_id: String(delivery.provider_id || ''), error: delivery.sent ? '' : String(delivery.message || '') }) }, { Prefer: 'resolution=merge-duplicates,return=minimal' });
+      const payload = employeePayloadFromInput(b);
+      const created = await createEmployeeWithActivation(payload);
+      if (!created.ok) return json(res, Number(created.status || 500), { ok: false, message: created.message || 'Gagal tambah employee.', error: created.error });
       await auditLog(a.email, 'CREATE', 'employees', 'Tambah employee ' + payload.employee_id + ' (' + payload.email + ')', String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
-      return json(res, 200, { ok: true, message: delivery.sent ? 'Employee berhasil ditambahkan. Password aktivasi terkirim ke email.' : 'Employee berhasil ditambahkan. Password aktivasi dibuat, kirim manual jika email belum aktif.', activation_password: activationPassword, activation_delivery: delivery, data: ins.data });
+      return json(res, 200, { ok: true, message: created.message, activation_password: created.activation_password, activation_delivery: created.activation_delivery, data: created.data });
+    }
+
+    if (path === 'admin/employees/import-csv' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      let csvText = String(b.csv_text || '').trim();
+      if (!csvText && b.csv_base64) {
+        try { csvText = Buffer.from(String(b.csv_base64 || ''), 'base64').toString('utf8'); } catch (_) { csvText = ''; }
+      }
+      if (!csvText) return json(res, 400, { ok: false, message: 'File CSV kosong.' });
+      const rows = csvRowsToObjects(csvText);
+      if (!rows.length) return json(res, 400, { ok: false, message: 'Tidak ada baris data pada CSV.' });
+      const maxRows = Math.min(Number(b.max_rows || 1000), 1000);
+      const selected = rows.slice(0, maxRows);
+      const createdRows = [];
+      const failedRows = [];
+      for (let i = 0; i < selected.length; i += 1) {
+        const row = selected[i] || {};
+        const payload = employeePayloadFromInput(row);
+        const created = await createEmployeeWithActivation(payload);
+        if (created.ok) {
+          createdRows.push({
+            row_number: i + 2,
+            employee_id: payload.employee_id,
+            email: payload.email,
+            activation_password: created.activation_password,
+            activation_delivery: created.activation_delivery
+          });
+        } else {
+          failedRows.push({
+            row_number: i + 2,
+            employee_id: payload.employee_id || '',
+            email: payload.email || '',
+            message: normalizeApiErrorMessage(created.message || created.error, 'Gagal tambah employee.')
+          });
+        }
+      }
+      await auditLog(a.email, 'CREATE', 'employees', 'Import CSV employees total=' + String(selected.length) + ', sukses=' + String(createdRows.length) + ', gagal=' + String(failedRows.length), String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, {
+        ok: true,
+        message: 'Import CSV selesai.',
+        total_rows: selected.length,
+        created_count: createdRows.length,
+        failed_count: failedRows.length,
+        created: createdRows,
+        failed: failedRows
+      });
     }
 
     if (path === 'admin/auth/activation/reset' && method === 'POST') {
