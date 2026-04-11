@@ -1037,7 +1037,31 @@
       try{
         await loadEmployeeMasterData();
         const divOptions=(employeeMasterData.divisions||[]).map(function(d){ const v=String(d.nama_divisi||''); return '<option value="'+escapeHtml(v)+'">'+escapeHtml(v)+'</option>'; }).join('');
-        setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Add New Employee</h3></div><div class="grid-2"><div class="form-group"><label>Employee ID</label><input id="emp_id"></div><div class="form-group"><label>Email</label><input id="emp_email"></div><div class="form-group"><label>Nama</label><input id="emp_nama"></div><div class="form-group"><label>NIK</label><input id="emp_nik"></div><div class="form-group"><label>Role</label><select id="emp_role"><option value="employee">employee</option><option value="manager">manager</option><option value="admin">admin</option><option value="superadmin">superadmin</option></select></div><div class="form-group"><label>Status Karyawan</label><select id="emp_status"><option value="Tetap">Tetap</option><option value="Kontrak">Kontrak</option><option value="Magang">Magang</option><option value="Probation">Probation</option><option value="Outsource">Outsource</option></select></div><div class="form-group"><label>Tanggal Masuk</label><input id="emp_tanggal_masuk" type="date"></div><div class="form-group"><label>Divisi</label><select id="emp_divisi" onchange="syncEmployeePositionOptions(\'emp_divisi\',\'emp_jabatan\')"><option value="">-- Pilih Divisi --</option>'+divOptions+'</select></div><div class="form-group"><label>Jabatan</label><select id="emp_jabatan"><option value="">-- Pilih Jabatan --</option></select></div></div><div class="actions"><button class="btn btn-primary" onclick="submitAddEmployee()"><i class="ph ph-check"></i> Save</button><button class="btn btn-secondary" onclick="loadAllEmployees()">Cancel</button></div><div class="card" style="box-shadow:none;background:var(--bg);margin-top:16px;"><div class="team-header"><h3 style="font-size:18px;font-weight:700;">Import Employee via CSV</h3><div class="stat-label">Header CSV harus mengikuti kolom database employees</div></div><div class="form-group"><label>CSV File</label><input id="emp_csv_file" type="file" accept=".csv,text/csv"></div><div class="actions"><button class="btn btn-primary" onclick="submitAddEmployeeCsv()"><i class="ph ph-upload-simple"></i> Upload CSV</button></div></div></div>');
+        const html = ''+
+          '<div class="card">'+
+            '<div class="team-header"><h3 style="font-size:20px;font-weight:700;">Add New Employee</h3></div>'+
+            '<div class="grid-2">'+
+              '<div class="form-group"><label>Employee ID</label><input id="emp_id"></div>'+
+              '<div class="form-group"><label>Email</label><input id="emp_email"></div>'+
+              '<div class="form-group"><label>Nama</label><input id="emp_nama"></div>'+
+              '<div class="form-group"><label>NIK</label><input id="emp_nik"></div>'+
+              '<div class="form-group"><label>Role</label><select id="emp_role"><option value="employee">employee</option><option value="manager">manager</option><option value="admin">admin</option><option value="superadmin">superadmin</option></select></div>'+
+              '<div class="form-group"><label>Status Karyawan</label><select id="emp_status"><option value="Tetap">Tetap</option><option value="Kontrak">Kontrak</option><option value="Magang">Magang</option><option value="Probation">Probation</option><option value="Outsource">Outsource</option></select></div>'+
+              '<div class="form-group"><label>Tanggal Masuk</label><input id="emp_tanggal_masuk" type="date"></div>'+
+              '<div class="form-group"><label>Divisi</label><select id="emp_divisi" onchange="syncEmployeePositionOptions(\'emp_divisi\',\'emp_jabatan\')"><option value="">-- Pilih Divisi --</option>'+divOptions+'</select></div>'+
+              '<div class="form-group"><label>Jabatan</label><select id="emp_jabatan"><option value="">-- Pilih Jabatan --</option></select></div>'+
+            '</div>'+
+            '<div class="actions"><button class="btn btn-primary" onclick="submitAddEmployee()"><i class="ph ph-check"></i> Save</button><button class="btn btn-secondary" onclick="loadAllEmployees()">Cancel</button></div>'+
+            '<div class="card" style="box-shadow:none;background:var(--bg);margin-top:16px;">'+
+              '<div class="team-header"><h3 style="font-size:18px;font-weight:700;">Import Employee via CSV</h3><div class="stat-label">Header CSV harus mengikuti kolom database employees</div></div>'+
+              '<div class="form-group"><label>CSV File</label><input id="emp_csv_file" type="file" accept=".csv,text/csv"></div>'+
+              '<div class="actions">'+
+                '<button class="btn btn-primary" onclick="submitAddEmployeeCsv()"><i class="ph ph-upload-simple"></i> Upload CSV</button>'+
+                '<button class="btn btn-secondary" onclick="downloadEmployeeCsvTemplate()"><i class="ph ph-download-simple"></i> Download Template CSV</button>'+
+              '</div>'+
+            '</div>'+
+          '</div>';
+        setContent(html);
         syncEmployeePositionOptions('emp_divisi','emp_jabatan');
       }catch(err){ setContent(renderError(err.message)); }
     }
@@ -1055,6 +1079,18 @@
         alert('Import selesai. Sukses: '+ok+' | Gagal: '+fail+(errList?('\n\nDetail gagal:\n'+errList):''));
         await loadAllEmployees();
       }catch(err){ setContent(renderError(err.message)); }
+    }
+    function downloadEmployeeCsvTemplate(){
+      const csv='employee_id,email,nama,nik,divisi,jabatan,atasan_email,status_karyawan,tanggal_masuk,jatah_cuti,sisa_cuti,role,is_active,no_hp,alamat\nEMP_EXAMPLE_001,user@company.com,Nama Karyawan,12345678,System Admin,System Administrator,manager@company.com,Tetap,2026-01-01,12,12,employee,true,081234567890,Jl. Contoh No.1\n';
+      const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url;
+      a.download='employee_import_template.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
     }
     async function resetEmployeeActivationPassword(id){
       try{
