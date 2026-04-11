@@ -626,11 +626,14 @@ function normalizeApiErrorMessage(err, fallback) {
   if (err.message) return String(err.message);
   return String(fallback || 'Request failed');
 }
-async function createEmployeeWithActivation(payload) {
+async function createEmployeeWithActivation(payload, options) {
+  const opts = options || {};
   const val = employeePayloadValidationMessage(payload);
   if (val) return { ok: false, status: 400, message: val };
-  const vdp = await validateDivisionAndPosition(payload.divisi, payload.jabatan);
-  if (!vdp.ok) return { ok: false, status: 400, message: vdp.message, error: vdp.error };
+  if (!opts.skipDivisionValidation) {
+    const vdp = await validateDivisionAndPosition(payload.divisi, payload.jabatan);
+    if (!vdp.ok) return { ok: false, status: 400, message: vdp.message, error: vdp.error };
+  }
   const ins = await db('POST', 'employees', null, payload, { Prefer: 'return=representation' });
   if (!ins.ok) return { ok: false, status: 500, message: 'Gagal tambah employee.', error: ins.error };
   const activationPassword = randomPassword(10);
@@ -2042,7 +2045,7 @@ module.exports = async function handler(req, res) {
       for (let i = 0; i < selected.length; i += 1) {
         const row = selected[i] || {};
         const payload = employeePayloadFromInput(row);
-        const created = await createEmployeeWithActivation(payload);
+        const created = await createEmployeeWithActivation(payload, { skipDivisionValidation: true });
         if (created.ok) {
           createdRows.push({
             row_number: i + 2,
