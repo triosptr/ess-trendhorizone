@@ -108,26 +108,44 @@ function randomPassword(len) {
   for (let i = 0; i < size; i++) out += chars[Math.floor(Math.random() * chars.length)];
   return out;
 }
-async function deliverActivationEmail(toEmail, employeeName, passwordPlain) {
+async function deliverActivationEmail(toEmail, employeeName, passwordPlain, options) {
+  const opt = options || {};
   const to = String(toEmail || '').trim().toLowerCase();
   if (!to) return { sent: false, channel: 'none', message: 'Email tujuan kosong.' };
   const apiKey = String(process.env.RESEND_API_KEY || '').trim();
-  const from = String(process.env.RESEND_FROM || 'ESS Trend Horizon <no-reply@trendhorizon.co>').trim();
-  const appUrl = String(process.env.APP_BASE_URL || 'https://ess-2026-trendhorizone-id.vercel.app').trim().replace(/\/+$/,'');
-  const html = '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6;color:#0f172a;">'
-    + '<h2 style="margin:0 0 12px;">Aktivasi Akun ESS</h2>'
-    + '<p>Halo ' + String(employeeName || 'Karyawan') + ',</p>'
-    + '<p>Akun ESS Anda sudah dibuat. Berikut password awal untuk login pertama:</p>'
-    + '<p style="font-size:18px;font-weight:700;background:#f1f5f9;padding:10px 12px;border-radius:8px;display:inline-block;">' + String(passwordPlain || '') + '</p>'
-    + '<p>Link login: <a href="' + appUrl + '/login">' + appUrl + '/login</a></p>'
-    + '<p>Setelah login pertama, Anda wajib mengganti password dan melengkapi profile.</p>'
+  const from = String(process.env.RESEND_FROM || 'ESS Trendhorizone <no-reply@trendhorizone.space>').trim();
+  const appUrl = String(process.env.APP_BASE_URL || 'https://ess-trendhorizone-id.vercel.app').trim().replace(/\/+$/,'');
+  const username = String(opt.username || to).trim().toLowerCase();
+  const mode = String(opt.mode || 'activation').toLowerCase();
+  const isResetLike = mode === 'reset' || mode === 'set';
+  const title = isResetLike ? 'Reset Password Akun ESS' : 'Aktivasi Akun ESS';
+  const subject = isResetLike ? 'Reset Password Akun ESS - Trendhorizone Space' : 'Aktivasi Akun ESS - Trendhorizone Space';
+  const headline = isResetLike ? 'Password akun ESS Anda telah diperbarui' : 'Akun ESS Anda siap digunakan';
+  const html = '<div style="font-family:Inter,Arial,sans-serif;background:#f8fafc;padding:24px;color:#0f172a;">'
+    + '<div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;">'
+    + '<div style="padding:18px 20px;background:linear-gradient(135deg,#1d4ed8,#4f46e5);color:#fff;">'
+    + '<div style="font-size:18px;font-weight:800;letter-spacing:.2px;">Trendhorizone Space • Employee Self Service</div>'
+    + '<div style="font-size:12px;opacity:.92;margin-top:4px;">' + title + '</div>'
+    + '</div>'
+    + '<div style="padding:20px;">'
+    + '<p style="margin:0 0 10px;">Halo <b>' + String(employeeName || 'Karyawan') + '</b>,</p>'
+    + '<p style="margin:0 0 16px;">' + headline + '. Silakan login menggunakan kredensial berikut:</p>'
+    + '<table style="width:100%;border-collapse:collapse;margin-bottom:14px;">'
+    + '<tr><td style="width:140px;padding:10px;border:1px solid #e2e8f0;background:#f8fafc;">Username</td><td style="padding:10px;border:1px solid #e2e8f0;"><b>' + username + '</b></td></tr>'
+    + '<tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;">Password</td><td style="padding:10px;border:1px solid #e2e8f0;"><b>' + String(passwordPlain || '') + '</b></td></tr>'
+    + '<tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;">Login URL</td><td style="padding:10px;border:1px solid #e2e8f0;"><a href="' + appUrl + '/login">' + appUrl + '/login</a></td></tr>'
+    + '</table>'
+    + '<p style="margin:0 0 8px;">Untuk keamanan akun, setelah login segera ubah password Anda.</p>'
+    + '<p style="margin:0;color:#64748b;font-size:12px;">Email ini dikirim otomatis oleh sistem ESS ' + appUrl + '.</p>'
+    + '</div>'
+    + '</div>'
     + '</div>';
   if (!apiKey) return { sent: false, channel: 'manual', message: 'RESEND_API_KEY belum diset.' };
   try {
     const r = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: from, to: [to], subject: 'Aktivasi Akun ESS', html: html })
+      body: JSON.stringify({ from: from, to: [to], subject: subject, html: html })
     });
     const tx = await r.text();
     let data = null;
@@ -645,7 +663,7 @@ async function createEmployeeWithActivation(payload, options) {
     activation_sent_at: nowIso(),
     password_last_set_at: nowIso()
   });
-  const delivery = await deliverActivationEmail(payload.email, payload.nama, activationPassword);
+  const delivery = await deliverActivationEmail(payload.email, payload.nama, activationPassword, { username: payload.email, mode: 'activation' });
   await db('POST', 'config', { on_conflict: 'key' }, { key: 'AUTH_ACTIVATION_OUTBOX_' + payload.employee_id, value: JSON.stringify({ to: payload.email, activation_password: activationPassword, created_at: nowIso(), sent_via: delivery.channel || 'manual', sent: !!delivery.sent, provider_id: String(delivery.provider_id || ''), error: delivery.sent ? '' : String(delivery.message || '') }) }, { Prefer: 'resolution=merge-duplicates,return=minimal' });
   return {
     ok: true,
@@ -2106,7 +2124,9 @@ module.exports = async function handler(req, res) {
       if (!e.ok) return json(res, 500, { ok: false, message: 'Gagal ambil employee.', error: e.error });
       const row = Array.isArray(e.data) && e.data[0] ? e.data[0] : null;
       if (!row) return json(res, 404, { ok: false, message: 'Employee tidak ditemukan.' });
-      const activationPassword = randomPassword(10);
+      const requestedPassword = String(b.new_password || '').trim();
+      if (requestedPassword && requestedPassword.length < 8) return json(res, 400, { ok: false, message: 'Password minimal 8 karakter.' });
+      const activationPassword = requestedPassword || randomPassword(10);
       await upsertAuthCred(String(row.email || ''), {
         employee_id: String(row.employee_id || ''),
         password_hash: hashSha256(activationPassword),
@@ -2115,7 +2135,7 @@ module.exports = async function handler(req, res) {
         activation_sent_at: nowIso(),
         password_last_set_at: nowIso()
       });
-      const delivery = await deliverActivationEmail(String(row.email || ''), String(row.nama || ''), activationPassword);
+      const delivery = await deliverActivationEmail(String(row.email || ''), String(row.nama || ''), activationPassword, { username: String(row.email || ''), mode: requestedPassword ? 'set' : 'reset' });
       await db('POST', 'config', { on_conflict: 'key' }, { key: 'AUTH_ACTIVATION_OUTBOX_' + employeeId, value: JSON.stringify({ to: String(row.email || ''), activation_password: activationPassword, created_at: nowIso(), sent_via: delivery.channel || 'manual', sent: !!delivery.sent, provider_id: String(delivery.provider_id || ''), error: delivery.sent ? '' : String(delivery.message || '') }) }, { Prefer: 'resolution=merge-duplicates,return=minimal' });
       await auditLog(a.email, 'UPDATE', 'auth', 'Reset password aktivasi ' + employeeId, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, { ok: true, message: delivery.sent ? 'Password aktivasi baru terkirim ke email.' : 'Password aktivasi baru dibuat. Kirim manual jika email belum aktif.', employee_id: employeeId, email: row.email, role: row.role, activation_password: activationPassword, activation_delivery: delivery });

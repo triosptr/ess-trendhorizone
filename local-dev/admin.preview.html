@@ -1134,11 +1134,13 @@
     async function resetEmployeeActivationPassword(id){
       try{
         const row=employeeFindById(id); if(!row) throw new Error('Employee tidak ditemukan.');
-        if(!confirm('Reset password aktivasi untuk '+String(row.nama||row.employee_id)+'?')) return;
-        const r=await api('/api/admin/auth/activation/reset','POST',{employee_id:row.employee_id});
+        if(!confirm('Set / reset password untuk '+String(row.nama||row.employee_id)+'? Password akan dikirim ke email karyawan.')) return;
+        const custom=prompt('Isi password baru (min 8 karakter). Kosongkan untuk generate otomatis:','');
+        if(custom!==null && String(custom).trim()!=='' && String(custom).trim().length<8) throw new Error('Password minimal 8 karakter.');
+        const r=await api('/api/admin/auth/activation/reset','POST',{employee_id:row.employee_id,new_password:(custom===null?'':String(custom).trim())});
         const pw=String((r||{}).activation_password||'');
         const sent=!!((r||{}).activation_delivery||{}).sent;
-        alert('Password aktivasi baru: '+pw+'\\nEmail: '+String(r.email||row.email||'')+'\\nStatus kirim email: '+(sent?'TERKIRIM':'BELUM TERKIRIM'));
+        alert('Password baru: '+pw+'\\nUsername: '+String(r.email||row.email||'')+'\\nStatus kirim email: '+(sent?'TERKIRIM':'BELUM TERKIRIM'));
       }catch(err){ setContent(renderError(err.message)); }
     }
     async function loadEditEmployeeForm(id){
