@@ -1513,6 +1513,14 @@
         scheduleMonthValue=d.month||scheduleMonthValue;
         scheduleEmployees=d.employees||[];
         scheduleTemplates=d.templates||{};
+        // Buang template yatim (employee lama/nonaktif) agar statistik draft konsisten.
+        const validIds=new Set((scheduleEmployees||[]).map(function(e){ return String(e.employee_id||''); }).filter(Boolean));
+        const cleaned={};
+        Object.keys(scheduleTemplates||{}).forEach(function(id){
+          const k=String(id||'');
+          if(validIds.has(k)) cleaned[k]=scheduleTemplates[k];
+        });
+        scheduleTemplates=cleaned;
         scheduleSelectedIds={};
         scheduleEmpFilter='';
         scheduleFormatFilter='';
@@ -1524,13 +1532,20 @@
       const pickerRows=scheduleBuildPickerRows();
 
       const mapEmp={}; (scheduleEmployees||[]).forEach(function(e){ mapEmp[String(e.employee_id||'')]=e; });
-      const assignedRows=Object.keys(scheduleTemplates||{}).map(function(empId){
-        const t=templateOf(empId); const e=mapEmp[String(empId)]||{};
+      const assignedRows=(scheduleEmployees||[]).filter(function(e){
+        const id=String(e.employee_id||'');
+        return !!(scheduleTemplates&&scheduleTemplates[id]);
+      }).map(function(e){
+        const empId=String(e.employee_id||'');
+        const t=templateOf(empId);
         const fmt=String(t.shift_code||'PAGI').toUpperCase();
         const offDay=scheduleOffDayLabelFromTemplate(t);
         return '<tr><td>'+escapeHtml(String(e.nama||'-'))+'</td><td>'+escapeHtml(String(empId||'-'))+'</td><td>'+escapeHtml(fmt)+'</td><td style="text-align:center;">'+escapeHtml(offDay)+'</td></tr>';
       }).join('') || '<tr><td colspan="4">Belum ada data shift diset untuk bulan ini.</td></tr>';
-      const assignedCount=Object.keys(scheduleTemplates||{}).length;
+      const assignedCount=(scheduleEmployees||[]).reduce(function(n,e){
+        const id=String(e.employee_id||'');
+        return n + ((scheduleTemplates&&scheduleTemplates[id]) ? 1 : 0);
+      },0);
       const unassignedCount=Math.max(0, Number((scheduleEmployees||[]).length)-assignedCount);
 
       const html='' +
@@ -1553,7 +1568,7 @@
         '</div>';
       setContent(html);
     }
-    async function saveMonthlyScheduleAdmin(){ try{ const month=String((document.getElementById('sched_month')||{}).value||scheduleMonthValue||new Date().toISOString().slice(0,7)); const notes=String((document.getElementById('sched_notes')||{}).value||''); await api('/api/admin/schedules/monthly','POST',{month:month,notes:notes,templates:scheduleTemplates}); scheduleMonthValue=month; await loadMonthlyScheduleAdmin(); }catch(err){ setContent(renderError(err.message)); } }
+    async function saveMonthlyScheduleAdmin(){ try{ const month=String((document.getElementById('sched_month')||{}).value||scheduleMonthValue||new Date().toISOString().slice(0,7)); const notes=String((document.getElementById('sched_notes')||{}).value||''); const validIds=new Set((scheduleEmployees||[]).map(function(e){ return String(e.employee_id||''); }).filter(Boolean)); const sanitized={}; Object.keys(scheduleTemplates||{}).forEach(function(id){ const k=String(id||''); if(validIds.has(k)) sanitized[k]=scheduleTemplates[k]; }); scheduleTemplates=sanitized; await api('/api/admin/schedules/monthly','POST',{month:month,notes:notes,templates:scheduleTemplates}); scheduleMonthValue=month; await loadMonthlyScheduleAdmin(); }catch(err){ setContent(renderError(err.message)); } }
     async function publishMonthlyScheduleAdmin(){ try{ const month=String((document.getElementById('sched_month')||{}).value||scheduleMonthValue||new Date().toISOString().slice(0,7)); await api('/api/admin/schedules/monthly/publish','POST',{month:month}); scheduleMonthValue=month; await loadMonthlyScheduleAdmin(); }catch(err){ setContent(renderError(err.message)); } }
 
     // REPORTS
