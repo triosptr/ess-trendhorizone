@@ -997,6 +997,7 @@
                 <h3 style="font-size:20px;font-weight:700;">Employees</h3>
                 <div class="actions">
                     <button class="btn btn-primary" onclick="loadAddEmployeeForm()"><i class="ph ph-plus"></i> Add Employee</button>
+                    <button class="btn btn-secondary" onclick="syncMasterFromEmployees()"><i class="ph ph-arrows-clockwise"></i> Sync Div/Jabatan</button>
                     <button class="btn btn-secondary" onclick="exportEmployeesCsv()"><i class="ph ph-file-csv"></i> Export</button>
                     <button class="btn btn-secondary" onclick="toggleEmployeeSelectVisible(${allVisibleSelected?'false':'true'})">${allVisibleSelected?'Unselect Visible':'Select Visible'}</button>
                     <button class="btn btn-secondary" onclick="resendSelectedActivationEmails()">Resend Selected (${selectedCount})</button>
@@ -1068,6 +1069,15 @@
         const failed=Number((r&&r.failed_count)||0);
         const failText=((r&&r.failed)||[]).slice(0,10).map(function(x){ return String(x.employee_id||'-')+': '+String(x.message||'Gagal'); }).join('\n');
         alert('Batch resend selesai.\nBerhasil: '+sent+'\nGagal: '+failed+(failText?('\n\nDetail gagal:\n'+failText):''));
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    async function syncMasterFromEmployees(){
+      try{
+        const r=await api('/api/admin/master/sync-from-employees','POST',{});
+        const rs=(r&&r.result)||{};
+        alert('Sinkronisasi selesai. Divisi baru: '+Number(rs.created_divisions||0)+', Jabatan baru: '+Number(rs.created_positions||0));
+        await loadEmployeeMasterData();
+        await loadAllEmployees();
       }catch(err){ setContent(renderError(err.message)); }
     }
     let employeeMasterData={ divisions:[], positions:[] };

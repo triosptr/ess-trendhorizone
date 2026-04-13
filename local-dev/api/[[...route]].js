@@ -665,6 +665,62 @@ function normalizeApiErrorMessage(err, fallback) {
   if (err.message) return String(err.message);
   return String(fallback || 'Request failed');
 }
+function normalizeNameKey(v) {
+  return String(v || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+async function syncDivisionPositionFromEmployees(actorEmail) {
+  const em = await db('GET', 'employees', { select: 'employee_id,divisi,jabatan,is_active', limit: 5000 });
+  if (!em.ok) return { ok: false, message: 'Gagal ambil data employee.', error: em.error };
+  const divRows = await db('GET', 'divisions', { select: 'division_id,nama_divisi,is_active', limit: 5000 });
+  if (!divRows.ok) return { ok: false, message: 'Gagal ambil data divisi.', error: divRows.error };
+  const posRows = await db('GET', 'positions', { select: 'position_id,nama_jabatan,division_id,is_active', limit: 5000 });
+  if (!posRows.ok) return { ok: false, message: 'Gagal ambil data jabatan.', error: posRows.error };
+
+  const existingDivs = Array.isArray(divRows.data) ? divRows.data : [];
+  const existingPos = Array.isArray(posRows.data) ? posRows.data : [];
+  const divByName = {};
+  existingDivs.forEach(function(d) { divByName[normalizeNameKey(d.nama_divisi)] = d; });
+
+  let createdDivisions = 0;
+  let createdPositions = 0;
+
+  for (const emp of (Array.isArray(em.data) ? em.data : [])) {
+    const divName = String(emp.divisi || '').trim();
+    const posName = String(emp.jabatan || '').trim();
+    if (!divName) continue;
+    const divKey = normalizeNameKey(divName);
+    let div = divByName[divKey];
+    if (!div) {
+      const payload = { division_id: rid('DIV'), nama_divisi: divName, kepala_divisi_email: null, is_active: true, updated_at: nowIso() };
+      const ins = await db('POST', 'divisions', null, payload, { Prefer: 'return=representation' });
+      if (ins.ok && Array.isArray(ins.data) && ins.data[0]) {
+        div = ins.data[0];
+        divByName[divKey] = div;
+        createdDivisions += 1;
+      }
+    } else if (String(div.is_active).toLowerCase() !== 'true') {
+      await db('PATCH', 'divisions', { division_id: 'eq.' + String(div.division_id || '') }, { is_active: true, updated_at: nowIso() }, { Prefer: 'return=minimal' });
+    }
+    if (!posName || !div || !div.division_id) continue;
+    const posKey = normalizeNameKey(posName) + '|' + String(div.division_id);
+    const foundPos = existingPos.find(function(p) { return (normalizeNameKey(p.nama_jabatan) + '|' + String(p.division_id || '')) === posKey; });
+    if (foundPos) {
+      if (String(foundPos.is_active).toLowerCase() !== 'true') {
+        await db('PATCH', 'positions', { position_id: 'eq.' + String(foundPos.position_id || '') }, { is_active: true, updated_at: nowIso() }, { Prefer: 'return=minimal' });
+      }
+      continue;
+    }
+    const insPos = await db('POST', 'positions', null, { position_id: rid('POS'), nama_jabatan: posName, division_id: String(div.division_id || ''), is_active: true, updated_at: nowIso() }, { Prefer: 'return=representation' });
+    if (insPos.ok && Array.isArray(insPos.data) && insPos.data[0]) {
+      existingPos.push(insPos.data[0]);
+      createdPositions += 1;
+    }
+  }
+  if (actorEmail) {
+    await auditLog(actorEmail, 'SYNC', 'master_data', 'Sinkronisasi divisi/jabatan dari employee. divisi+' + createdDivisions + ', jabatan+' + createdPositions, '');
+  }
+  return { ok: true, created_divisions: createdDivisions, created_positions: createdPositions, total_employees: Array.isArray(em.data) ? em.data.length : 0 };
+}
 function protectedEmployeeIds() {
   const fromEnv = String(process.env.PROTECTED_EMPLOYEE_IDS || '').split(',').map(function(x) { return String(x || '').trim(); }).filter(Boolean);
   const defaults = ['EMP_ADMIN_001'];
@@ -2476,6 +2532,7 @@ module.exports = async function handler(req, res) {
 
     if (path === 'admin/schedules/monthly' && method === 'GET') {
       const a = requireAdmin(req, res); if (!a) return;
+      await syncDivisionPositionFromEmployees(a.email);
       const month = String(req.query.month || ymd().slice(0, 7)).trim().slice(0, 7);
       const key = 'SHIFT_SCHEDULE_' + month;
       const em = await db('GET', 'employees', { select: 'employee_id,nama,email,divisi,jabatan,is_active', order: 'nama.asc', limit: 5000 });
@@ -2487,6 +2544,7 @@ module.exports = async function handler(req, res) {
       return json(res, 200, {
         ok: true,
         month: month,
+        schedule_source: 'supabase.config',
         shifts: ['PAGI', 'SORE', 'MALAM', 'FLX'],
         employees: em.data || [],
         templates: value.templates || {},
@@ -2515,7 +2573,7 @@ module.exports = async function handler(req, res) {
       const up = await db('POST', 'config', { on_conflict: 'key' }, payload, { Prefer: 'resolution=merge-duplicates,return=minimal' });
       if (!up.ok) return json(res, 500, { ok: false, message: 'Gagal simpan jadwal bulanan.', error: up.error });
       await auditLog(a.email, 'UPSERT', 'shift_schedule', 'Simpan jadwal bulanan ' + month, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
-      return json(res, 200, { ok: true, message: 'Jadwal bulanan berhasil disimpan.', month: month });
+      return json(res, 200, { ok: true, message: 'Jadwal bulanan berhasil disimpan di Supabase.', month: month, schedule_source: 'supabase.config' });
     }
 
     if (path === 'admin/schedules/monthly/publish' && method === 'POST') {
@@ -2547,6 +2605,13 @@ module.exports = async function handler(req, res) {
       if (!ins.ok) return json(res, 500, { ok: false, message: 'Gagal kirim notifikasi jadwal.', error: ins.error });
       await auditLog(a.email, 'PUBLISH', 'shift_schedule', 'Publish jadwal bulanan ' + month, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, { ok: true, message: 'Jadwal bulanan dipublikasikan dan notifikasi terkirim.', month: month, published_at: value.published_at });
+    }
+
+    if (path === 'admin/master/sync-from-employees' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const r = await syncDivisionPositionFromEmployees(a.email);
+      if (!r.ok) return json(res, 500, { ok: false, message: r.message || 'Gagal sinkronisasi master.', error: r.error });
+      return json(res, 200, { ok: true, message: 'Sinkronisasi master divisi/jabatan selesai.', result: r });
     }
 
     if (path === 'admin/attendance/today' && method === 'GET') {
@@ -3250,6 +3315,9 @@ module.exports = async function handler(req, res) {
 
     if (path === 'admin/master/divisions' || path === 'admin/master/positions' || path === 'admin/master/leave-types') {
       const a = requireAdmin(req, res); if (!a) return;
+      if (path === 'admin/master/divisions' || path === 'admin/master/positions') {
+        await syncDivisionPositionFromEmployees(a.email);
+      }
       const map = {
         'admin/master/divisions': { table: 'divisions', id: 'division_id', name: 'nama_divisi' },
         'admin/master/positions': { table: 'positions', id: 'position_id', name: 'nama_jabatan' },
