@@ -1704,44 +1704,108 @@
     async function publishMonthlyScheduleAdmin(){ try{ const month=String((document.getElementById('sched_month')||{}).value||scheduleMonthValue||new Date().toISOString().slice(0,7)); await api('/api/admin/schedules/monthly/publish','POST',{month:month}); scheduleMonthValue=month; await loadMonthlyScheduleAdmin(); }catch(err){ setContent(renderError(err.message)); } }
 
     // REPORTS
-    let employeeReportRows = []; let employeeReportSummary = null;
+    let employeeReportRows = [];
+    let employeeReportSummary = null;
+    let employeeReportReqSeq = 0;
+    let employeeReportSearchKeyword = '';
+    function reportFiltersFromUi(){
+      return {
+        role: String((document.getElementById('rep_role')||{}).value||''),
+        divisi: String((document.getElementById('rep_divisi')||{}).value||''),
+        is_active: String((document.getElementById('rep_active')||{}).value||''),
+        start_date: String((document.getElementById('rep_start')||{}).value||''),
+        end_date: String((document.getElementById('rep_end')||{}).value||'')
+      };
+    }
+    function reportLoadingRow(){
+      return '<tr><td colspan="8" style="text-align:center;color:var(--text-sec);"><i class="ph ph-spinner-gap"></i> Memuat data laporan...</td></tr>';
+    }
+    function reportFilteredRows(){
+      const q=String(employeeReportSearchKeyword||'').toLowerCase().trim();
+      if(!q) return employeeReportRows||[];
+      return (employeeReportRows||[]).filter(function(r){
+        const txt=(String(r.employee_id||'')+' '+String(r.nama||'')+' '+String(r.email||'')+' '+String(r.role||'')+' '+String(r.divisi||'')+' '+String(r.jabatan||'')).toLowerCase();
+        return txt.indexOf(q)>=0;
+      });
+    }
+    function renderEmployeeReportBodyRows(rows){
+      return (rows||[]).map(function(r){
+        return '<tr><td>'+escapeHtml(r.employee_id||'-')+'</td><td>'+escapeHtml(r.nama||'-')+'</td><td>'+escapeHtml(r.email||'-')+'</td><td>'+escapeHtml(r.role||'-')+'</td><td>'+escapeHtml(r.divisi||'-')+'</td><td>'+escapeHtml(r.jabatan||'-')+'</td><td>'+normalizeStatusBadge(String(r.is_active))+'</td><td>'+escapeHtml(r.tanggal_masuk||'-')+'</td></tr>';
+      }).join('') || '<tr><td colspan="8">Tidak ada data</td></tr>';
+    }
+    function renderEmployeeReportSummary(){
+      const s = employeeReportSummary || { total:0, active:0, inactive:0, employee:0, admin:0, superadmin:0 };
+      const filteredRows=reportFilteredRows();
+      const divisionStatsMap = {};
+      (filteredRows||[]).forEach(function(r){
+        const key=String(r.divisi||'Tanpa Divisi');
+        if(!divisionStatsMap[key]) divisionStatsMap[key]={ divisi:key,total:0,active:0,inactive:0 };
+        divisionStatsMap[key].total+=1;
+        if(String(r.is_active).toLowerCase()==='true') divisionStatsMap[key].active+=1; else divisionStatsMap[key].inactive+=1;
+      });
+      const divisionStatsRows=Object.values(divisionStatsMap).sort(function(a,b){ return b.total-a.total; }).map(function(x){
+        return '<tr><td>'+escapeHtml(x.divisi)+'</td><td>'+escapeHtml(x.total)+'</td><td style="color:var(--success);">'+escapeHtml(x.active)+'</td><td style="color:var(--danger);">'+escapeHtml(x.inactive)+'</td></tr>';
+      }).join('')||'<tr><td colspan="4">Tidak ada data</td></tr>';
+      const summaryEl=document.getElementById('rep_summary_area');
+      if(summaryEl){
+        summaryEl.innerHTML=
+          '<div class="cards-row" style="margin-bottom:20px;">'
+          + '<div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Total Data</div><div class="stat-large">'+escapeHtml(s.total)+'</div></div>'
+          + '<div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Active</div><div class="stat-large" style="color:var(--success);">'+escapeHtml(s.active)+'</div></div>'
+          + '<div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Inactive</div><div class="stat-large" style="color:var(--danger);">'+escapeHtml(s.inactive)+'</div></div>'
+          + '<div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Admin + Superadmin</div><div class="stat-large">'+escapeHtml(Number(s.admin||0)+Number(s.superadmin||0))+'</div></div>'
+          + '</div>'
+          + '<div class="grid-2" style="margin-bottom:20px;">'
+          + '<div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Employee Role</div><div class="stat-large">'+escapeHtml(s.employee||0)+'</div></div>'
+          + '<div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Admin Role</div><div class="stat-large">'+escapeHtml(s.admin||0)+'</div></div>'
+          + '</div>'
+          + '<div class="card" style="box-shadow:none;background:var(--bg);"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Komposisi Divisi (Filtered)</h3><div class="stat-label">Rows: '+escapeHtml(filteredRows.length)+'</div></div><div class="table-wrap"><table><thead><tr><th>Divisi</th><th>Total</th><th>Active</th><th>Inactive</th></tr></thead><tbody>'+divisionStatsRows+'</tbody></table></div></div>';
+      }
+      const tableBody=document.getElementById('rep_table_tbody');
+      if(tableBody) tableBody.innerHTML=renderEmployeeReportBodyRows(filteredRows);
+      const countEl=document.getElementById('rep_visible_count');
+      if(countEl) countEl.textContent=String(filteredRows.length);
+    }
+    function onReportSearchInput(v){
+      employeeReportSearchKeyword=String(v||'');
+      renderEmployeeReportSummary();
+    }
+    function renderEmployeeReportLayout(filters, divisions, roles){
+      setContent(
+        '<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Employee Reports</h3><div class="actions"><button class="btn btn-secondary" onclick="exportEmployeeReportCsv()"><i class="ph ph-file-csv"></i> Export CSV</button></div></div>'
+        + '<div class="grid-2"><div class="form-group"><label>Role</label><select id="rep_role"><option value="">All Roles</option>'+roles.map(function(r){ return '<option value="'+escapeHtml(r)+'">'+escapeHtml(r)+'</option>'; }).join('')+'</select></div><div class="form-group"><label>Division</label><select id="rep_divisi"><option value="">All Divisions</option>'+divisions.map(function(d){ return '<option value="'+escapeHtml(d)+'">'+escapeHtml(d)+'</option>'; }).join('')+'</select></div><div class="form-group"><label>Status Aktif</label><select id="rep_active"><option value="">All</option><option value="true">Active</option><option value="false">Inactive</option></select></div><div class="form-group"><label>Start Date</label><input type="date" id="rep_start"></div><div class="form-group"><label>End Date</label><input type="date" id="rep_end"></div><div class="form-group"><label>Search (Client-side)</label><input id="rep_search" placeholder="ID / Nama / Email / Divisi / Jabatan" oninput="onReportSearchInput(this.value)"></div></div>'
+        + '<div class="actions" style="margin-bottom:20px;"><button class="btn btn-primary" onclick="loadEmployeeReports()">Apply Filter</button><button class="btn btn-secondary" onclick="employeeReportSearchKeyword=\'\'; if(document.getElementById(\'rep_search\')) document.getElementById(\'rep_search\').value=\'\'; onReportSearchInput(\'\')">Reset Search</button></div>'
+        + '<div id="rep_summary_area"></div>'
+        + '<div class="card" style="box-shadow:none;background:var(--bg);margin-top:20px;"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Daftar Karyawan (Filtered)</h3><div class="stat-label">Visible: <span id="rep_visible_count">0</span></div></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Email</th><th>Role</th><th>Divisi</th><th>Jabatan</th><th>Status</th><th>Tanggal Masuk</th></tr></thead><tbody id="rep_table_tbody">'+reportLoadingRow()+'</tbody></table></div></div>'
+        + '</div>'
+      );
+      if (document.getElementById('rep_role')) document.getElementById('rep_role').value = filters.role;
+      if (document.getElementById('rep_divisi')) document.getElementById('rep_divisi').value = filters.divisi;
+      if (document.getElementById('rep_active')) document.getElementById('rep_active').value = filters.is_active;
+      if (document.getElementById('rep_start')) document.getElementById('rep_start').value = filters.start_date;
+      if (document.getElementById('rep_end')) document.getElementById('rep_end').value = filters.end_date;
+      if (document.getElementById('rep_search')) document.getElementById('rep_search').value = employeeReportSearchKeyword;
+    }
     async function loadEmployeeReports(){
       try{
-        setLoading('Memuat laporan...');
-        const filters = {
-          role: String((document.getElementById('rep_role')||{}).value||''),
-          divisi: String((document.getElementById('rep_divisi')||{}).value||''),
-          is_active: String((document.getElementById('rep_active')||{}).value||''),
-          start_date: String((document.getElementById('rep_start')||{}).value||''),
-          end_date: String((document.getElementById('rep_end')||{}).value||'')
-        };
-        const qs = Object.keys(filters).filter(function(k){ return filters[k]!==''; }).map(function(k){ return encodeURIComponent(k)+'='+encodeURIComponent(filters[k]); }).join('&');
-        const data = await api('/api/admin/reports/employees'+(qs?('?'+qs):''),'GET');
-        employeeReportRows = data.rows||[];
-        employeeReportSummary = data.summary||null;
+        const filters = reportFiltersFromUi();
         const divisions = Array.from(new Set((employeeRowsCache||[]).map(function(r){ return String(r.divisi||'').trim(); }).filter(Boolean))).sort();
         const roles = ['employee','admin','superadmin'];
-        const rows = employeeReportRows.map(function(r){
-          return '<tr><td>'+escapeHtml(r.employee_id||'-')+'</td><td>'+escapeHtml(r.nama||'-')+'</td><td>'+escapeHtml(r.email||'-')+'</td><td>'+escapeHtml(r.role||'-')+'</td><td>'+escapeHtml(r.divisi||'-')+'</td><td>'+escapeHtml(r.jabatan||'-')+'</td><td>'+normalizeStatusBadge(String(r.is_active))+'</td><td>'+escapeHtml(r.tanggal_masuk||'-')+'</td></tr>';
-        }).join('') || '<tr><td colspan="8">Tidak ada data</td></tr>';
-        const s = employeeReportSummary || { total:0, active:0, inactive:0, employee:0, admin:0, superadmin:0 };
-        const divisionStatsMap = {};
-        (employeeReportRows||[]).forEach(function(r){
-          const key = String(r.divisi||'Tanpa Divisi');
-          if(!divisionStatsMap[key]) divisionStatsMap[key] = { divisi:key, total:0, active:0, inactive:0 };
-          divisionStatsMap[key].total += 1;
-          if(String(r.is_active).toLowerCase()==='true') divisionStatsMap[key].active += 1; else divisionStatsMap[key].inactive += 1;
-        });
-        const divisionStatsRows = Object.values(divisionStatsMap).sort(function(a,b){ return b.total-a.total; }).map(function(x){
-          return '<tr><td>'+escapeHtml(x.divisi)+'</td><td>'+escapeHtml(x.total)+'</td><td style="color:var(--success);">'+escapeHtml(x.active)+'</td><td style="color:var(--danger);">'+escapeHtml(x.inactive)+'</td></tr>';
-        }).join('') || '<tr><td colspan="4">Tidak ada data</td></tr>';
-        setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Employee Reports</h3><div class="actions"><button class="btn btn-secondary" onclick="exportEmployeeReportCsv()"><i class="ph ph-file-csv"></i> Export CSV</button></div></div><div class="grid-2"><div class="form-group"><label>Role</label><select id="rep_role"><option value="">All Roles</option>'+roles.map(function(r){ return '<option value="'+escapeHtml(r)+'">'+escapeHtml(r)+'</option>'; }).join('')+'</select></div><div class="form-group"><label>Division</label><select id="rep_divisi"><option value="">All Divisions</option>'+divisions.map(function(d){ return '<option value="'+escapeHtml(d)+'">'+escapeHtml(d)+'</option>'; }).join('')+'</select></div><div class="form-group"><label>Status Aktif</label><select id="rep_active"><option value="">All</option><option value="true">Active</option><option value="false">Inactive</option></select></div><div class="form-group"><label>Start Date</label><input type="date" id="rep_start"></div><div class="form-group"><label>End Date</label><input type="date" id="rep_end"></div></div><div class="actions" style="margin-bottom:24px;"><button class="btn btn-primary" onclick="loadEmployeeReports()">Apply Filter</button></div><div class="cards-row" style="margin-bottom:24px;"><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Total Data</div><div class="stat-large">'+escapeHtml(s.total)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Active</div><div class="stat-large" style="color:var(--success);">'+escapeHtml(s.active)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Inactive</div><div class="stat-large" style="color:var(--danger);">'+escapeHtml(s.inactive)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Admin + Superadmin</div><div class="stat-large">'+escapeHtml(Number(s.admin||0)+Number(s.superadmin||0))+'</div></div></div><div class="grid-2" style="margin-bottom:24px;"><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Employee Role</div><div class="stat-large">'+escapeHtml(s.employee||0)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Admin Role</div><div class="stat-large">'+escapeHtml(s.admin||0)+'</div></div></div><div class="card" style="box-shadow:none;background:var(--bg);margin-bottom:24px;"><h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">Komposisi Divisi</h3><div class="table-wrap"><table><thead><tr><th>Divisi</th><th>Total</th><th>Active</th><th>Inactive</th></tr></thead><tbody>'+divisionStatsRows+'</tbody></table></div></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Email</th><th>Role</th><th>Divisi</th><th>Jabatan</th><th>Status</th><th>Tanggal Masuk</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>');
-        if (document.getElementById('rep_role')) document.getElementById('rep_role').value = filters.role;
-        if (document.getElementById('rep_divisi')) document.getElementById('rep_divisi').value = filters.divisi;
-        if (document.getElementById('rep_active')) document.getElementById('rep_active').value = filters.is_active;
-        if (document.getElementById('rep_start')) document.getElementById('rep_start').value = filters.start_date;
-        if (document.getElementById('rep_end')) document.getElementById('rep_end').value = filters.end_date;
-      }catch(err){ setContent(renderError(err.message)); }
+        if(!document.getElementById('rep_table_tbody')) renderEmployeeReportLayout(filters, divisions, roles);
+        const tbody=document.getElementById('rep_table_tbody');
+        if(tbody) tbody.innerHTML=reportLoadingRow();
+        const reqSeq=++employeeReportReqSeq;
+        const qs = Object.keys(filters).filter(function(k){ return filters[k]!==''; }).map(function(k){ return encodeURIComponent(k)+'='+encodeURIComponent(filters[k]); }).join('&');
+        const data = await api('/api/admin/reports/employees'+(qs?('?'+qs):''),'GET');
+        if(reqSeq!==employeeReportReqSeq) return;
+        employeeReportRows = data.rows||[];
+        employeeReportSummary = data.summary||null;
+        renderEmployeeReportSummary();
+      }catch(err){
+        const tbody=document.getElementById('rep_table_tbody');
+        if(tbody) tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--danger);">'+escapeHtml(err.message||'Gagal memuat laporan')+'</td></tr>';
+        else setContent(renderError(err.message));
+      }
     }
     function exportEmployeeReportCsv(){ const rows=employeeReportRows||[]; const header=['employee_id','nama','email','role','divisi','jabatan','is_active','tanggal_masuk']; const lines=[header.join(',')].concat(rows.map(function(r){ return header.map(function(k){ const val=String(r[k]===undefined||r[k]===null?'':r[k]).replace(/"/g,'""'); return '"'+val+'"'; }).join(','); })); const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='employee_report.csv'; a.click(); URL.revokeObjectURL(url); }
 
