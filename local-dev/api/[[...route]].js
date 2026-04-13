@@ -2681,7 +2681,7 @@ module.exports = async function handler(req, res) {
       if (!up.ok) return json(res, 500, { ok: false, message: 'Gagal simpan jadwal bulanan.', error: up.error });
       const mirrorSaved = await saveScheduleEmployeeRows(month, templates, a.email);
       await auditLog(a.email, 'UPSERT', 'shift_schedule', 'Simpan jadwal bulanan ' + month, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
-      return json(res, 200, { ok: true, message: 'Jadwal bulanan berhasil disimpan di Supabase.', month: month, schedule_source: 'supabase.config', schedule_storage: { monthly_key: key, employee_row_prefix: 'SHIFT_SCHEDULE_EMP_' + month + '_', mirror: mirrorSaved } });
+      return json(res, 200, { ok: true, message: 'Jadwal bulanan berhasil disimpan di Supabase.', month: month, schedule_source: 'supabase.config', schedule_storage: { monthly_key: payload.key, employee_row_prefix: 'SHIFT_SCHEDULE_EMP_' + month + '_', mirror: mirrorSaved } });
     }
 
     if (path === 'admin/schedules/monthly/publish' && method === 'POST') {
