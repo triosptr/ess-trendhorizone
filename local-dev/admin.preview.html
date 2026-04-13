@@ -1332,6 +1332,8 @@
     let leaveStatusFilter = 'all';
     let selectedLeaveIds = {};
     let leaveVisibleRows = [];
+    let adminLeaveTypesCache = [];
+    let adminLeaveAttachmentPayload = null;
     function toggleLeaveSelect(id, checked){ if(checked) selectedLeaveIds[id]=true; else delete selectedLeaveIds[id]; }
     function toggleLeaveSelectAllVisible(checked){
       (leaveVisibleRows||[]).forEach(function(r){
@@ -1341,6 +1343,44 @@
       });
     }
     function clearLeaveSelection(){ selectedLeaveIds={}; }
+    function fileToAttachmentObject(file){
+      return new Promise(function(resolve,reject){
+        if(!file) return resolve(null);
+        const reader=new FileReader();
+        reader.onload=function(){
+          const dataUrl=String(reader.result||'');
+          const base64Data=String(dataUrl.split(',')[1]||'');
+          if(!base64Data) return reject(new Error('File tidak valid.'));
+          resolve({ fileName:String(file.name||('lampiran_'+Date.now())), mimeType:String(file.type||'application/octet-stream'), base64Data:base64Data });
+        };
+        reader.onerror=function(){ reject(new Error('Gagal membaca file lampiran.')); };
+        reader.readAsDataURL(file);
+      });
+    }
+    function adminLeaveTypeRequiresAttachment(){
+      const jenis=String((document.getElementById('admin_leave_jenis')||{}).value||'').trim().toLowerCase();
+      const ref=(adminLeaveTypesCache||[]).find(function(t){ return String(t.nama_jenis_cuti||'').trim().toLowerCase()===jenis; })||null;
+      if(ref && (ref.requires_attachment===true || String(ref.requires_attachment).toLowerCase()==='true')) return true;
+      return /sakit/.test(jenis);
+    }
+    function updateAdminLeaveAttachmentHint(){
+      const req=adminLeaveTypeRequiresAttachment();
+      const hint=document.getElementById('admin_leave_attachment_required');
+      if(hint){ hint.textContent=req?'Wajib untuk jenis cuti ini':'Opsional'; hint.style.color=req?'var(--danger)':'var(--text-sec)'; }
+    }
+    async function onAdminLeaveAttachmentChange(input){
+      try{
+        const f=input&&input.files&&input.files[0]?input.files[0]:null;
+        const info=document.getElementById('admin_leave_attachment_info');
+        if(!f){ adminLeaveAttachmentPayload=null; if(info) info.textContent='Belum ada file dipilih'; return; }
+        adminLeaveAttachmentPayload=await fileToAttachmentObject(f);
+        if(info) info.textContent='File siap: '+String(f.name||'-')+' ('+Math.ceil(Number(f.size||0)/1024)+' KB)';
+      }catch(err){
+        adminLeaveAttachmentPayload=null;
+        if(input) input.value='';
+        alert(err.message||'Gagal membaca lampiran.');
+      }
+    }
     async function runLeaveBatchAction(action){
       try{
         const ids=Object.keys(selectedLeaveIds||{});
@@ -1359,7 +1399,9 @@
         const end=String((document.getElementById('admin_leave_end')||{}).value||'').trim();
         const alasan=String((document.getElementById('admin_leave_reason')||{}).value||'').trim();
         if(!jenis||!start||!end) throw new Error('Jenis cuti, tanggal mulai, dan tanggal selesai wajib diisi.');
-        await api('/api/admin/leaves/apply','POST',{ jenis_cuti:jenis, tanggal_mulai:start, tanggal_selesai:end, alasan:alasan });
+        if(adminLeaveTypeRequiresAttachment() && !adminLeaveAttachmentPayload) throw new Error('Jenis cuti ini wajib lampiran (surat sakit).');
+        await api('/api/admin/leaves/apply','POST',{ jenis_cuti:jenis, tanggal_mulai:start, tanggal_selesai:end, alasan:alasan, attachment:adminLeaveAttachmentPayload||undefined });
+        adminLeaveAttachmentPayload=null;
         alert('Pengajuan cuti admin berhasil dikirim.');
         await loadLeaveManagement(leaveStatusFilter);
       }catch(err){ setContent(renderError(err.message)); }
@@ -1373,6 +1415,7 @@
           api('/api/admin/leaves?limit=1000'),
           api('/api/leave-types/active').catch(function(){ return []; })
         ]);
+        adminLeaveTypesCache=Array.isArray(types)?types:[];
         const allRows=Array.isArray(rows)?rows:[];
         const monthRows=allRows.filter(function(r){
           const m=String((r.tanggal_mulai||r.created_at||'')).slice(0,7);
@@ -1425,12 +1468,14 @@
             + '<div class="card"><div class="stat-label">REJECTED</div><div class="stat-large">'+escapeHtml(countRejected)+'</div></div>'
           + '</div>'
           + '<div class="card" style="margin-bottom:12px;"><div class="team-header"><h3 style="font-size:18px;font-weight:700;">Apply Leave (Admin)</h3></div>'
-          + '<div class="grid-4"><div class="form-group"><label>Jenis Cuti</label><select id="admin_leave_jenis">'+typeOptions+'</select></div><div class="form-group"><label>Tanggal Mulai</label><input id="admin_leave_start" type="date"></div><div class="form-group"><label>Tanggal Selesai</label><input id="admin_leave_end" type="date"></div><div class="form-group"><label>Alasan</label><input id="admin_leave_reason" placeholder="Alasan pengajuan"></div></div>'
+          + '<div class="grid-4"><div class="form-group"><label>Jenis Cuti</label><select id="admin_leave_jenis" onchange="updateAdminLeaveAttachmentHint()">'+typeOptions+'</select></div><div class="form-group"><label>Tanggal Mulai</label><input id="admin_leave_start" type="date"></div><div class="form-group"><label>Tanggal Selesai</label><input id="admin_leave_end" type="date"></div><div class="form-group"><label>Alasan</label><input id="admin_leave_reason" placeholder="Alasan pengajuan"></div></div>'
+          + '<div class="grid-2"><div class="form-group"><label>Lampiran (Surat Sakit)</label><input type="file" id="admin_leave_attachment" accept=".jpg,.jpeg,.png,.webp,.pdf" onchange="onAdminLeaveAttachmentChange(this)"><div id="admin_leave_attachment_required" class="file-hint">Opsional</div><div id="admin_leave_attachment_info" class="file-hint">Belum ada file dipilih</div></div></div>'
           + '<div class="actions"><button class="btn btn-primary" onclick="submitAdminLeaveApply()">Kirim Pengajuan</button></div></div>'
           + '<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Leave Approval</h3><div class="actions"><input type="month" value="'+escapeHtml(leaveMonthFilter)+'" onchange="leaveMonthFilter=this.value;loadLeaveManagement(leaveStatusFilter)"><input id="leave_keyword" value="'+escapeHtml(leaveKeywordFilter)+'" placeholder="Cari ID/Email/Jenis" oninput="leaveKeywordFilter=this.value.toLowerCase();loadLeaveManagement(leaveStatusFilter);"><button class="btn btn-secondary" onclick="loadLeaveManagement(leaveStatusFilter)">Refresh</button></div></div>'
           + tabs + bulkActions
           + '<div class="table-wrap"><table><thead><tr><th>Pick</th><th>Karyawan</th><th>Jenis</th><th>Tanggal</th><th>Alasan</th><th>Status</th><th>Aksi</th></tr></thead><tbody>'+tbody+'</tbody></table></div></div>'
         );
+        updateAdminLeaveAttachmentHint();
       }catch(err){ setContent(renderError(err.message)); }
     }
     async function approveLeave(id){ try{ const note=prompt('Catatan approver (opsional):','Approved by admin'); await api('/api/admin/leaves/approve','POST',{leave_id:id,catatan_approver:String(note===null?'Approved by admin':note||'Approved by admin')}); await loadLeaveManagement(); }catch(err){ setContent(renderError(err.message)); } }
