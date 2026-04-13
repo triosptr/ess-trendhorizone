@@ -1746,7 +1746,34 @@
     function exportEmployeeReportCsv(){ const rows=employeeReportRows||[]; const header=['employee_id','nama','email','role','divisi','jabatan','is_active','tanggal_masuk']; const lines=[header.join(',')].concat(rows.map(function(r){ return header.map(function(k){ const val=String(r[k]===undefined||r[k]===null?'':r[k]).replace(/"/g,'""'); return '"'+val+'"'; }).join(','); })); const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='employee_report.csv'; a.click(); URL.revokeObjectURL(url); }
 
     // ATTENDANCE LOG
-    async function loadTodayAttendance(){ try{ setLoading('Memuat absensi hari ini...'); const tanggal=(new Date().toISOString().slice(0,10)); const [rows,emps]=await Promise.all([api('/api/admin/attendance/today?tanggal='+tanggal),api('/api/admin/employees?limit=1000').catch(()=>[])]); const nameMap={}; (emps||[]).forEach(function(e){ nameMap[String(e.employee_id||'')]=String(e.nama||''); }); setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Attendance Log (Today)</h3></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Masuk</th><th>Keluar</th><th>Jam Kerja</th><th>Status</th><th>Lokasi</th></tr></thead><tbody>'+((rows||[]).map(function(r){ const nama=nameMap[String(r.employee_id||'')]||r.nama||r.email||'-'; return '<tr><td>'+escapeHtml(r.employee_id)+'</td><td>'+escapeHtml(nama)+'</td><td>'+escapeHtml(r.jam_masuk||'-')+'</td><td>'+escapeHtml(r.jam_keluar||'-')+'</td><td>'+escapeHtml(r.work_duration_digital||'00:00:00')+'</td><td>'+normalizeStatusBadge(r.status)+'</td><td>'+escapeHtml(r.lokasi||'-')+'</td></tr>';}).join('')||'<tr><td colspan="7">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
+    let attendanceOtherDateFilter='';
+    function renderAttendanceRows(rows,nameMap){
+      return ((rows||[]).map(function(r){
+        const nama=nameMap[String(r.employee_id||'')]||r.nama||r.email||'-';
+        return '<tr><td>'+escapeHtml(r.employee_id)+'</td><td>'+escapeHtml(nama)+'</td><td>'+escapeHtml(r.jam_masuk||'-')+'</td><td>'+escapeHtml(r.jam_keluar||'-')+'</td><td>'+escapeHtml(r.work_duration_digital||'00:00:00')+'</td><td>'+normalizeStatusBadge(r.status)+'</td><td>'+escapeHtml(r.lokasi||'-')+'</td></tr>';
+      }).join('')||'<tr><td colspan="7">Tidak ada data</td></tr>');
+    }
+    async function loadTodayAttendance(){
+      try{
+        setLoading('Memuat absensi...');
+        const today=(new Date().toISOString().slice(0,10));
+        if(!attendanceOtherDateFilter){
+          const y=new Date(Date.now()-24*60*60*1000);
+          attendanceOtherDateFilter=y.toISOString().slice(0,10);
+        }
+        const [rowsToday,rowsOther,emps]=await Promise.all([
+          api('/api/admin/attendance/today?tanggal='+today),
+          api('/api/admin/attendance/today?tanggal='+encodeURIComponent(attendanceOtherDateFilter)),
+          api('/api/admin/employees?limit=1000').catch(()=>[])
+        ]);
+        const nameMap={};
+        (emps||[]).forEach(function(e){ nameMap[String(e.employee_id||'')]=String(e.nama||''); });
+        setContent(
+          '<div class="card" style="margin-bottom:12px;"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Attendance Log (Today)</h3><div class="stat-label">'+escapeHtml(today)+'</div></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Masuk</th><th>Keluar</th><th>Jam Kerja</th><th>Status</th><th>Lokasi</th></tr></thead><tbody>'+renderAttendanceRows(rowsToday,nameMap)+'</tbody></table></div></div>'
+          + '<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Attendance Log (Tanggal Lain)</h3><div class="actions"><input type="date" value="'+escapeHtml(attendanceOtherDateFilter)+'" onchange="attendanceOtherDateFilter=this.value;loadTodayAttendance()"></div></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Masuk</th><th>Keluar</th><th>Jam Kerja</th><th>Status</th><th>Lokasi</th></tr></thead><tbody>'+renderAttendanceRows(rowsOther,nameMap)+'</tbody></table></div></div>'
+        );
+      }catch(err){ setContent(renderError(err.message)); }
+    }
 
     // MASTER DATA HUB
     function loadMasterDataHub(){ setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Master Data & Operations</h3></div><div class="cards-row"><div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3>Divisions</h3><p class="muted" style="margin-bottom:16px;">Manage company divisions.</p><div class="actions"><button class="btn btn-secondary" onclick="loadDivisions()">View</button></div></div><div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3>Positions</h3><p class="muted" style="margin-bottom:16px;">Manage job titles.</p><div class="actions"><button class="btn btn-secondary" onclick="loadPositions()">View</button></div></div><div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3>Leave Types</h3><p class="muted" style="margin-bottom:16px;">Manage leave categories.</p><div class="actions"><button class="btn btn-secondary" onclick="loadLeaveTypes()">View</button></div></div><div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3>Payroll Docs</h3><p class="muted" style="margin-bottom:16px;">Upload salary slips.</p><div class="actions"><button class="btn btn-secondary" onclick="loadPayrollDocs()">View</button></div></div><div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3>Announcements</h3><p class="muted" style="margin-bottom:16px;">Broadcast messages.</p><div class="actions"><button class="btn btn-secondary" onclick="loadAnnouncements()">View</button></div></div></div></div>'); }
