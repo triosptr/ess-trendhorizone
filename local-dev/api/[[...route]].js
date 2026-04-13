@@ -1215,6 +1215,46 @@ async function resolveEmployeeShiftForDate(employeeId, dateText) {
     published_at: String(value.published_at || '')
   };
 }
+function normalizeScheduleRule(raw) {
+  const r = raw || {};
+  return {
+    shift_code: normalizeShiftCode(String(r.shift_code || 'PAGI')),
+    off_saturday: String(r.off_saturday || '').toLowerCase() === 'true' || r.off_saturday === true,
+    off_sunday: String(r.off_sunday || '').toLowerCase() === 'true' || r.off_sunday === true
+  };
+}
+function normalizeScheduleRulesMap(rawRules) {
+  const src = (rawRules && typeof rawRules === 'object') ? rawRules : {};
+  const out = {};
+  Object.keys(src).forEach(function(k) {
+    const key = String(k || '').trim();
+    if (!key) return;
+    out[key] = normalizeScheduleRule(src[key]);
+  });
+  return out;
+}
+async function readScheduleDefaultRules() {
+  const key = 'SHIFT_DEFAULT_RULES';
+  const r = await db('GET', 'config', { select: 'value', key: 'eq.' + key, limit: 1 });
+  if (!r.ok) return { ok: false, message: 'Gagal membaca default schedule.', error: r.error, rules: {}, updated_at: '', updated_by: '' };
+  const row = Array.isArray(r.data) && r.data[0] ? r.data[0] : null;
+  const val = row ? safeJsonParse(row.value, {}) : {};
+  return { ok: true, rules: normalizeScheduleRulesMap(val.rules || {}), updated_at: String(val.updated_at || ''), updated_by: String(val.updated_by || '') };
+}
+async function saveScheduleDefaultRules(rules, actorEmail) {
+  const key = 'SHIFT_DEFAULT_RULES';
+  const payload = {
+    key: key,
+    value: JSON.stringify({
+      rules: normalizeScheduleRulesMap(rules),
+      updated_at: nowIso(),
+      updated_by: String(actorEmail || '')
+    })
+  };
+  const up = await db('POST', 'config', { on_conflict: 'key' }, payload, { Prefer: 'resolution=merge-duplicates,return=minimal' });
+  if (!up.ok) return { ok: false, message: 'Gagal menyimpan default schedule.', error: up.error };
+  return { ok: true };
+}
 function attendanceMetaKey(attendanceId) {
   return 'ATTENDANCE_META_' + String(attendanceId || '');
 }
@@ -2541,6 +2581,7 @@ module.exports = async function handler(req, res) {
       if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil jadwal bulanan.', error: r.error });
       const row = Array.isArray(r.data) && r.data[0] ? r.data[0] : null;
       const value = row ? safeJsonParse(row.value, {}) : {};
+      const defs = await readScheduleDefaultRules();
       return json(res, 200, {
         ok: true,
         month: month,
@@ -2548,6 +2589,9 @@ module.exports = async function handler(req, res) {
         shifts: ['PAGI', 'SORE', 'MALAM', 'FLX'],
         employees: em.data || [],
         templates: value.templates || {},
+        defaults: defs.ok ? defs.rules : {},
+        defaults_updated_at: defs.ok ? defs.updated_at : '',
+        defaults_updated_by: defs.ok ? defs.updated_by : '',
         published_at: value.published_at || '',
         notes: value.notes || ''
       });
@@ -2605,6 +2649,61 @@ module.exports = async function handler(req, res) {
       if (!ins.ok) return json(res, 500, { ok: false, message: 'Gagal kirim notifikasi jadwal.', error: ins.error });
       await auditLog(a.email, 'PUBLISH', 'shift_schedule', 'Publish jadwal bulanan ' + month, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, { ok: true, message: 'Jadwal bulanan dipublikasikan dan notifikasi terkirim.', month: month, published_at: value.published_at });
+    }
+
+    if (path === 'admin/schedules/defaults' && method === 'GET') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const defs = await readScheduleDefaultRules();
+      if (!defs.ok) return json(res, 500, { ok: false, message: defs.message, error: defs.error });
+      return json(res, 200, { ok: true, rules: defs.rules, updated_at: defs.updated_at, updated_by: defs.updated_by, source: 'supabase.config' });
+    }
+
+    if (path === 'admin/schedules/defaults' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const rules = normalizeScheduleRulesMap(b.rules || {});
+      const saved = await saveScheduleDefaultRules(rules, a.email);
+      if (!saved.ok) return json(res, 500, { ok: false, message: saved.message, error: saved.error });
+      await auditLog(a.email, 'UPSERT', 'shift_schedule_defaults', 'Simpan default schedule per divisi', String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, { ok: true, message: 'Default schedule berhasil disimpan ke Supabase.', total_rules: Object.keys(rules).length });
+    }
+
+    if (path === 'admin/schedules/monthly/apply-defaults' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const month = String(b.month || ymd().slice(0, 7)).trim().slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(month)) return json(res, 400, { ok: false, message: 'Format month harus YYYY-MM.' });
+      const overwrite = String(b.overwrite || 'true').toLowerCase() !== 'false';
+      const defs = await readScheduleDefaultRules();
+      if (!defs.ok) return json(res, 500, { ok: false, message: defs.message, error: defs.error });
+      const rules = defs.rules || {};
+      const key = 'SHIFT_SCHEDULE_' + month;
+      const curr = await db('GET', 'config', { select: 'value', key: 'eq.' + key, limit: 1 });
+      if (!curr.ok) return json(res, 500, { ok: false, message: 'Gagal membaca draft schedule.', error: curr.error });
+      const row = Array.isArray(curr.data) && curr.data[0] ? curr.data[0] : null;
+      const val = row ? safeJsonParse(row.value, {}) : {};
+      const templates = (val.templates && typeof val.templates === 'object') ? val.templates : {};
+      const em = await db('GET', 'employees', { select: 'employee_id,divisi,is_active', limit: 5000 });
+      if (!em.ok) return json(res, 500, { ok: false, message: 'Gagal membaca employee.', error: em.error });
+      let applied = 0;
+      for (const e of (em.data || [])) {
+        if (String(e.is_active).toLowerCase() !== 'true') continue;
+        const div = String(e.divisi || '').trim();
+        if (!div || !rules[div]) continue;
+        const eid = String(e.employee_id || '').trim();
+        if (!eid) continue;
+        if (!overwrite && templates[eid]) continue;
+        templates[eid] = normalizeScheduleRule(rules[div]);
+        applied += 1;
+      }
+      val.month = month;
+      val.templates = templates;
+      val.updated_by = a.email;
+      val.updated_at = nowIso();
+      const up = await db('POST', 'config', { on_conflict: 'key' }, { key: key, value: JSON.stringify(val) }, { Prefer: 'resolution=merge-duplicates,return=minimal' });
+      if (!up.ok) return json(res, 500, { ok: false, message: 'Gagal menyimpan hasil apply defaults.', error: up.error });
+      await auditLog(a.email, 'UPSERT', 'shift_schedule', 'Apply defaults ke jadwal bulan ' + month + ', overwrite=' + String(overwrite) + ', applied=' + String(applied), String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, { ok: true, message: 'Defaults berhasil diterapkan ke draft jadwal.', month: month, applied_count: applied, overwrite: overwrite, schedule_source: 'supabase.config' });
     }
 
     if (path === 'admin/master/sync-from-employees' && method === 'POST') {
