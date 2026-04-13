@@ -1440,7 +1440,7 @@
         const checked=!!scheduleSelectedIds[id];
         const tpl=templateOf(id);
         const fmtVal=scheduleFormatByTemplate(tpl);
-        const fmtLabel=scheduleFormatLabelFromTemplate(tpl);
+        const fmtLabel=String(tpl.shift_code||'PAGI').toUpperCase();
         const offDay=scheduleOffDayLabelFromTemplate(tpl);
         return '<tr><td style="text-align:center;"><input type="checkbox" '+(checked?'checked':'')+' onchange="toggleScheduleEmployee(\''+escapeHtml(id)+'\',this.checked)"></td><td>'+escapeHtml(e.nama||'-')+'</td><td>'+escapeHtml(id||'-')+'</td><td>'+escapeHtml(e.divisi||'-')+'</td><td>'+escapeHtml(e.jabatan||'-')+'</td><td>'+escapeHtml(fmtLabel)+'</td><td style="text-align:center;">'+escapeHtml(offDay)+'</td><td><select onchange="setEmployeeScheduleFormat(\''+escapeHtml(id)+'\',this.value)">'+scheduleFormatOptionsHtml(fmtVal)+'</select></td></tr>';
       }).join('')||'<tr><td colspan="8">Tidak ada data karyawan</td></tr>';
@@ -1526,10 +1526,10 @@
       const mapEmp={}; (scheduleEmployees||[]).forEach(function(e){ mapEmp[String(e.employee_id||'')]=e; });
       const assignedRows=Object.keys(scheduleTemplates||{}).map(function(empId){
         const t=templateOf(empId); const e=mapEmp[String(empId)]||{};
-        const fmt=scheduleFormatLabelFromTemplate(t);
+        const fmt=String(t.shift_code||'PAGI').toUpperCase();
         const offDay=scheduleOffDayLabelFromTemplate(t);
-        return '<tr><td>'+escapeHtml(String(e.nama||'-'))+'</td><td>'+escapeHtml(String(empId||'-'))+'</td><td>'+escapeHtml(fmt)+'</td><td>'+escapeHtml(t.shift_code||'PAGI')+'</td><td style="text-align:center;">'+escapeHtml(offDay)+'</td></tr>';
-      }).join('') || '<tr><td colspan="5">Belum ada data shift diset untuk bulan ini.</td></tr>';
+        return '<tr><td>'+escapeHtml(String(e.nama||'-'))+'</td><td>'+escapeHtml(String(empId||'-'))+'</td><td>'+escapeHtml(fmt)+'</td><td style="text-align:center;">'+escapeHtml(offDay)+'</td></tr>';
+      }).join('') || '<tr><td colspan="4">Belum ada data shift diset untuk bulan ini.</td></tr>';
       const assignedCount=Object.keys(scheduleTemplates||{}).length;
       const unassignedCount=Math.max(0, Number((scheduleEmployees||[]).length)-assignedCount);
 
@@ -1548,8 +1548,8 @@
             '<div class="form-group"><label>Format Shift (Karyawan Terpilih)</label><div class="actions"><select id="sched_bulk_format" style="max-width:220px;">'+scheduleFormatOptionsHtml('pagi_off_sabtu')+'</select><button class="btn btn-secondary" onclick="applyBulkScheduleToSelected()">Terapkan ke Terpilih ('+selectedCount+')</button></div><div class="actions" style="margin-top:8px;"><button class="btn btn-secondary" onclick="toggleScheduleSelectAll(true)">Pilih Semua</button><button class="btn btn-secondary" onclick="toggleScheduleSelectAll(false)">Kosongkan Pilihan</button></div></div>' +
           '</div>' +
           '<div class="stat-label" style="margin-bottom:16px;">Terakhir dipublikasikan: '+escapeHtml(formatDateTimeDisplay(publishedAt)||'-')+'</div>' +
-          '<div class="card" style="box-shadow:none;background:var(--bg);margin-bottom:12px;"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Daftar Karyawan</h3><div class="actions"><input id="sched_emp_filter" placeholder="Cari nama / ID / divisi / shift..." value="'+escapeHtml(scheduleEmpFilter)+'" oninput="scheduleEmpFilter=this.value;scheduleApplyFilter(false);"><select id="sched_filter_format" onchange="scheduleFormatFilter=this.value;scheduleApplyFilter(true);" style="max-width:220px;">'+scheduleFilterOptionsHtml(scheduleFormatFilter)+'</select></div></div><div class="table-wrap"><table><thead><tr><th style="text-align:center;">Pilih</th><th>Nama</th><th>ID</th><th>Divisi</th><th>Jabatan</th><th>FORMAT SHIFT (DRAFT)</th><th style="text-align:center;">OFF DAY</th><th>ATUR FORMAT</th></tr></thead><tbody id="sched_picker_tbody">'+pickerRows+'</tbody></table></div></div>' +
-          '<div class="card" style="box-shadow:none;background:var(--bg);margin-bottom:12px;"><h3 style="font-size:16px;font-weight:700;margin-bottom:8px;">Shift Bulan '+escapeHtml(monthLabelId(scheduleMonthValue))+'</h3><div class="table-wrap"><table><thead><tr><th>Nama</th><th>ID</th><th>FORMAT SHIFT</th><th>SHIFT</th><th style="text-align:center;">OFF DAY</th></tr></thead><tbody>'+assignedRows+'</tbody></table></div></div>' +
+          '<div class="card" style="box-shadow:none;background:var(--bg);margin-bottom:12px;"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Daftar Karyawan</h3><div class="actions"><input id="sched_emp_filter" placeholder="Cari nama / ID / divisi / shift..." value="'+escapeHtml(scheduleEmpFilter)+'" oninput="scheduleEmpFilter=this.value;scheduleApplyFilter(false);"><select id="sched_filter_format" onchange="scheduleFormatFilter=this.value;scheduleApplyFilter(true);" style="max-width:220px;">'+scheduleFilterOptionsHtml(scheduleFormatFilter)+'</select></div></div><div class="table-wrap"><table><thead><tr><th style="text-align:center;">Pilih</th><th>Nama</th><th>ID</th><th>Divisi</th><th>Jabatan</th><th>SHIFT (DRAFT)</th><th style="text-align:center;">OFF DAY</th><th>ATUR FORMAT</th></tr></thead><tbody id="sched_picker_tbody">'+pickerRows+'</tbody></table></div></div>' +
+          '<div class="card" style="box-shadow:none;background:var(--bg);margin-bottom:12px;"><h3 style="font-size:16px;font-weight:700;margin-bottom:8px;">Shift Bulan '+escapeHtml(monthLabelId(scheduleMonthValue))+'</h3><div class="table-wrap"><table><thead><tr><th>Nama</th><th>ID</th><th>SHIFT</th><th style="text-align:center;">OFF DAY</th></tr></thead><tbody>'+assignedRows+'</tbody></table></div></div>' +
         '</div>';
       setContent(html);
     }
