@@ -123,10 +123,16 @@ async function deliverActivationEmail(toEmail, employeeName, passwordPlain, opti
   } catch (_) { autoFrom = ''; }
   const username = String(opt.username || to).trim().toLowerCase();
   const mode = String(opt.mode || 'activation').toLowerCase();
+  const userRole = String(opt.role || 'employee').trim().toLowerCase();
+  const isAdminRecipient = /^(admin|superadmin|manager)$/.test(userRole);
   const isResetLike = mode === 'reset' || mode === 'set';
-  const title = isResetLike ? 'Reset Password Akun ESS' : 'Aktivasi Akun ESS';
-  const subject = isResetLike ? 'Reset Password Akun ESS - Trendhorizone Space' : 'Aktivasi Akun ESS - Trendhorizone Space';
-  const headline = isResetLike ? 'Password akun ESS Anda telah diperbarui' : 'Akun ESS Anda siap digunakan';
+  const title = isResetLike ? (isAdminRecipient ? 'Reset Password Akun Admin ESS' : 'Reset Password Akun ESS') : (isAdminRecipient ? 'Aktivasi Akun Admin ESS' : 'Aktivasi Akun ESS');
+  const subject = isResetLike ? (isAdminRecipient ? 'Reset Password Akun Admin ESS - Trendhorizone Space' : 'Reset Password Akun ESS - Trendhorizone Space') : (isAdminRecipient ? 'Aktivasi Akun Admin ESS - Trendhorizone Space' : 'Aktivasi Akun ESS - Trendhorizone Space');
+  const headline = isResetLike ? (isAdminRecipient ? 'Password akun admin ESS Anda telah diperbarui' : 'Password akun ESS Anda telah diperbarui') : (isAdminRecipient ? 'Akun admin ESS Anda siap digunakan' : 'Akun ESS Anda siap digunakan');
+  const accessPath = isAdminRecipient ? '/admin' : '/employee';
+  const accessLabel = isAdminRecipient ? 'Portal Admin' : 'Portal Karyawan';
+  const accessUrl = appUrl + accessPath;
+  const accessNote = isAdminRecipient ? 'Akun ini ditetapkan sebagai admin. Gunakan akses Admin Dashboard setelah login.' : 'Akun ini ditetapkan sebagai karyawan. Gunakan akses Dashboard Karyawan setelah login.';
   const html = '<div style="font-family:Inter,Arial,sans-serif;background:#f8fafc;padding:24px;color:#0f172a;">'
     + '<div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;">'
     + '<div style="padding:18px 20px;background:linear-gradient(135deg,#1d4ed8,#4f46e5);color:#fff;">'
@@ -140,7 +146,9 @@ async function deliverActivationEmail(toEmail, employeeName, passwordPlain, opti
     + '<tr><td style="width:140px;padding:10px;border:1px solid #e2e8f0;background:#f8fafc;">Username</td><td style="padding:10px;border:1px solid #e2e8f0;"><b>' + username + '</b></td></tr>'
     + '<tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;">Password</td><td style="padding:10px;border:1px solid #e2e8f0;"><b>' + String(passwordPlain || '') + '</b></td></tr>'
     + '<tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;">Login URL</td><td style="padding:10px;border:1px solid #e2e8f0;"><a href="' + appUrl + '/login">' + appUrl + '/login</a></td></tr>'
+    + '<tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;">Link Akses</td><td style="padding:10px;border:1px solid #e2e8f0;"><a href="' + accessUrl + '">' + accessLabel + '</a></td></tr>'
     + '</table>'
+    + '<p style="margin:0 0 8px;">' + accessNote + '</p>'
     + '<p style="margin:0 0 8px;">Untuk keamanan akun, setelah login segera ubah password Anda.</p>'
     + '<p style="margin:0;color:#64748b;font-size:12px;">Email ini dikirim otomatis oleh sistem ESS ' + appUrl + '.</p>'
     + '</div>'
@@ -167,14 +175,14 @@ async function deliverActivationEmail(toEmail, employeeName, passwordPlain, opti
       const rs = await sendWithFrom(sender);
       const detail = rs.data && (rs.data.message || rs.data.error || rs.data.name) ? String(rs.data.message || rs.data.error || rs.data.name) : String(rs.raw || '');
       attempts.push({ sender: sender, status: rs.status, detail: detail });
-      if (rs.ok) return { sent: true, channel: 'resend', provider_id: rs.data && rs.data.id ? rs.data.id : '', sender: sender, warning: i > 0 ? 'Sender fallback dipakai.' : '', debug: { key_source: keySource, from: from, auto_from: autoFrom, fallback_from: fallbackFrom, to: to, attempts: attempts } };
+      if (rs.ok) return { sent: true, channel: 'resend', provider_id: rs.data && rs.data.id ? rs.data.id : '', sender: sender, warning: i > 0 ? 'Sender fallback dipakai.' : '', debug: { key_source: keySource, role: userRole, access_path: accessPath, from: from, auto_from: autoFrom, fallback_from: fallbackFrom, to: to, attempts: attempts } };
       const retryable = /domain|sender|from|verify|validation|unauthor/i.test(detail) || rs.status === 401 || rs.status === 403 || rs.status === 422;
       if (!retryable) break;
     }
     const compact = attempts.map(function(x) { return x.sender + ' => ' + x.detail; }).join(' | ');
-    return { sent: false, channel: 'resend', message: 'Gagal kirim email.', error: compact, sender: from, fallback_sender: fallbackFrom, debug: { key_source: keySource, from: from, auto_from: autoFrom, fallback_from: fallbackFrom, to: to, attempts: attempts } };
+    return { sent: false, channel: 'resend', message: 'Gagal kirim email.', error: compact, sender: from, fallback_sender: fallbackFrom, debug: { key_source: keySource, role: userRole, access_path: accessPath, from: from, auto_from: autoFrom, fallback_from: fallbackFrom, to: to, attempts: attempts } };
   } catch (e) {
-    return { sent: false, channel: 'resend', message: 'Error kirim email aktivasi.', error: String(e && e.message || e || ''), debug: { key_source: keySource, from: from, auto_from: autoFrom, fallback_from: fallbackFrom, to: to } };
+    return { sent: false, channel: 'resend', message: 'Error kirim email aktivasi.', error: String(e && e.message || e || ''), debug: { key_source: keySource, role: userRole, access_path: accessPath, from: from, auto_from: autoFrom, fallback_from: fallbackFrom, to: to } };
   }
 }
 async function getAuthCredByEmail(email) {
@@ -797,7 +805,7 @@ async function createEmployeeWithActivation(payload, options) {
     activation_sent_at: nowIso(),
     password_last_set_at: nowIso()
   });
-  const delivery = await deliverActivationEmail(payload.email, payload.nama, activationPassword, { username: payload.email, mode: 'activation' });
+  const delivery = await deliverActivationEmail(payload.email, payload.nama, activationPassword, { username: payload.email, mode: 'activation', role: payload.role });
   await recordActivationDelivery(payload.employee_id, payload.email, activationPassword, delivery, 'activation', String(opts.actor_email || ''));
   return {
     ok: true,
@@ -2380,7 +2388,7 @@ module.exports = async function handler(req, res) {
         activation_sent_at: nowIso(),
         password_last_set_at: nowIso()
       });
-      const delivery = await deliverActivationEmail(String(row.email || ''), String(row.nama || ''), activationPassword, { username: String(row.email || ''), mode: requestedPassword ? 'set' : 'reset' });
+      const delivery = await deliverActivationEmail(String(row.email || ''), String(row.nama || ''), activationPassword, { username: String(row.email || ''), mode: requestedPassword ? 'set' : 'reset', role: String(row.role || '') });
       await recordActivationDelivery(employeeId, String(row.email || ''), activationPassword, delivery, requestedPassword ? 'set' : 'reset', a.email);
       await auditLog(a.email, 'UPDATE', 'auth', 'Reset password aktivasi ' + employeeId, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, { ok: true, message: delivery.sent ? 'Password aktivasi baru terkirim ke email.' : 'Password aktivasi baru dibuat. Kirim manual jika email belum aktif.', employee_id: employeeId, email: row.email, role: row.role, activation_password: activationPassword, activation_delivery: delivery });
@@ -2399,7 +2407,7 @@ module.exports = async function handler(req, res) {
       const outVal = out.ok && Array.isArray(out.data) && out.data[0] ? safeJsonParse(out.data[0].value, {}) : {};
       const lastPassword = String(outVal.activation_password || '').trim();
       if (!lastPassword) return json(res, 400, { ok: false, message: 'Tidak ada password aktivasi terakhir. Gunakan Reset Password terlebih dahulu.' });
-      const delivery = await deliverActivationEmail(String(row.email || ''), String(row.nama || ''), lastPassword, { username: String(row.email || ''), mode: 'resend' });
+      const delivery = await deliverActivationEmail(String(row.email || ''), String(row.nama || ''), lastPassword, { username: String(row.email || ''), mode: 'resend', role: String(row.role || '') });
       await recordActivationDelivery(employeeId, String(row.email || ''), lastPassword, delivery, 'resend', a.email);
       await auditLog(a.email, 'UPDATE', 'auth', 'Resend activation email ' + employeeId, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, { ok: true, message: delivery.sent ? 'Email aktivasi berhasil dikirim ulang.' : 'Gagal kirim ulang email aktivasi.', employee_id: employeeId, email: row.email, activation_delivery: delivery });
@@ -2422,7 +2430,7 @@ module.exports = async function handler(req, res) {
         const outVal = out.ok && Array.isArray(out.data) && out.data[0] ? safeJsonParse(out.data[0].value, {}) : {};
         const lastPassword = String(outVal.activation_password || '').trim();
         if (!lastPassword) { failed.push({ employee_id: employeeId, message: 'Tidak ada password aktivasi terakhir.' }); continue; }
-        const delivery = await deliverActivationEmail(String(row.email || ''), String(row.nama || ''), lastPassword, { username: String(row.email || ''), mode: 'resend' });
+        const delivery = await deliverActivationEmail(String(row.email || ''), String(row.nama || ''), lastPassword, { username: String(row.email || ''), mode: 'resend', role: String(row.role || '') });
         await recordActivationDelivery(employeeId, String(row.email || ''), lastPassword, delivery, 'resend', a.email);
         if (delivery.sent) sent.push({ employee_id: employeeId, email: String(row.email || ''), provider_id: String(delivery.provider_id || '') });
         else failed.push({ employee_id: employeeId, email: String(row.email || ''), message: String(delivery.error || delivery.message || 'Gagal kirim') });
