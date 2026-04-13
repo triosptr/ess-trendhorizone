@@ -89,6 +89,10 @@
     .btn-danger { background: var(--danger); color: #fff; }
     .btn-danger:hover { background: #DC2626; transform: translateY(-1px); }
     .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+    .kpi-layout .card { height: auto; }
+    .kpi-layout .team-header { margin-bottom: 14px; }
+    .kpi-layout .table-wrap { margin-top: 10px; }
     .muted { color: var(--text-sec); font-size: 14px; }
     .error { background: var(--danger-bg); color: var(--danger); border: 1px solid #fecaca; border-radius: var(--radius-sm); padding: 12px 14px; font-size: 14px; font-weight: 600; }
     .clean-list { list-style: none; display: flex; flex-direction: column; gap: 16px; }
@@ -870,8 +874,9 @@
         
         const lateRate = Number(s.attendance_records||0)>0 ? ((Number(s.late_records||0)/Number(s.attendance_records||0))*100) : 0;
         const html = `
-            <div class="card">
+            <div class="card kpi-layout">
                 <div class="team-header">
+                    <h3 style="font-size:20px;font-weight:700;">HR KPI Dashboard</h3>
                     <div class="actions">
                         <button class="btn btn-secondary" onclick="loadKpiHrDashboard()"><i class="ph ph-arrows-clockwise"></i> Refresh</button>
                         <button class="btn btn-primary" onclick="exportKpiHrCsv()"><i class="ph ph-file-csv"></i> Export CSV</button>
