@@ -84,10 +84,10 @@
       const origin=String(location.origin||'').trim().replace(/\/+$/,'');
       const host=String(location.hostname||'').toLowerCase();
       const candidates=[];
-      candidates.push(CANONICAL_API);
+      if(origin) candidates.push(origin);
       if(saved) candidates.push(saved);
       if(host==='localhost'||host==='127.0.0.1') candidates.push('https://ess-trendhorizone-id.vercel.app');
-      if(origin) candidates.push(origin);
+      candidates.push(CANONICAL_API);
       const uniq=[...new Set(candidates.filter(Boolean))];
       const healths=[];
       for(const b of uniq){
@@ -97,7 +97,7 @@
           if(r.ok&&j&&j.supabase_ready===true) healths.push({base:b,resendReady:j.resend_ready===true});
         }catch(_){}
       }
-      const best=healths.find(function(x){ return x.base===CANONICAL_API && x.resendReady; }) || healths.find(function(x){ return x.resendReady; }) || healths.find(function(x){ return x.base===CANONICAL_API; }) || healths[0];
+      const best=healths.find(function(x){ return x.base===origin && x.resendReady; }) || healths.find(function(x){ return x.base===origin; }) || healths.find(function(x){ return x.base===CANONICAL_API && x.resendReady; }) || healths.find(function(x){ return x.resendReady; }) || healths.find(function(x){ return x.base===CANONICAL_API; }) || healths[0];
       if(best&&best.base){
         localStorage.setItem('ess_api_base',best.base);
         return best.base;
