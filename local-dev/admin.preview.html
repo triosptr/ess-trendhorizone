@@ -971,6 +971,7 @@
               <button class="btn btn-primary" onclick="loadEditEmployeeForm('${id}')">Edit</button>
               <button class="btn btn-secondary" onclick="resetEmployeeActivationPassword('${id}')">Password</button>
               <button class="btn btn-secondary" onclick="resendEmployeeActivation('${id}')">Resend Email</button>
+              <button class="btn btn-secondary" onclick="showActivationEmailAudit('${id}')">Email Audit</button>
               <button class="btn ${actionClass}" onclick="toggleEmployeeActive('${id}')">${actionLabel}</button>
               <button class="btn btn-danger" onclick="deleteEmployee('${id}')">Delete</button>
             </div>
@@ -1170,6 +1171,18 @@
         const sender=String(del.sender||'');
         const debug=del.debug?JSON.stringify(del.debug):'';
         alert('Kirim ulang email aktivasi: '+(sent?'TERKIRIM':'GAGAL')+'\\nUsername: '+String(r.email||row.email||'')+(sender?('\\nSender: '+sender):'')+(detail?('\\nDetail: '+detail):'')+(debug?('\\nDebug: '+debug):''));
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    async function showActivationEmailAudit(id){
+      try{
+        const row=employeeFindById(id); if(!row) throw new Error('Employee tidak ditemukan.');
+        const r=await api('/api/admin/auth/activation/audit?employee_id='+encodeURIComponent(row.employee_id)+'&limit=10');
+        const rows=(r&&r.rows)||[];
+        if(!rows.length){ alert('Belum ada audit pengiriman email untuk '+String(row.employee_id||'')); return; }
+        const txt=rows.map(function(x,idx){
+          return '#'+String(idx+1)+' ['+String(x.mode||'-')+'] '+(x.sent?'TERKIRIM':'GAGAL')+' | '+String(x.created_at||'-')+' | sender='+String(x.sender||'-')+(x.error?(' | err='+String(x.error)):'');
+        }).join('\n');
+        alert('Audit Email Aktivasi - '+String(row.employee_id||'')+'\n\n'+txt);
       }catch(err){ setContent(renderError(err.message)); }
     }
     async function loadEditEmployeeForm(id){

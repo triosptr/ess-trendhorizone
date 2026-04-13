@@ -2249,6 +2249,31 @@ module.exports = async function handler(req, res) {
       return json(res, 200, { ok: true, message: delivery.sent ? 'Email aktivasi berhasil dikirim ulang.' : 'Gagal kirim ulang email aktivasi.', employee_id: employeeId, email: row.email, activation_delivery: delivery });
     }
 
+    if (path === 'admin/auth/activation/audit' && method === 'GET') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const employeeId = String((req.query && req.query.employee_id) || '').trim();
+      if (!employeeId) return json(res, 400, { ok: false, message: 'employee_id wajib diisi.' });
+      const limit = Math.max(1, Math.min(30, Number((req.query && req.query.limit) || 10)));
+      const prefix = 'AUTH_EMAIL_AUDIT_' + employeeId + '_';
+      const q = await db('GET', 'config', { select: 'key,value', key: 'like.' + prefix + '%', limit: String(limit) });
+      if (!q.ok) return json(res, 500, { ok: false, message: 'Gagal mengambil audit email.', error: q.error });
+      const rows = (Array.isArray(q.data) ? q.data : []).map(function(r) {
+        const v = safeJsonParse(r.value, {});
+        return {
+          key: String(r.key || ''),
+          created_at: String(v.created_at || ''),
+          mode: String(v.mode || ''),
+          sent: !!v.sent,
+          sender: String(v.sender || ''),
+          to: String(v.to || ''),
+          provider_id: String(v.provider_id || ''),
+          warning: String(v.warning || ''),
+          error: String(v.error || '')
+        };
+      }).sort(function(a1, a2) { return String(a2.created_at || a2.key || '').localeCompare(String(a1.created_at || a1.key || '')); }).slice(0, limit);
+      return json(res, 200, { ok: true, employee_id: employeeId, total: rows.length, rows: rows });
+    }
+
     if (path === 'admin/employees' && method === 'PATCH') {
       const a = requireAdmin(req, res); if (!a) return;
       const b = await readBody(req);
