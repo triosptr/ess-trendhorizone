@@ -437,12 +437,14 @@
       if(!localStorage.getItem('ess_user_role')) localStorage.setItem('ess_user_role','employee');
     }
     function sessionToken(){ return localStorage.getItem('ess_session_token')||''; }
+    function isAdminRole(role){ return /^(admin|superadmin)$/i.test(String(role||'').trim()); }
     async function ensureSessionLogin(){
       const token=sessionToken();
       if(!token){ location.href='/login'; return false; }
       const r=await fetch(base()+'/api/auth/session/me',{headers:{Authorization:'Bearer '+token}});
       const j=await r.json();
       if(!r.ok||!j.authenticated||!j.user){ localStorage.removeItem('ess_session_token'); location.href='/login'; return false; }
+      if(isAdminRole((j.user||{}).role) || !!(j.user||{}).is_admin){ location.href='/admin'; return false; }
       localStorage.setItem('ess_user_email',j.user.email||'');
       localStorage.setItem('ess_employee_id',j.user.employee_id||'');
       localStorage.setItem('ess_user_role',j.user.role||'employee');

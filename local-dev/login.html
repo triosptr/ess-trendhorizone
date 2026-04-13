@@ -109,6 +109,15 @@
     let apiBasePromise=resolveApiBase();
     const $=id=>document.getElementById(id);
     function show(t,ok){ const m=$('msg'); m.className='msg '+(ok?'ok':'err'); m.textContent=t; m.style.display='block'; }
+    function isAdminRole(role){
+      return /^(admin|superadmin)$/i.test(String(role||'').trim());
+    }
+    function targetDashboardFor(user, firstLoginRequired){
+      const role=String((user&&user.role)||'').trim();
+      const admin=isAdminRole(role) || !!(user&&user.is_admin);
+      if(firstLoginRequired) return admin?'/admin?setup=1':'/employee?setup=1';
+      return admin?'/admin':'/employee';
+    }
     async function sessionMe(token){ const apiBase=await apiBasePromise; const r=await fetch(apiBase+'/api/auth/session/me',{headers:{Authorization:'Bearer '+token}}); return r.json(); }
     async function boot(){
       await apiBasePromise;
@@ -120,8 +129,7 @@
         localStorage.setItem('ess_user_email',s.user.email||'');
         localStorage.setItem('ess_user_role',s.user.role||'employee');
         localStorage.setItem('ess_employee_id',s.user.employee_id||'');
-        if(s.first_login_required) return location.href='/employee?setup=1';
-        return location.href=(s.user.is_admin?'/admin':'/employee');
+        return location.href=targetDashboardFor(s.user, !!s.first_login_required);
       }catch(_){}
     }
     $('f').addEventListener('submit', async function(e){
@@ -138,8 +146,7 @@
         localStorage.setItem('ess_user_role',(j.user||{}).role||'employee');
         localStorage.setItem('ess_employee_id',(j.user||{}).employee_id||'');
         show('Login berhasil. Mengarahkan dashboard...',true);
-        if(j.first_login_required) return setTimeout(()=>location.href='/employee?setup=1',350);
-        return setTimeout(()=>location.href=((j.user||{}).is_admin?'/admin':'/employee'),350);
+        return setTimeout(()=>location.href=targetDashboardFor((j.user||{}), !!j.first_login_required),350);
       }catch(err){ show(err.message||'Login gagal',false); }
     });
     boot();
