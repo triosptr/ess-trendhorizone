@@ -1255,6 +1255,31 @@ async function saveScheduleDefaultRules(rules, actorEmail) {
   if (!up.ok) return { ok: false, message: 'Gagal menyimpan default schedule.', error: up.error };
   return { ok: true };
 }
+function computeScheduleDefaultsImpact(rules, templates, employees, overwrite) {
+  const sourceRules = (rules && typeof rules === 'object') ? rules : {};
+  const sourceTemplates = (templates && typeof templates === 'object') ? templates : {};
+  const nextTemplates = Object.assign({}, sourceTemplates);
+  const byDivisionMap = {};
+  let applied = 0;
+  let skippedNoRule = 0;
+  let skippedExisting = 0;
+  let skippedInactive = 0;
+  for (const e of (Array.isArray(employees) ? employees : [])) {
+    const active = String(e.is_active).toLowerCase() === 'true';
+    if (!active) { skippedInactive += 1; continue; }
+    const div = String(e.divisi || '').trim();
+    const eid = String(e.employee_id || '').trim();
+    if (!div || !eid || !sourceRules[div]) { skippedNoRule += 1; continue; }
+    if (!byDivisionMap[div]) byDivisionMap[div] = { divisi: div, total_active: 0, applied: 0, skipped_existing: 0 };
+    byDivisionMap[div].total_active += 1;
+    if (!overwrite && sourceTemplates[eid]) { skippedExisting += 1; byDivisionMap[div].skipped_existing += 1; continue; }
+    nextTemplates[eid] = normalizeScheduleRule(sourceRules[div]);
+    applied += 1;
+    byDivisionMap[div].applied += 1;
+  }
+  const byDivision = Object.values(byDivisionMap).sort(function(a, b) { return Number(b.applied || 0) - Number(a.applied || 0); });
+  return { applied_count: applied, skipped_no_rule: skippedNoRule, skipped_existing: skippedExisting, skipped_inactive: skippedInactive, by_division: byDivision, templates: nextTemplates };
+}
 function attendanceMetaKey(attendanceId) {
   return 'ATTENDANCE_META_' + String(attendanceId || '');
 }
@@ -2685,25 +2710,34 @@ module.exports = async function handler(req, res) {
       const templates = (val.templates && typeof val.templates === 'object') ? val.templates : {};
       const em = await db('GET', 'employees', { select: 'employee_id,divisi,is_active', limit: 5000 });
       if (!em.ok) return json(res, 500, { ok: false, message: 'Gagal membaca employee.', error: em.error });
-      let applied = 0;
-      for (const e of (em.data || [])) {
-        if (String(e.is_active).toLowerCase() !== 'true') continue;
-        const div = String(e.divisi || '').trim();
-        if (!div || !rules[div]) continue;
-        const eid = String(e.employee_id || '').trim();
-        if (!eid) continue;
-        if (!overwrite && templates[eid]) continue;
-        templates[eid] = normalizeScheduleRule(rules[div]);
-        applied += 1;
-      }
+      const impact = computeScheduleDefaultsImpact(rules, templates, em.data || [], overwrite);
       val.month = month;
-      val.templates = templates;
+      val.templates = impact.templates;
       val.updated_by = a.email;
       val.updated_at = nowIso();
       const up = await db('POST', 'config', { on_conflict: 'key' }, { key: key, value: JSON.stringify(val) }, { Prefer: 'resolution=merge-duplicates,return=minimal' });
       if (!up.ok) return json(res, 500, { ok: false, message: 'Gagal menyimpan hasil apply defaults.', error: up.error });
-      await auditLog(a.email, 'UPSERT', 'shift_schedule', 'Apply defaults ke jadwal bulan ' + month + ', overwrite=' + String(overwrite) + ', applied=' + String(applied), String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
-      return json(res, 200, { ok: true, message: 'Defaults berhasil diterapkan ke draft jadwal.', month: month, applied_count: applied, overwrite: overwrite, schedule_source: 'supabase.config' });
+      await auditLog(a.email, 'UPSERT', 'shift_schedule', 'Apply defaults ke jadwal bulan ' + month + ', overwrite=' + String(overwrite) + ', applied=' + String(impact.applied_count), String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, { ok: true, message: 'Defaults berhasil diterapkan ke draft jadwal.', month: month, applied_count: impact.applied_count, skipped_existing: impact.skipped_existing, skipped_no_rule: impact.skipped_no_rule, skipped_inactive: impact.skipped_inactive, by_division: impact.by_division, overwrite: overwrite, schedule_source: 'supabase.config' });
+    }
+
+    if (path === 'admin/schedules/monthly/preview-defaults' && method === 'GET') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const month = String((req.query && req.query.month) || ymd().slice(0, 7)).trim().slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(month)) return json(res, 400, { ok: false, message: 'Format month harus YYYY-MM.' });
+      const overwrite = String((req.query && req.query.overwrite) || 'true').toLowerCase() !== 'false';
+      const defs = await readScheduleDefaultRules();
+      if (!defs.ok) return json(res, 500, { ok: false, message: defs.message, error: defs.error });
+      const key = 'SHIFT_SCHEDULE_' + month;
+      const curr = await db('GET', 'config', { select: 'value', key: 'eq.' + key, limit: 1 });
+      if (!curr.ok) return json(res, 500, { ok: false, message: 'Gagal membaca draft schedule.', error: curr.error });
+      const row = Array.isArray(curr.data) && curr.data[0] ? curr.data[0] : null;
+      const val = row ? safeJsonParse(row.value, {}) : {};
+      const templates = (val.templates && typeof val.templates === 'object') ? val.templates : {};
+      const em = await db('GET', 'employees', { select: 'employee_id,divisi,is_active', limit: 5000 });
+      if (!em.ok) return json(res, 500, { ok: false, message: 'Gagal membaca employee.', error: em.error });
+      const impact = computeScheduleDefaultsImpact(defs.rules || {}, templates, em.data || [], overwrite);
+      return json(res, 200, { ok: true, month: month, overwrite: overwrite, default_rules: Object.keys(defs.rules || {}).length, applied_count: impact.applied_count, skipped_existing: impact.skipped_existing, skipped_no_rule: impact.skipped_no_rule, skipped_inactive: impact.skipped_inactive, by_division: impact.by_division, schedule_source: 'supabase.config' });
     }
 
     if (path === 'admin/master/sync-from-employees' && method === 'POST') {
