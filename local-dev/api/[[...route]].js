@@ -2249,6 +2249,32 @@ module.exports = async function handler(req, res) {
       return json(res, 200, { ok: true, message: delivery.sent ? 'Email aktivasi berhasil dikirim ulang.' : 'Gagal kirim ulang email aktivasi.', employee_id: employeeId, email: row.email, activation_delivery: delivery });
     }
 
+    if (path === 'admin/auth/activation/batch-resend' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const ids = Array.isArray(b.employee_ids) ? b.employee_ids : [];
+      const uniqueIds = Array.from(new Set(ids.map(function(x) { return String(x || '').trim(); }).filter(Boolean))).slice(0, 100);
+      if (!uniqueIds.length) return json(res, 400, { ok: false, message: 'employee_ids wajib diisi.' });
+      const sent = [];
+      const failed = [];
+      for (let i = 0; i < uniqueIds.length; i += 1) {
+        const employeeId = uniqueIds[i];
+        const e = await db('GET', 'employees', { select: 'employee_id,email,nama,role', employee_id: 'eq.' + employeeId, limit: 1 });
+        const row = e.ok && Array.isArray(e.data) && e.data[0] ? e.data[0] : null;
+        if (!row) { failed.push({ employee_id: employeeId, message: 'Employee tidak ditemukan.' }); continue; }
+        const out = await db('GET', 'config', { select: 'value', key: 'eq.' + 'AUTH_ACTIVATION_OUTBOX_' + employeeId, limit: 1 });
+        const outVal = out.ok && Array.isArray(out.data) && out.data[0] ? safeJsonParse(out.data[0].value, {}) : {};
+        const lastPassword = String(outVal.activation_password || '').trim();
+        if (!lastPassword) { failed.push({ employee_id: employeeId, message: 'Tidak ada password aktivasi terakhir.' }); continue; }
+        const delivery = await deliverActivationEmail(String(row.email || ''), String(row.nama || ''), lastPassword, { username: String(row.email || ''), mode: 'resend' });
+        await recordActivationDelivery(employeeId, String(row.email || ''), lastPassword, delivery, 'resend', a.email);
+        if (delivery.sent) sent.push({ employee_id: employeeId, email: String(row.email || ''), provider_id: String(delivery.provider_id || '') });
+        else failed.push({ employee_id: employeeId, email: String(row.email || ''), message: String(delivery.error || delivery.message || 'Gagal kirim') });
+      }
+      await auditLog(a.email, 'UPDATE', 'auth', 'Batch resend activation total=' + String(uniqueIds.length) + ', sent=' + String(sent.length) + ', failed=' + String(failed.length), String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, { ok: true, message: 'Batch resend selesai.', total: uniqueIds.length, sent_count: sent.length, failed_count: failed.length, sent: sent, failed: failed });
+    }
+
     if (path === 'admin/auth/activation/audit' && method === 'GET') {
       const a = requireAdmin(req, res); if (!a) return;
       const employeeId = String((req.query && req.query.employee_id) || '').trim();
