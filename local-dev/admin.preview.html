@@ -1186,20 +1186,59 @@
         alert('Audit Email Aktivasi - '+String(row.employee_id||'')+'\n\n'+txt);
       }catch(err){ setContent(renderError(err.message)); }
     }
+    let deliverabilityRowsCache=[];
+    let deliverabilityFilters={ start:'', end:'', mode:'' };
+    function deliverabilityQueryParams(){
+      const s=String((deliverabilityFilters&&deliverabilityFilters.start)||'');
+      const e=String((deliverabilityFilters&&deliverabilityFilters.end)||'');
+      const m=String((deliverabilityFilters&&deliverabilityFilters.mode)||'');
+      const p=new URLSearchParams({limit:'1000'});
+      if(String(s||'').trim()) p.set('start_date',String(s).trim());
+      if(String(e||'').trim()) p.set('end_date',String(e).trim());
+      if(String(m||'').trim()) p.set('mode',String(m).trim());
+      return p.toString();
+    }
+    function exportDeliverabilityCsv(){
+      const rows=deliverabilityRowsCache||[];
+      if(!rows.length){ alert('Tidak ada data untuk diexport.'); return; }
+      const head=['created_at','employee_id','to','mode','sent','sender','error'];
+      const lines=[head.join(',')].concat(rows.map(function(r){
+        return head.map(function(k){ const v=String(r[k]===undefined||r[k]===null?'':r[k]).replace(/"/g,'""'); return '"'+v+'"'; }).join(',');
+      }));
+      const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url;
+      a.download='email_deliverability.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
     async function loadEmailDeliverabilityPanel(){
       try{
+        const sInput=document.getElementById('dlv_start');
+        const eInput=document.getElementById('dlv_end');
+        const mInput=document.getElementById('dlv_mode');
+        if(sInput) deliverabilityFilters.start=String(sInput.value||'').trim();
+        if(eInput) deliverabilityFilters.end=String(eInput.value||'').trim();
+        if(mInput) deliverabilityFilters.mode=String(mInput.value||'').trim();
         setLoading('Memuat email deliverability...');
-        const r=await api('/api/admin/auth/activation/deliverability?limit=200');
+        const r=await api('/api/admin/auth/activation/deliverability?'+deliverabilityQueryParams());
+        deliverabilityRowsCache=(r&&r.rows)||[];
         const ms=(r&&r.mode_stats)||{};
         const modeRows=Object.keys(ms).sort().map(function(k){
           const v=ms[k]||{};
           return '<tr><td>'+escapeHtml(k)+'</td><td>'+escapeHtml(v.total||0)+'</td><td>'+escapeHtml(v.sent||0)+'</td><td>'+escapeHtml(v.failed||0)+'</td></tr>';
         }).join('')||'<tr><td colspan="4">No data</td></tr>';
         const errRows=((r&&r.recent_errors)||[]).map(function(e){
-          return '<tr><td>'+escapeHtml(formatDateTime(e.created_at||''))+'</td><td>'+escapeHtml(e.employee_id||'-')+'</td><td>'+escapeHtml(e.to||'-')+'</td><td>'+escapeHtml(e.mode||'-')+'</td><td>'+escapeHtml(e.error||'-')+'</td></tr>';
+          return '<tr><td>'+escapeHtml(formatDateTimeDisplay(e.created_at||''))+'</td><td>'+escapeHtml(e.employee_id||'-')+'</td><td>'+escapeHtml(e.to||'-')+'</td><td>'+escapeHtml(e.mode||'-')+'</td><td>'+escapeHtml(e.error||'-')+'</td></tr>';
         }).join('')||'<tr><td colspan="5">Tidak ada error terbaru.</td></tr>';
+        const startVal=String((deliverabilityFilters&&deliverabilityFilters.start)||'');
+        const endVal=String((deliverabilityFilters&&deliverabilityFilters.end)||'');
+        const modeVal=String((deliverabilityFilters&&deliverabilityFilters.mode)||'');
         const html='' +
-          '<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Email Deliverability</h3><div class="actions"><button class="btn btn-secondary" onclick="loadSummary()"><i class="ph ph-arrow-left"></i> Back</button><button class="btn btn-primary" onclick="loadEmailDeliverabilityPanel()"><i class="ph ph-arrows-clockwise"></i> Refresh</button></div></div>' +
+          '<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Email Deliverability</h3><div class="actions"><button class="btn btn-secondary" onclick="loadSummary()"><i class="ph ph-arrow-left"></i> Back</button><button class="btn btn-secondary" onclick="exportDeliverabilityCsv()"><i class="ph ph-file-csv"></i> Export CSV</button><button class="btn btn-primary" onclick="loadEmailDeliverabilityPanel()"><i class="ph ph-arrows-clockwise"></i> Refresh</button></div></div>' +
+          '<div class="grid-3" style="margin-bottom:14px;"><div class="form-group"><label>Start Date</label><input id="dlv_start" type="date" value="'+escapeHtml(startVal)+'"></div><div class="form-group"><label>End Date</label><input id="dlv_end" type="date" value="'+escapeHtml(endVal)+'"></div><div class="form-group"><label>Mode</label><select id="dlv_mode"><option value="" '+(modeVal===''?'selected':'')+'>All</option><option value="activation" '+(modeVal==='activation'?'selected':'')+'>activation</option><option value="reset" '+(modeVal==='reset'?'selected':'')+'>reset</option><option value="set" '+(modeVal==='set'?'selected':'')+'>set</option><option value="resend" '+(modeVal==='resend'?'selected':'')+'>resend</option></select></div></div>' +
+          '<div class="actions" style="margin-bottom:14px;"><button class="btn btn-primary" onclick="loadEmailDeliverabilityPanel()">Apply Filter</button><button class="btn btn-secondary" onclick="deliverabilityFilters={start:\'\',end:\'\',mode:\'\'};loadEmailDeliverabilityPanel();">Reset Filter</button></div>' +
           '<div class="cards-row" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom:14px;">' +
           '<div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Total Logs</div><div class="stat-large">'+escapeHtml((r&&r.total)||0)+'</div></div>' +
           '<div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Sent</div><div class="stat-large">'+escapeHtml((r&&r.sent)||0)+'</div></div>' +

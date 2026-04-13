@@ -2276,9 +2276,16 @@ module.exports = async function handler(req, res) {
 
     if (path === 'admin/auth/activation/deliverability' && method === 'GET') {
       const a = requireAdmin(req, res); if (!a) return;
-      const limit = Math.max(20, Math.min(500, Number((req.query && req.query.limit) || 200)));
+      const limit = Math.max(20, Math.min(1000, Number((req.query && req.query.limit) || 200)));
+      const startDate = String((req.query && req.query.start_date) || '').trim();
+      const endDate = String((req.query && req.query.end_date) || '').trim();
+      const modeFilter = String((req.query && req.query.mode) || '').trim().toLowerCase();
+      if (startDate && !isValidDateYmd(startDate)) return json(res, 400, { ok: false, message: 'start_date harus format YYYY-MM-DD.' });
+      if (endDate && !isValidDateYmd(endDate)) return json(res, 400, { ok: false, message: 'end_date harus format YYYY-MM-DD.' });
       const q = await db('GET', 'config', { select: 'key,value', key: 'like.AUTH_EMAIL_AUDIT_%', limit: String(limit) });
       if (!q.ok) return json(res, 500, { ok: false, message: 'Gagal mengambil data deliverability.', error: q.error });
+      const startTs = startDate ? Date.parse(startDate + 'T00:00:00.000Z') : 0;
+      const endTs = endDate ? Date.parse(endDate + 'T23:59:59.999Z') : 0;
       const rows = (Array.isArray(q.data) ? q.data : []).map(function(r) {
         const v = safeJsonParse(r.value, {});
         return {
@@ -2291,6 +2298,12 @@ module.exports = async function handler(req, res) {
           sender: String(v.sender || ''),
           error: String(v.error || '')
         };
+      }).filter(function(r) {
+        if (modeFilter && String(r.mode || '').toLowerCase() !== modeFilter) return false;
+        const ts = Date.parse(String(r.created_at || ''));
+        if (startTs && (!ts || ts < startTs)) return false;
+        if (endTs && (!ts || ts > endTs)) return false;
+        return true;
       }).sort(function(a1, a2) { return String(a2.created_at || a2.key || '').localeCompare(String(a1.created_at || a1.key || '')); });
       const sentCount = rows.filter(function(x) { return x.sent; }).length;
       const failCount = rows.length - sentCount;
@@ -2305,7 +2318,7 @@ module.exports = async function handler(req, res) {
       const recentErrors = rows.filter(function(x) { return !x.sent; }).slice(0, 10).map(function(x) {
         return { created_at: x.created_at, employee_id: x.employee_id, to: x.to, mode: x.mode, error: x.error };
       });
-      return json(res, 200, { ok: true, total: rows.length, sent: sentCount, failed: failCount, success_rate: successRate, mode_stats: modeStats, recent_errors: recentErrors, rows: rows.slice(0, 50) });
+      return json(res, 200, { ok: true, total: rows.length, sent: sentCount, failed: failCount, success_rate: successRate, mode_stats: modeStats, recent_errors: recentErrors, rows: rows.slice(0, 200) });
     }
 
     if (path === 'admin/employees' && method === 'PATCH') {
