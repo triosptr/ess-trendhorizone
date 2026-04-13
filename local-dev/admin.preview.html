@@ -862,6 +862,7 @@
           ? warn.divisions.slice(0,5).map(function(x){ return String(x.divisi)+' ('+String(x.days)+' hari, puncak '+String(x.worst_rate)+'%)'; }).join(' • ')
           : 'Tidak ada divisi yang melewati ambang warning.';
         
+        const lateRate = Number(s.attendance_records||0)>0 ? ((Number(s.late_records||0)/Number(s.attendance_records||0))*100) : 0;
         const html = `
             <div class="card">
                 <div class="team-header">
@@ -871,38 +872,39 @@
                         <button class="btn btn-primary" onclick="exportKpiHrCsv()"><i class="ph ph-file-csv"></i> Export CSV</button>
                     </div>
                 </div>
-                <div class="grid-2">
+                <div class="grid-2" style="margin-bottom:12px;">
                     <div class="form-group"><label>Start Date</label><input id="kpi_start" type="date"></div>
                     <div class="form-group"><label>End Date</label><input id="kpi_end" type="date"></div>
                 </div>
-                <div class="actions" style="margin-bottom:24px;">
-                    <button class="btn btn-primary" onclick="loadKpiHrDashboard()">Apply Filter</button>
-                    <button class="btn btn-secondary" onclick="resetKpiHrFilter()">Reset</button>
+                <div class="grid-2" style="margin-bottom:20px;">
+                    <div class="form-group"><label>Threshold Warning Heatmap (%)</label><input id="kpi_heat_threshold" type="number" min="0" max="100" step="1"></div>
+                    <div class="actions" style="align-self:end;"><button class="btn btn-primary" onclick="loadKpiHrDashboard()">Apply Filter</button><button class="btn btn-secondary" onclick="resetKpiHrFilter()">Reset</button><button class="btn btn-secondary" onclick="applyHeatmapThreshold()">Apply Threshold</button></div>
                 </div>
-                <div class="grid-2" style="margin-bottom:24px;">
-                  <div class="form-group"><label>Threshold Warning Heatmap (%)</label><input id="kpi_heat_threshold" type="number" min="0" max="100" step="1"></div>
-                  <div class="form-group"><label> </label><button class="btn btn-secondary" onclick="applyHeatmapThreshold()">Apply Threshold</button></div>
-                </div>
-                <div class="cards-row" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom:24px;">
+                <div class="cards-row" style="grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-bottom:20px;">
                     <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Active Employees</div><div class="stat-large">${escapeHtml(s.active_employees||0)}</div></div>
                     <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Attendance Records</div><div class="stat-large">${escapeHtml(s.attendance_records||0)}</div></div>
                     <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Late Records</div><div class="stat-large" style="color:var(--warning);">${escapeHtml(s.late_records||0)}</div></div>
+                    <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Late Rate</div><div class="stat-large">${escapeHtml(lateRate.toFixed(1))}%</div></div>
                     <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Pending Leaves</div><div class="stat-large" style="color:var(--danger);">${escapeHtml(s.pending_leaves||0)}</div></div>
                 </div>
-                <div class="card" style="box-shadow:none;border:1px solid var(--border);margin-bottom:24px;">
+                <div class="card" style="box-shadow:none;border:1px solid var(--border);margin-bottom:20px;">
                   <div class="team-header"><h3 style="font-size:16px;font-weight:700;">Warning Otomatis (Late Rate ≥ ${escapeHtml(warn.threshold)}%)</h3><span class="status-badge ${warn.divisions.length?'on-leave':'on-time'}">${escapeHtml(warn.divisions.length?('Perlu Tindakan: '+warn.divisions.length+' divisi'):'Aman')}</span></div>
                   <div class="stat-label">${escapeHtml(warnText)}</div>
                 </div>
-                <div class="grid-2" style="grid-template-columns: 1fr;">
-                    <div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3 style="font-size:16px;font-weight:600;margin-bottom:16px;">Attendance Trend</h3>${attChart}</div>
-                    <div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3 style="font-size:16px;font-weight:600;margin-bottom:16px;">Leave Trend</h3>${leaveChart}</div>
-                    <div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3 style="font-size:16px;font-weight:600;margin-bottom:16px;">Top Lates</h3>${lateBar}</div>
-                    <div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3 style="font-size:16px;font-weight:600;margin-bottom:16px;">Ranking Ketepatan Hadir</h3><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Divisi</th><th>On Time</th><th>Total Hadir</th><th>Rate</th></tr></thead><tbody>${punctualRows}</tbody></table></div></div>
-                    <div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3 style="font-size:16px;font-weight:600;margin-bottom:16px;">Keterlambatan per Divisi</h3><div class="table-wrap"><table><thead><tr><th>Divisi</th><th>Total Absensi</th><th>Terlambat</th><th>On Time</th><th>Late Rate</th></tr></thead><tbody>${divisionLateRows}</tbody></table></div></div>
-                    <div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3 style="font-size:16px;font-weight:600;margin-bottom:16px;">Heatmap Keterlambatan Harian per Divisi (14 hari terakhir)</h3>${heatmapHtml}</div>
+                <div class="grid-2" style="gap:14px; margin-bottom:14px;">
+                    <div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3 style="font-size:16px;font-weight:600;margin-bottom:12px;">Attendance Trend</h3>${attChart}</div>
+                    <div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3 style="font-size:16px;font-weight:600;margin-bottom:12px;">Leave Trend</h3>${leaveChart}</div>
+                </div>
+                <div class="grid-2" style="gap:14px; margin-bottom:14px;">
+                    <div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3 style="font-size:16px;font-weight:600;margin-bottom:12px;">Top Lates</h3>${lateBar}</div>
+                    <div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3 style="font-size:16px;font-weight:600;margin-bottom:12px;">Ranking Ketepatan Hadir</h3><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Divisi</th><th>On Time</th><th>Total Hadir</th><th>Rate</th></tr></thead><tbody>${punctualRows}</tbody></table></div></div>
+                </div>
+                <div class="grid-2" style="gap:14px;">
+                    <div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3 style="font-size:16px;font-weight:600;margin-bottom:12px;">Keterlambatan per Divisi</h3><div class="table-wrap"><table><thead><tr><th>Divisi</th><th>Total Absensi</th><th>Terlambat</th><th>On Time</th><th>Late Rate</th></tr></thead><tbody>${divisionLateRows}</tbody></table></div></div>
+                    <div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3 style="font-size:16px;font-weight:600;margin-bottom:12px;">Heatmap Keterlambatan Harian per Divisi (14 hari terakhir)</h3>${heatmapHtml}</div>
                 </div>
             </div>
-            <div id="kpi_day_detail">${renderKpiDayDetailHtml()}</div>
+            <div id="kpi_day_detail" style="margin-top:12px;">${renderKpiDayDetailHtml()}</div>
         `;
         setContent(html);
         if(document.getElementById('kpi_start')) document.getElementById('kpi_start').value=String(s.start_date||startDate||'');
