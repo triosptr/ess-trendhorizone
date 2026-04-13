@@ -157,7 +157,7 @@
         <button class="menu-item" onclick="navTo('leave', this); loadLeaveManagement()"><i class="ph ph-calendar-blank"></i><span>Leave Approvals</span></button>
         <button class="menu-item" onclick="navTo('sched', this); loadMonthlyScheduleAdmin()"><i class="ph ph-calendar-check"></i><span>Monthly Schedule</span></button>
         <button class="menu-item" onclick="navTo('att', this); loadTodayAttendance()"><i class="ph ph-clock"></i><span>Attendance Log</span></button>
-        <button class="menu-item" onclick="navTo('rep', this); loadEmployeeReports()"><i class="ph ph-chart-bar"></i><span>Reports</span></button>
+        <button class="menu-item" onclick="navTo('rep', this); loadReportsCenter()"><i class="ph ph-chart-bar"></i><span>Reports</span></button>
         <button class="menu-item" onclick="navTo('ops', this); loadOperationsIntelligenceCenter()"><i class="ph ph-brain"></i><span>Operations</span></button>
         <button class="menu-item" onclick="navTo('tower', this); loadWorkforceControlTower()"><i class="ph ph-command"></i><span>Control Tower</span></button>
         <button class="menu-item" onclick="navTo('incident', this); loadIncidentTimeline()"><i class="ph ph-siren"></i><span>Incident Timeline</span></button>
@@ -1704,6 +1704,46 @@
     async function publishMonthlyScheduleAdmin(){ try{ const month=String((document.getElementById('sched_month')||{}).value||scheduleMonthValue||new Date().toISOString().slice(0,7)); await api('/api/admin/schedules/monthly/publish','POST',{month:month}); scheduleMonthValue=month; await loadMonthlyScheduleAdmin(); }catch(err){ setContent(renderError(err.message)); } }
 
     // REPORTS
+    async function loadReportsCenter(){
+      try{
+        setLoading('Memuat Report Center ESS...');
+        const today=(new Date().toISOString().slice(0,10));
+        const [empRep,attToday,leaves,paydocs]=await Promise.all([
+          api('/api/admin/reports/employees?limit=500').catch(()=>({ summary:{total:0,active:0,inactive:0,employee:0,admin:0,superadmin:0}, rows:[] })),
+          api('/api/admin/attendance/today?tanggal='+today).catch(()=>[]),
+          api('/api/admin/leaves?limit=500').catch(()=>[]),
+          api('/api/admin/master/payroll-docs?limit=300').catch(()=>[])
+        ]);
+        const s=(empRep&&empRep.summary)||{ total:0,active:0,inactive:0,employee:0,admin:0,superadmin:0 };
+        const attRows=Array.isArray(attToday)?attToday:[];
+        const lvRows=Array.isArray(leaves)?leaves:[];
+        const pdRows=Array.isArray(paydocs)?paydocs:[];
+        const pendingLeave=lvRows.filter(function(x){ return String(x.status||'').toLowerCase()==='pending'; }).length;
+        const approvedLeave=lvRows.filter(function(x){ return String(x.status||'').toLowerCase()==='approved'; }).length;
+        const rejectedLeave=lvRows.filter(function(x){ return String(x.status||'').toLowerCase()==='rejected'; }).length;
+        const attendanceBody=attRows.slice(0,8).map(function(r){
+          return '<tr><td>'+escapeHtml(r.employee_id||'-')+'</td><td>'+escapeHtml(r.jam_masuk||'-')+'</td><td>'+escapeHtml(r.jam_keluar||'-')+'</td><td>'+normalizeStatusBadge(r.status)+'</td></tr>';
+        }).join('')||'<tr><td colspan="4">Tidak ada data</td></tr>';
+        const leaveBody=lvRows.slice(0,8).map(function(r){
+          return '<tr><td>'+escapeHtml(r.employee_id||'-')+'</td><td>'+escapeHtml(r.jenis_cuti||'-')+'</td><td>'+escapeHtml(r.tanggal_mulai||'-')+' s/d '+escapeHtml(r.tanggal_selesai||'-')+'</td><td>'+normalizeStatusBadge(r.status)+'</td></tr>';
+        }).join('')||'<tr><td colspan="4">Tidak ada data</td></tr>';
+        const html='' +
+          '<div class="card" style="margin-bottom:12px;"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">ESS Report Center</h3><div class="actions"><button class="btn btn-secondary" onclick="loadReportsCenter()"><i class="ph ph-arrows-clockwise"></i> Refresh</button><button class="btn btn-primary" onclick="exportTodayStatusPdf()"><i class="ph ph-download-simple"></i> Export Status PDF</button></div></div>' +
+          '<div class="cards-row">' +
+          '<div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Employee Report</div><div class="stat-large">'+escapeHtml(s.total||0)+'</div><div class="stat-label">Active: '+escapeHtml(s.active||0)+'</div><div class="actions"><button class="btn btn-secondary" onclick="loadEmployeeReports()">Open Detail</button></div></div>' +
+          '<div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Attendance Today</div><div class="stat-large">'+escapeHtml(attRows.length)+'</div><div class="stat-label">'+escapeHtml(today)+'</div><div class="actions"><button class="btn btn-secondary" onclick="loadTodayAttendance()">Open Detail</button></div></div>' +
+          '<div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Leave Report</div><div class="stat-large">'+escapeHtml(lvRows.length)+'</div><div class="stat-label">Pending: '+escapeHtml(pendingLeave)+'</div><div class="actions"><button class="btn btn-secondary" onclick="loadLeaveManagement()">Open Detail</button></div></div>' +
+          '<div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Payroll Docs</div><div class="stat-large">'+escapeHtml(pdRows.length)+'</div><div class="stat-label">Dokumen tersedia</div><div class="actions"><button class="btn btn-secondary" onclick="loadPayrollDocs()">Open Detail</button></div></div>' +
+          '<div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">KPI & Intelligence</div><div class="stat-large">HR</div><div class="stat-label">Operational Insights</div><div class="actions"><button class="btn btn-secondary" onclick="loadKpiHrDashboard()">Open Detail</button></div></div>' +
+          '</div></div>' +
+          '<div class="grid-2" style="gap:14px;">' +
+          '<div class="card"><div class="team-header"><h3 style="font-size:18px;font-weight:700;">Attendance Snapshot (Today)</h3><div class="stat-label">Top 8</div></div><div class="table-wrap"><table><thead><tr><th>Employee</th><th>Masuk</th><th>Keluar</th><th>Status</th></tr></thead><tbody>'+attendanceBody+'</tbody></table></div></div>' +
+          '<div class="card"><div class="team-header"><h3 style="font-size:18px;font-weight:700;">Leave Snapshot</h3><div class="stat-label">Pending '+escapeHtml(pendingLeave)+' | Approved '+escapeHtml(approvedLeave)+' | Rejected '+escapeHtml(rejectedLeave)+'</div></div><div class="table-wrap"><table><thead><tr><th>Employee</th><th>Jenis</th><th>Tanggal</th><th>Status</th></tr></thead><tbody>'+leaveBody+'</tbody></table></div></div>' +
+          '</div>';
+        setContent(html);
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+
     let employeeReportRows = [];
     let employeeReportSummary = null;
     let employeeReportReqSeq = 0;
