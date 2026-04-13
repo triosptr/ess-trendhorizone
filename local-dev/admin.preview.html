@@ -1356,7 +1356,7 @@
 
     // SCHEDULE (Simple Flow: pilih bulan -> pilih shift/off -> pilih karyawan -> save)
     let scheduleMonthValue=''; let scheduleEmployees=[]; let scheduleTemplates={};
-    let scheduleSelectedIds={}; let scheduleEmpFilter='';
+    let scheduleSelectedIds={}; let scheduleEmpFilter=''; let scheduleFormatFilter=''; let scheduleFilterTimer=null;
     function templateOf(empId){ return scheduleTemplates[empId] || { shift_code:'PAGI', off_saturday:false, off_sunday:false }; }
     function setTemplate(empId,key,val){ if(!scheduleTemplates[empId]) scheduleTemplates[empId]={ shift_code:'PAGI', off_saturday:false, off_sunday:false }; scheduleTemplates[empId][key]=val; }
     function monthLabelId(monthText){
@@ -1367,14 +1367,14 @@
       return names[idx]+' '+m[1];
     }
     const SCHEDULE_FORMAT_OPTIONS=[
-      { value:'pagi_off_sabtu', label:'pagi off sabtu', shift_code:'PAGI', off_saturday:true, off_sunday:false },
-      { value:'pagi_off_minggu', label:'pagi off minggu', shift_code:'PAGI', off_saturday:false, off_sunday:true },
-      { value:'sore_off_sabtu', label:'sore off sabtu', shift_code:'SORE', off_saturday:true, off_sunday:false },
-      { value:'sore_off_minggu', label:'sore off minggu', shift_code:'SORE', off_saturday:false, off_sunday:true },
-      { value:'malam_off_sabtu', label:'malam off sabtu', shift_code:'MALAM', off_saturday:true, off_sunday:false },
-      { value:'malam_off_minggu', label:'malam off minggu', shift_code:'MALAM', off_saturday:false, off_sunday:true },
-      { value:'flx_off_sabtu', label:'flx off sabtu', shift_code:'FLX', off_saturday:true, off_sunday:false },
-      { value:'flx_off_minggu', label:'flx off minggu', shift_code:'FLX', off_saturday:false, off_sunday:true }
+      { value:'pagi_off_sabtu', label:'PAGI OFF SABTU', shift_code:'PAGI', off_saturday:true, off_sunday:false },
+      { value:'pagi_off_minggu', label:'PAGI OFF MINGGU', shift_code:'PAGI', off_saturday:false, off_sunday:true },
+      { value:'sore_off_sabtu', label:'SORE OFF SABTU', shift_code:'SORE', off_saturday:true, off_sunday:false },
+      { value:'sore_off_minggu', label:'SORE OFF MINGGU', shift_code:'SORE', off_saturday:false, off_sunday:true },
+      { value:'malam_off_sabtu', label:'MALAM OFF SABTU', shift_code:'MALAM', off_saturday:true, off_sunday:false },
+      { value:'malam_off_minggu', label:'MALAM OFF MINGGU', shift_code:'MALAM', off_saturday:false, off_sunday:true },
+      { value:'flx_off_sabtu', label:'FLX OFF SABTU', shift_code:'FLX', off_saturday:true, off_sunday:false },
+      { value:'flx_off_minggu', label:'FLX OFF MINGGU', shift_code:'FLX', off_saturday:false, off_sunday:true }
     ];
     function scheduleFormatOptionByValue(v){
       return (SCHEDULE_FORMAT_OPTIONS||[]).find(function(x){ return String(x.value||'')===String(v||''); }) || SCHEDULE_FORMAT_OPTIONS[0];
@@ -1393,7 +1393,16 @@
     }
     function scheduleFormatLabelFromTemplate(tpl){
       const key=scheduleFormatByTemplate(tpl);
-      return String((scheduleFormatOptionByValue(key)||{}).label || 'pagi off sabtu');
+      return String((scheduleFormatOptionByValue(key)||{}).label || 'PAGI OFF SABTU');
+    }
+    function scheduleOffDayLabelFromTemplate(tpl){
+      const t=tpl||{};
+      const sat=!!t.off_saturday;
+      const sun=!!t.off_sunday;
+      if(sat && sun) return 'SABTU, MINGGU';
+      if(sat) return 'SABTU';
+      if(sun) return 'MINGGU';
+      return '-';
     }
     function scheduleFormatOptionsHtml(selectedValue){
       const val=String(selectedValue||'');
@@ -1401,6 +1410,49 @@
         const v=String(f.value||'');
         return '<option value="'+escapeHtml(v)+'" '+(v===val?'selected':'')+'>'+escapeHtml(String(f.label||v))+'</option>';
       }).join('');
+    }
+    function scheduleFilterOptionsHtml(selectedValue){
+      const val=String(selectedValue||'');
+      const all='<option value="" '+(val===''?'selected':'')+'>SEMUA FORMAT</option>';
+      return all + (SCHEDULE_FORMAT_OPTIONS||[]).map(function(f){
+        const v=String(f.value||'');
+        return '<option value="'+escapeHtml(v)+'" '+(v===val?'selected':'')+'>'+escapeHtml(String(f.label||v))+'</option>';
+      }).join('');
+    }
+    function scheduleFilteredEmployees(){
+      const q=String(scheduleEmpFilter||'').toLowerCase();
+      const fmtFilter=String(scheduleFormatFilter||'').trim();
+      return (scheduleEmployees||[]).filter(function(e){
+        const id=String(e.employee_id||'');
+        const tpl=templateOf(id);
+        const fmtVal=scheduleFormatByTemplate(tpl);
+        const fmtLabel=scheduleFormatLabelFromTemplate(tpl).toLowerCase();
+        if(fmtFilter && fmtVal!==fmtFilter) return false;
+        if(!q) return true;
+        const txt=(String(e.employee_id||'')+' '+String(e.nama||'')+' '+String(e.divisi||'')+' '+String(e.jabatan||'')+' '+String(tpl.shift_code||'')+' '+fmtLabel).toLowerCase();
+        return txt.indexOf(q)>=0;
+      });
+    }
+    function scheduleBuildPickerRows(){
+      const employeeList=scheduleFilteredEmployees();
+      return employeeList.map(function(e){
+        const id=String(e.employee_id||'');
+        const checked=!!scheduleSelectedIds[id];
+        const tpl=templateOf(id);
+        const fmtVal=scheduleFormatByTemplate(tpl);
+        const fmtLabel=scheduleFormatLabelFromTemplate(tpl);
+        const offDay=scheduleOffDayLabelFromTemplate(tpl);
+        return '<tr><td style="text-align:center;"><input type="checkbox" '+(checked?'checked':'')+' onchange="toggleScheduleEmployee(\''+escapeHtml(id)+'\',this.checked)"></td><td>'+escapeHtml(e.nama||'-')+'</td><td>'+escapeHtml(id||'-')+'</td><td>'+escapeHtml(e.divisi||'-')+'</td><td>'+escapeHtml(e.jabatan||'-')+'</td><td>'+escapeHtml(fmtLabel)+'</td><td style="text-align:center;">'+escapeHtml(offDay)+'</td><td><select onchange="setEmployeeScheduleFormat(\''+escapeHtml(id)+'\',this.value)">'+scheduleFormatOptionsHtml(fmtVal)+'</select></td></tr>';
+      }).join('')||'<tr><td colspan="8">Tidak ada data karyawan</td></tr>';
+    }
+    function scheduleApplyFilter(immediate){
+      const run=function(){
+        const body=document.getElementById('sched_picker_tbody');
+        if(body) body.innerHTML=scheduleBuildPickerRows();
+      };
+      if(immediate){ run(); return; }
+      if(scheduleFilterTimer) clearTimeout(scheduleFilterTimer);
+      scheduleFilterTimer=setTimeout(run,120);
     }
     function toggleScheduleEmployee(empId, checked){
       const id=String(empId||'').trim();
@@ -1462,30 +1514,22 @@
         scheduleEmployees=d.employees||[];
         scheduleTemplates=d.templates||{};
         scheduleSelectedIds={};
+        scheduleEmpFilter='';
+        scheduleFormatFilter='';
         renderMonthlyScheduleAdmin(d.published_at||'', d.notes||'');
       }catch(err){ setContent(renderError(err.message)); }
     }
     function renderMonthlyScheduleAdmin(publishedAt,notes){
       const selectedCount=Object.keys(scheduleSelectedIds||{}).length;
-      const employeeList=(scheduleEmployees||[]).filter(function(e){
-        if(!scheduleEmpFilter) return true;
-        const txt=(String(e.employee_id||'')+' '+String(e.nama||'')+' '+String(e.divisi||'')+' '+String(e.jabatan||'')).toLowerCase();
-        return txt.indexOf(String(scheduleEmpFilter||'').toLowerCase())>=0;
-      });
-      const pickerRows=employeeList.map(function(e){
-        const id=String(e.employee_id||'');
-        const checked=!!scheduleSelectedIds[id];
-        const fmtVal=scheduleFormatByTemplate(templateOf(id));
-        const fmtLabel=scheduleFormatLabelFromTemplate(templateOf(id));
-        return '<tr><td style="text-align:center;"><input type="checkbox" '+(checked?'checked':'')+' onchange="toggleScheduleEmployee(\''+escapeHtml(id)+'\',this.checked)"></td><td>'+escapeHtml(e.nama||'-')+'</td><td>'+escapeHtml(id||'-')+'</td><td>'+escapeHtml(e.divisi||'-')+'</td><td>'+escapeHtml(e.jabatan||'-')+'</td><td>'+escapeHtml(fmtLabel)+'</td><td><select onchange="setEmployeeScheduleFormat(\''+escapeHtml(id)+'\',this.value)">'+scheduleFormatOptionsHtml(fmtVal)+'</select></td></tr>';
-      }).join('')||'<tr><td colspan="7">Tidak ada data karyawan</td></tr>';
+      const pickerRows=scheduleBuildPickerRows();
 
       const mapEmp={}; (scheduleEmployees||[]).forEach(function(e){ mapEmp[String(e.employee_id||'')]=e; });
       const assignedRows=Object.keys(scheduleTemplates||{}).map(function(empId){
         const t=templateOf(empId); const e=mapEmp[String(empId)]||{};
         const fmt=scheduleFormatLabelFromTemplate(t);
-        return '<tr><td>'+escapeHtml(String(e.nama||'-'))+'</td><td>'+escapeHtml(String(empId||'-'))+'</td><td>'+escapeHtml(fmt)+'</td><td>'+escapeHtml(t.shift_code||'PAGI')+'</td><td style="text-align:center;">'+(t.off_saturday?'Ya':'Tidak')+'</td><td style="text-align:center;">'+(t.off_sunday?'Ya':'Tidak')+'</td></tr>';
-      }).join('') || '<tr><td colspan="6">Belum ada data shift diset untuk bulan ini.</td></tr>';
+        const offDay=scheduleOffDayLabelFromTemplate(t);
+        return '<tr><td>'+escapeHtml(String(e.nama||'-'))+'</td><td>'+escapeHtml(String(empId||'-'))+'</td><td>'+escapeHtml(fmt)+'</td><td>'+escapeHtml(t.shift_code||'PAGI')+'</td><td style="text-align:center;">'+escapeHtml(offDay)+'</td></tr>';
+      }).join('') || '<tr><td colspan="5">Belum ada data shift diset untuk bulan ini.</td></tr>';
       const assignedCount=Object.keys(scheduleTemplates||{}).length;
       const unassignedCount=Math.max(0, Number((scheduleEmployees||[]).length)-assignedCount);
 
@@ -1504,8 +1548,8 @@
             '<div class="form-group"><label>Format Shift (Karyawan Terpilih)</label><div class="actions"><select id="sched_bulk_format" style="max-width:220px;">'+scheduleFormatOptionsHtml('pagi_off_sabtu')+'</select><button class="btn btn-secondary" onclick="applyBulkScheduleToSelected()">Terapkan ke Terpilih ('+selectedCount+')</button></div><div class="actions" style="margin-top:8px;"><button class="btn btn-secondary" onclick="toggleScheduleSelectAll(true)">Pilih Semua</button><button class="btn btn-secondary" onclick="toggleScheduleSelectAll(false)">Kosongkan Pilihan</button></div></div>' +
           '</div>' +
           '<div class="stat-label" style="margin-bottom:16px;">Terakhir dipublikasikan: '+escapeHtml(formatDateTimeDisplay(publishedAt)||'-')+'</div>' +
-          '<div class="card" style="box-shadow:none;background:var(--bg);margin-bottom:12px;"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Daftar Karyawan</h3><div class="actions"><input id="sched_emp_filter" placeholder="Cari nama / ID / divisi..." value="'+escapeHtml(scheduleEmpFilter)+'" oninput="scheduleEmpFilter=this.value;renderMonthlyScheduleAdmin(\''+escapeHtml(String(publishedAt||''))+'\',(document.getElementById(\'sched_notes\')||{}).value||\'\')"></div></div><div class="table-wrap"><table><thead><tr><th style="text-align:center;">Pilih</th><th>Nama</th><th>ID</th><th>Divisi</th><th>Jabatan</th><th>Format Shift (Draft)</th><th>Atur Format</th></tr></thead><tbody>'+pickerRows+'</tbody></table></div></div>' +
-          '<div class="card" style="box-shadow:none;background:var(--bg);margin-bottom:12px;"><h3 style="font-size:16px;font-weight:700;margin-bottom:8px;">Shift Bulan '+escapeHtml(monthLabelId(scheduleMonthValue))+'</h3><div class="table-wrap"><table><thead><tr><th>Nama</th><th>ID</th><th>Format Shift</th><th>Shift</th><th style="text-align:center;">Off Sabtu</th><th style="text-align:center;">Off Minggu</th></tr></thead><tbody>'+assignedRows+'</tbody></table></div></div>' +
+          '<div class="card" style="box-shadow:none;background:var(--bg);margin-bottom:12px;"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Daftar Karyawan</h3><div class="actions"><input id="sched_emp_filter" placeholder="Cari nama / ID / divisi / shift..." value="'+escapeHtml(scheduleEmpFilter)+'" oninput="scheduleEmpFilter=this.value;scheduleApplyFilter(false);"><select id="sched_filter_format" onchange="scheduleFormatFilter=this.value;scheduleApplyFilter(true);" style="max-width:220px;">'+scheduleFilterOptionsHtml(scheduleFormatFilter)+'</select></div></div><div class="table-wrap"><table><thead><tr><th style="text-align:center;">Pilih</th><th>Nama</th><th>ID</th><th>Divisi</th><th>Jabatan</th><th>FORMAT SHIFT (DRAFT)</th><th style="text-align:center;">OFF DAY</th><th>ATUR FORMAT</th></tr></thead><tbody id="sched_picker_tbody">'+pickerRows+'</tbody></table></div></div>' +
+          '<div class="card" style="box-shadow:none;background:var(--bg);margin-bottom:12px;"><h3 style="font-size:16px;font-weight:700;margin-bottom:8px;">Shift Bulan '+escapeHtml(monthLabelId(scheduleMonthValue))+'</h3><div class="table-wrap"><table><thead><tr><th>Nama</th><th>ID</th><th>FORMAT SHIFT</th><th>SHIFT</th><th style="text-align:center;">OFF DAY</th></tr></thead><tbody>'+assignedRows+'</tbody></table></div></div>' +
         '</div>';
       setContent(html);
     }
