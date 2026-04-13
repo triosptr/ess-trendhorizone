@@ -1747,11 +1747,33 @@
 
     // ATTENDANCE LOG
     let attendanceOtherDateFilter='';
+    let attendanceNameMapCache={};
     function renderAttendanceRows(rows,nameMap){
       return ((rows||[]).map(function(r){
         const nama=nameMap[String(r.employee_id||'')]||r.nama||r.email||'-';
         return '<tr><td>'+escapeHtml(r.employee_id)+'</td><td>'+escapeHtml(nama)+'</td><td>'+escapeHtml(r.jam_masuk||'-')+'</td><td>'+escapeHtml(r.jam_keluar||'-')+'</td><td>'+escapeHtml(r.work_duration_digital||'00:00:00')+'</td><td>'+normalizeStatusBadge(r.status)+'</td><td>'+escapeHtml(r.lokasi||'-')+'</td></tr>';
       }).join('')||'<tr><td colspan="7">Tidak ada data</td></tr>');
+    }
+    function renderAttendanceLoadingRow(){
+      return '<tr><td colspan="7" style="text-align:center;color:var(--text-sec);">⏳ Memuat data attendance...</td></tr>';
+    }
+    async function refreshAttendanceOtherDateTable(){
+      try{
+        const tbody=document.getElementById('att_other_tbody');
+        const dateLabel=document.getElementById('att_other_date_label');
+        if(tbody) tbody.innerHTML=renderAttendanceLoadingRow();
+        if(dateLabel) dateLabel.textContent=String(attendanceOtherDateFilter||'-');
+        const rowsOther=await api('/api/admin/attendance/today?tanggal='+encodeURIComponent(attendanceOtherDateFilter));
+        if(tbody) tbody.innerHTML=renderAttendanceRows(rowsOther,attendanceNameMapCache);
+      }catch(err){
+        const tbody=document.getElementById('att_other_tbody');
+        if(tbody) tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--danger);">'+escapeHtml(err.message||'Gagal memuat data')+'</td></tr>';
+      }
+    }
+    function onAttendanceOtherDateChange(v){
+      attendanceOtherDateFilter=String(v||'').trim();
+      if(!attendanceOtherDateFilter) return;
+      refreshAttendanceOtherDateTable();
     }
     async function loadTodayAttendance(){
       try{
@@ -1768,9 +1790,10 @@
         ]);
         const nameMap={};
         (emps||[]).forEach(function(e){ nameMap[String(e.employee_id||'')]=String(e.nama||''); });
+        attendanceNameMapCache=nameMap;
         setContent(
           '<div class="card" style="margin-bottom:12px;"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Attendance Log (Today)</h3><div class="stat-label">'+escapeHtml(today)+'</div></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Masuk</th><th>Keluar</th><th>Jam Kerja</th><th>Status</th><th>Lokasi</th></tr></thead><tbody>'+renderAttendanceRows(rowsToday,nameMap)+'</tbody></table></div></div>'
-          + '<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Attendance Log (Tanggal Lain)</h3><div class="actions"><input type="date" value="'+escapeHtml(attendanceOtherDateFilter)+'" onchange="attendanceOtherDateFilter=this.value;loadTodayAttendance()"></div></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Masuk</th><th>Keluar</th><th>Jam Kerja</th><th>Status</th><th>Lokasi</th></tr></thead><tbody>'+renderAttendanceRows(rowsOther,nameMap)+'</tbody></table></div></div>'
+          + '<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Attendance Log (Tanggal Lain)</h3><div class="actions"><input id="att_other_date_input" type="date" value="'+escapeHtml(attendanceOtherDateFilter)+'" onchange="onAttendanceOtherDateChange(this.value)"></div></div><div class="stat-label" style="margin-bottom:10px;">Tanggal dipilih: <span id="att_other_date_label">'+escapeHtml(attendanceOtherDateFilter)+'</span></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Masuk</th><th>Keluar</th><th>Jam Kerja</th><th>Status</th><th>Lokasi</th></tr></thead><tbody id="att_other_tbody">'+renderAttendanceRows(rowsOther,nameMap)+'</tbody></table></div></div>'
         );
       }catch(err){ setContent(renderError(err.message)); }
     }
