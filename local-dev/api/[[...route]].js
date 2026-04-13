@@ -1091,6 +1091,49 @@ function calcLeaveDays(startDate, endDate) {
   const oneDay = 24 * 60 * 60 * 1000;
   return Math.max(0, Math.floor((b.setHours(0, 0, 0, 0) - a.setHours(0, 0, 0, 0)) / oneDay) + 1);
 }
+function appBaseUrl() {
+  return String(process.env.APP_BASE_URL || 'https://ess-trendhorizone.space').trim().replace(/\/+$/, '');
+}
+async function sendEssEmail(toEmail, subject, html) {
+  const to = String(toEmail || '').trim().toLowerCase();
+  if (!to) return { sent: false, message: 'Email tujuan kosong.' };
+  const apiKey = String(process.env.RESEND_API_KEY || process.env.RESEND_KEY || process.env.EMAIL_RESEND_API_KEY || '').trim();
+  if (!apiKey) return { sent: false, message: 'RESEND_API_KEY belum diset.' };
+  const base = appBaseUrl();
+  const from = String(process.env.RESEND_FROM || ('ESS Trendhorizone <no-reply@' + String(new URL(base).hostname || 'trendhorizone.space') + '>')).trim();
+  const fallbackFrom = String(process.env.RESEND_FROM_FALLBACK || 'Trendhorizone ESS <onboarding@resend.dev>').trim();
+  const candidates = [from, fallbackFrom].filter(Boolean).filter(function(v, i, arr) { return arr.findIndex(function(x) { return String(x).toLowerCase() === String(v).toLowerCase(); }) === i; });
+  let lastErr = '';
+  for (const sender of candidates) {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: sender, to: [to], subject: String(subject || ''), html: String(html || '') })
+    });
+    const tx = await r.text();
+    if (r.ok) {
+      let j = null; try { j = tx ? JSON.parse(tx) : null; } catch (_) { j = null; }
+      return { sent: true, channel: 'resend', sender: sender, provider_id: String((j && j.id) || '') };
+    }
+    lastErr = tx;
+  }
+  return { sent: false, channel: 'resend', error: lastErr };
+}
+async function getAdminEmails() {
+  const r = await db('GET', 'employees', { select: 'email,role,is_active', role: 'in.(admin,superadmin,manager)', is_active: 'eq.true', limit: 500 });
+  if (!r.ok) return [];
+  return Array.from(new Set((r.data || []).map(function(x) { return String(x.email || '').trim().toLowerCase(); }).filter(isValidEmail)));
+}
+function leaveMailTemplate(title, bodyLines) {
+  const base = appBaseUrl();
+  const lines = Array.isArray(bodyLines) ? bodyLines : [];
+  return '<div style="font-family:Inter,Arial,sans-serif;background:#f8fafc;padding:24px;color:#0f172a;">'
+    + '<div style="max-width:680px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;">'
+    + '<div style="padding:16px 20px;background:linear-gradient(135deg,#1d4ed8,#4f46e5);color:#fff;font-weight:700;">' + String(title || 'Notifikasi ESS') + '</div>'
+    + '<div style="padding:18px 20px;">' + lines.map(function(x) { return '<p style="margin:0 0 10px;">' + String(x || '') + '</p>'; }).join('')
+    + '<p style="margin:12px 0 0;">Akses sistem: <a href="' + base + '/login">' + base + '/login</a></p>'
+    + '<p style="margin:10px 0 0;color:#64748b;font-size:12px;">Email ini dikirim otomatis oleh sistem ESS.</p></div></div></div>';
+}
 function dateOnly(v) {
   const d = new Date(v);
   if (isNaN(d.getTime())) return '';
@@ -2046,6 +2089,31 @@ module.exports = async function handler(req, res) {
       if (Number(payload.jumlah_hari || 0) <= 0) return json(res, 400, { ok: false, message: 'Rentang tanggal cuti tidak valid.' });
       const ins = await db('POST', 'leave_requests', null, payload, { Prefer: 'return=representation' });
       if (!ins.ok) return json(res, 500, { ok: false, message: 'Gagal submit leave.', error: ins.error });
+      try {
+        const admins = await getAdminEmails();
+        const title = 'Pengajuan Cuti Baru Perlu Persetujuan';
+        const requester = await getEmployeeDisplayName(u);
+        const detailHtml = leaveMailTemplate(title, [
+          'Halo Admin,',
+          'Ada pengajuan cuti baru dari <b>' + String(requester || u.employee_id) + '</b>.',
+          'Jenis cuti: <b>' + payload.jenis_cuti + '</b>',
+          'Tanggal: <b>' + payload.tanggal_mulai + '</b> s/d <b>' + payload.tanggal_selesai + '</b>',
+          'Silakan review di dashboard Leave Approval.'
+        ]);
+        for (const em of admins) {
+          await sendEssEmail(em, title + ' - ESS', detailHtml);
+        }
+        await db('POST', 'announcements', null, {
+          announcement_id: rid('ANN'),
+          judul: 'Pengajuan Cuti Baru',
+          isi: requester + ' mengajukan cuti ' + payload.jenis_cuti + ' (' + payload.tanggal_mulai + ' s/d ' + payload.tanggal_selesai + ').',
+          target_role: 'admin',
+          published_at: nowIso(),
+          expired_at: null,
+          is_active: true,
+          created_by: u.email
+        }, { Prefer: 'return=minimal' });
+      } catch (_) {}
       return json(res, 200, { ok: true, message: 'Pengajuan cuti berhasil dikirim.', data: ins.data });
     }
 
@@ -2108,12 +2176,19 @@ module.exports = async function handler(req, res) {
       }
       const ann = await db('GET', 'announcements', { select: 'announcement_id,published_at', is_active: 'eq.true', or: '(target_role.eq.all,target_role.eq.' + u.role + ')' });
       const pay = await db('GET', 'payroll_docs', { select: 'doc_id,uploaded_at', employee_id: 'eq.' + u.employee_id });
-      if (!ann.ok || !pay.ok) return json(res, 500, { ok: false, message: 'Gagal hitung notifikasi.', error: ann.ok ? pay.error : ann.error });
+      const leave = await db('GET', 'leave_requests', { select: 'leave_id,status,updated_at', employee_id: 'eq.' + u.employee_id, order: 'updated_at.desc', limit: 300 });
+      if (!ann.ok || !pay.ok || !leave.ok) return json(res, 500, { ok: false, message: 'Gagal hitung notifikasi.', error: !ann.ok ? ann.error : (!pay.ok ? pay.error : leave.error) });
       const annTs = new Date(row.announcement_seen_at || 0).getTime() || 0;
       const payTs = new Date(row.payroll_seen_at || 0).getTime() || 0;
       const unreadA = (ann.data || []).filter(function(x) { return (new Date(x.published_at || 0).getTime() || 0) > annTs; }).length;
       const unreadP = (pay.data || []).filter(function(x) { return (new Date(x.uploaded_at || 0).getTime() || 0) > payTs; }).length;
-      return json(res, 200, { unread_announcements: unreadA, unread_payroll_docs: unreadP, total_unread: unreadA + unreadP });
+      const leaveSeenTs = Math.max(annTs, payTs);
+      const unreadL = (leave.data || []).filter(function(x) {
+        const st = String(x.status || '').toLowerCase();
+        if (st !== 'approved' && st !== 'rejected') return false;
+        return (new Date(x.updated_at || 0).getTime() || 0) > leaveSeenTs;
+      }).length;
+      return json(res, 200, { unread_announcements: unreadA, unread_payroll_docs: unreadP, unread_leave_updates: unreadL, total_unread: unreadA + unreadP + unreadL });
     }
 
     if (path === 'me/operations-intelligence/summary' && method === 'GET') {
@@ -2237,7 +2312,8 @@ module.exports = async function handler(req, res) {
       const row = seen.ok && seen.data && seen.data[0] ? seen.data[0] : { announcement_seen_at: null, payroll_seen_at: null };
       const ann = await db('GET', 'announcements', { select: 'announcement_id,judul,isi,published_at,target_role,is_active', is_active: 'eq.true', or: '(target_role.eq.all,target_role.eq.' + u.role + ')' });
       const pay = await db('GET', 'payroll_docs', { select: 'doc_id,nama_file,bulan,tahun,file_url,uploaded_at', employee_id: 'eq.' + u.employee_id });
-      if (!ann.ok || !pay.ok) return json(res, 500, { ok: false, message: 'Gagal ambil notifikasi.', error: ann.ok ? pay.error : ann.error });
+      const leave = await db('GET', 'leave_requests', { select: 'leave_id,status,jenis_cuti,tanggal_mulai,tanggal_selesai,updated_at', employee_id: 'eq.' + u.employee_id, order: 'updated_at.desc', limit: 200 });
+      if (!ann.ok || !pay.ok || !leave.ok) return json(res, 500, { ok: false, message: 'Gagal ambil notifikasi.', error: !ann.ok ? ann.error : (!pay.ok ? pay.error : leave.error) });
       const annTs = new Date(row.announcement_seen_at || 0).getTime() || 0;
       const payTs = new Date(row.payroll_seen_at || 0).getTime() || 0;
       const notifications = [];
@@ -2248,6 +2324,21 @@ module.exports = async function handler(req, res) {
       (pay.data || []).forEach(function(x) {
         const ts = new Date(x.uploaded_at || 0).getTime() || 0;
         notifications.push({ notification_type: 'payroll', item_id: x.doc_id || '', title: 'Slip Gaji Baru Tersedia', message: (x.nama_file || 'Dokumen payroll') + ' • ' + (x.bulan || '-') + ' ' + (x.tahun || '-'), date_value: x.uploaded_at || '', is_unread: ts > payTs, file_url: x.file_url || '', action_label: 'Buka Slip Gaji' });
+      });
+      const leaveSeenTs = Math.max(annTs, payTs);
+      (leave.data || []).forEach(function(x) {
+        const st = String(x.status || '').toLowerCase();
+        if (st !== 'approved' && st !== 'rejected') return;
+        const ts = new Date(x.updated_at || 0).getTime() || 0;
+        notifications.push({
+          notification_type: 'leave',
+          item_id: x.leave_id || '',
+          title: st === 'approved' ? 'Pengajuan Cuti Disetujui' : 'Pengajuan Cuti Ditolak',
+          message: String(x.jenis_cuti || '-') + ' (' + String(x.tanggal_mulai || '-') + ' s/d ' + String(x.tanggal_selesai || '-') + ')',
+          date_value: x.updated_at || '',
+          is_unread: ts > leaveSeenTs,
+          action_label: 'Lihat Cuti'
+        });
       });
       notifications.sort(function(a, b) { return new Date(b.date_value || 0).getTime() - new Date(a.date_value || 0).getTime(); });
       return json(res, 200, notifications);
@@ -3171,6 +3262,44 @@ module.exports = async function handler(req, res) {
       return json(res, 200, enriched);
     }
 
+    if (path === 'admin/leaves/apply' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const me = { employee_id: a.employee_id, email: a.email, role: a.role };
+      const leaveTypeName = String(b.jenis_cuti || '').trim();
+      const lt = leaveTypeName ? await db('GET', 'leave_types', { select: 'leave_type_id,nama_jenis_cuti,requires_attachment', nama_jenis_cuti: 'eq.' + leaveTypeName, limit: 1 }) : { ok: true, data: [] };
+      if (!lt.ok) return json(res, 500, { ok: false, message: 'Gagal validasi jenis cuti.', error: lt.error });
+      const ltRow = Array.isArray(lt.data) && lt.data[0] ? lt.data[0] : null;
+      if (!ltRow) return json(res, 400, { ok: false, message: 'Jenis cuti tidak valid atau tidak aktif.' });
+      const requireAttachment = !!(ltRow && (ltRow.requires_attachment === true || String(ltRow.requires_attachment).toLowerCase() === 'true'));
+      const sourceAttachmentUrl = String(b.lampiran_url || '').trim() || toDataUrlFromFileObject(b.attachment);
+      const hasAttachmentObj = !!(b.attachment && String((b.attachment || {}).base64Data || '').trim());
+      if (requireAttachment && !sourceAttachmentUrl && !hasAttachmentObj) return json(res, 400, { ok: false, message: 'Lampiran wajib untuk jenis cuti ini.' });
+      const employeeName = await getEmployeeDisplayName(me);
+      const driveAttachmentUrl = hasAttachmentObj ? await tryUploadLeaveAttachmentToDrive(b.attachment, { employee_id: me.employee_id, employee_name: employeeName, leave_type: leaveTypeName || 'cuti', tanggal: String(b.tanggal_mulai || ymd()), jam: hms() }) : '';
+      const attachmentUrl = String(driveAttachmentUrl || sourceAttachmentUrl || '').trim();
+      const days = Number(b.jumlah_hari || 0) > 0 ? Number(b.jumlah_hari || 0) : calcLeaveDays(b.tanggal_mulai, b.tanggal_selesai);
+      const payload = { leave_id: rid('LEAVE'), employee_id: me.employee_id, email: me.email, jenis_cuti: leaveTypeName, tanggal_mulai: String(b.tanggal_mulai || '').trim(), tanggal_selesai: String(b.tanggal_selesai || '').trim(), jumlah_hari: days, alasan: String(b.alasan || '').trim(), lampiran_url: attachmentUrl, status: 'pending', approver_email: '', created_at: nowIso(), updated_at: nowIso() };
+      if (!payload.jenis_cuti || !payload.tanggal_mulai || !payload.tanggal_selesai) return json(res, 400, { ok: false, message: 'jenis_cuti, tanggal_mulai, tanggal_selesai wajib diisi.' });
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(payload.tanggal_mulai) || !/^\d{4}-\d{2}-\d{2}$/.test(payload.tanggal_selesai)) return json(res, 400, { ok: false, message: 'Format tanggal harus YYYY-MM-DD.' });
+      if (payload.tanggal_mulai > payload.tanggal_selesai) return json(res, 400, { ok: false, message: 'Tanggal mulai tidak boleh lebih besar dari tanggal selesai.' });
+      if (Number(payload.jumlah_hari || 0) <= 0) return json(res, 400, { ok: false, message: 'Rentang tanggal cuti tidak valid.' });
+      const ins = await db('POST', 'leave_requests', null, payload, { Prefer: 'return=representation' });
+      if (!ins.ok) return json(res, 500, { ok: false, message: 'Gagal submit leave.', error: ins.error });
+      try {
+        const admins = await getAdminEmails();
+        const title = 'Pengajuan Cuti Baru Perlu Persetujuan';
+        const detailHtml = leaveMailTemplate(title, [
+          'Halo Admin,',
+          '<b>' + String(employeeName || me.employee_id) + '</b> mengajukan cuti.',
+          'Jenis cuti: <b>' + payload.jenis_cuti + '</b>',
+          'Tanggal: <b>' + payload.tanggal_mulai + '</b> s/d <b>' + payload.tanggal_selesai + '</b>'
+        ]);
+        for (const em of admins) await sendEssEmail(em, title + ' - ESS', detailHtml);
+      } catch (_) {}
+      return json(res, 200, { ok: true, message: 'Pengajuan cuti admin berhasil dikirim.', data: ins.data });
+    }
+
     if (path === 'admin/leaves/approve' && method === 'POST') {
       const a = requireAdmin(req, res); if (!a) return;
       const b = await readBody(req);
@@ -3184,6 +3313,17 @@ module.exports = async function handler(req, res) {
       const p = await db('PATCH', 'leave_requests', { leave_id: 'eq.' + leaveId, status: 'eq.pending' }, { status: 'approved', approver_email: a.email, approved_at: nowIso(), catatan_approver: String(b.catatan_approver || '').trim(), updated_at: nowIso() }, { Prefer: 'return=representation' });
       if (!p.ok) return json(res, 500, { ok: false, message: 'Gagal approve.', error: p.error });
       if (!Array.isArray(p.data) || p.data.length === 0) return json(res, 409, { ok: false, message: 'Status leave sudah berubah. Silakan refresh data.' });
+      try {
+        const row = p.data[0] || {};
+        const mail = leaveMailTemplate('Pengajuan Cuti Disetujui', [
+          'Halo,',
+          'Pengajuan cuti Anda telah <b>DISETUJUI</b>.',
+          'Jenis cuti: <b>' + String(row.jenis_cuti || '-') + '</b>',
+          'Tanggal: <b>' + String(row.tanggal_mulai || '-') + '</b> s/d <b>' + String(row.tanggal_selesai || '-') + '</b>',
+          'Catatan approver: ' + String(row.catatan_approver || '-')
+        ]);
+        await sendEssEmail(String(row.email || ''), 'Pengajuan Cuti Disetujui - ESS', mail);
+      } catch (_) {}
       await auditLog(a.email, 'APPROVE', 'leave_requests', 'Approve leave ' + leaveId, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, { ok: true, message: 'Pengajuan cuti berhasil disetujui.', data: p.data });
     }
@@ -3201,6 +3341,17 @@ module.exports = async function handler(req, res) {
       const p = await db('PATCH', 'leave_requests', { leave_id: 'eq.' + leaveId, status: 'eq.pending' }, { status: 'rejected', approver_email: a.email, approved_at: nowIso(), catatan_approver: String(b.catatan_approver || '').trim(), updated_at: nowIso() }, { Prefer: 'return=representation' });
       if (!p.ok) return json(res, 500, { ok: false, message: 'Gagal reject.', error: p.error });
       if (!Array.isArray(p.data) || p.data.length === 0) return json(res, 409, { ok: false, message: 'Status leave sudah berubah. Silakan refresh data.' });
+      try {
+        const row = p.data[0] || {};
+        const mail = leaveMailTemplate('Pengajuan Cuti Ditolak', [
+          'Halo,',
+          'Pengajuan cuti Anda telah <b>DITOLAK</b>.',
+          'Jenis cuti: <b>' + String(row.jenis_cuti || '-') + '</b>',
+          'Tanggal: <b>' + String(row.tanggal_mulai || '-') + '</b> s/d <b>' + String(row.tanggal_selesai || '-') + '</b>',
+          'Catatan approver: ' + String(row.catatan_approver || '-')
+        ]);
+        await sendEssEmail(String(row.email || ''), 'Pengajuan Cuti Ditolak - ESS', mail);
+      } catch (_) {}
       await auditLog(a.email, 'REJECT', 'leave_requests', 'Reject leave ' + leaveId, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, { ok: true, message: 'Pengajuan cuti berhasil ditolak.', data: p.data });
     }
@@ -3224,8 +3375,21 @@ module.exports = async function handler(req, res) {
           catatan_approver: note,
           updated_at: nowIso()
         }, { Prefer: 'return=representation' });
-        if (p.ok && Array.isArray(p.data) && p.data.length > 0) processed.push(leaveId);
-        else skipped.push(leaveId);
+        if (p.ok && Array.isArray(p.data) && p.data.length > 0) {
+          processed.push(leaveId);
+          try {
+            const row = p.data[0] || {};
+            const approved = action === 'approve';
+            const mail = leaveMailTemplate(approved ? 'Pengajuan Cuti Disetujui' : 'Pengajuan Cuti Ditolak', [
+              'Halo,',
+              'Pengajuan cuti Anda telah <b>' + (approved ? 'DISETUJUI' : 'DITOLAK') + '</b>.',
+              'Jenis cuti: <b>' + String(row.jenis_cuti || '-') + '</b>',
+              'Tanggal: <b>' + String(row.tanggal_mulai || '-') + '</b> s/d <b>' + String(row.tanggal_selesai || '-') + '</b>',
+              'Catatan approver: ' + String(row.catatan_approver || '-')
+            ]);
+            await sendEssEmail(String(row.email || ''), (approved ? 'Pengajuan Cuti Disetujui' : 'Pengajuan Cuti Ditolak') + ' - ESS', mail);
+          } catch (_) {}
+        } else skipped.push(leaveId);
       }
       await auditLog(a.email, action === 'approve' ? 'APPROVE_BATCH' : 'REJECT_BATCH', 'leave_requests', (action === 'approve' ? 'Approve' : 'Reject') + ' batch leaves ' + processed.join(','), String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, {

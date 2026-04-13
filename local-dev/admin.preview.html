@@ -1327,30 +1327,112 @@
     async function submitUpdateEmployee(){ try{ const id=(document.getElementById('edit_emp_id')||{}).value||''; await api('/api/admin/employees','PATCH',{employee_id:id,email:(document.getElementById('edit_emp_email')||{}).value||'',nama:(document.getElementById('edit_emp_nama')||{}).value||'',nik:(document.getElementById('edit_emp_nik')||{}).value||'',role:(document.getElementById('edit_emp_role')||{}).value||'employee',status_karyawan:(document.getElementById('edit_emp_status')||{}).value||'Tetap',tanggal_masuk:(document.getElementById('edit_emp_tanggal_masuk')||{}).value||'',is_active:String((document.getElementById('edit_emp_active')||{}).value||'true')==='true',divisi:(document.getElementById('edit_emp_divisi')||{}).value||'',jabatan:(document.getElementById('edit_emp_jabatan')||{}).value||'',jatah_cuti:Number((document.getElementById('edit_emp_jatah')||{}).value||0),sisa_cuti:Number((document.getElementById('edit_emp_sisa')||{}).value||0)}); await loadAllEmployees(); selectedEmployeeId=id; }catch(err){ setContent(renderError(err.message)); } }
 
     // LEAVES
-    let leaveStatusFilter = 'pending';
+    let leaveMonthFilter = '';
     let leaveKeywordFilter = '';
-    let leaveSlaFilter = 'all';
+    let leaveStatusFilter = 'all';
     let selectedLeaveIds = {};
     let leaveVisibleRows = [];
-    function toggleLeaveSelect(id,checked){ if(checked) selectedLeaveIds[id]=true; else delete selectedLeaveIds[id]; }
-    function toggleLeaveSelectAllVisible(checked){ (leaveVisibleRows||[]).forEach(function(r){ if(String(r.status||'').toLowerCase()==='pending'){ if(checked) selectedLeaveIds[String(r.leave_id||'')]=true; else delete selectedLeaveIds[String(r.leave_id||'')]; } }); }
+    function toggleLeaveSelect(id, checked){ if(checked) selectedLeaveIds[id]=true; else delete selectedLeaveIds[id]; }
+    function toggleLeaveSelectAllVisible(checked){
+      (leaveVisibleRows||[]).forEach(function(r){
+        if(String(r.status||'').toLowerCase()!=='pending') return;
+        const key=String(r.leave_id||'');
+        if(checked) selectedLeaveIds[key]=true; else delete selectedLeaveIds[key];
+      });
+    }
     function clearLeaveSelection(){ selectedLeaveIds={}; }
-    function ageHoursFrom(value){ const t=new Date(value||'').getTime(); if(!t) return 0; return Math.max(0, Math.floor((Date.now()-t)/3600000)); }
-    async function runLeaveEscalationWorkflow(publish){ try{ const r=await api('/api/admin/leaves/sla-escalate','POST',{publish_digest:publish===true}); const s=r.summary||{}; const top=(r.top_overdue||[]).slice(0,5).map(function(x){ return String(x.leave_id||'-')+'('+String(x.age_hours||0)+'h/'+String(x.priority||'normal')+')'; }).join(', '); alert('Workflow SLA selesai. Pending='+String(s.pending_total||0)+', Critical='+String(s.pending_critical||0)+', High='+String(s.pending_high||0)+(r.digest_published?' | Digest published':'')+(top?(' | Top: '+top):'')); await loadLeaveManagement('pending'); }catch(err){ setContent(renderError(err.message)); } }
-    async function runLeaveBatchAction(action){ try{ const ids=Object.keys(selectedLeaveIds||{}); if(!ids.length) throw new Error('Pilih minimal 1 pengajuan cuti.'); const note=prompt(action==='approve'?'Catatan batch approve:':'Catatan batch reject:', action==='approve'?'Approved in batch':'Rejected in batch'); if(note===null) return; await api('/api/admin/leaves/batch-action','POST',{action:action,leave_ids:ids,catatan_approver:String(note||'')}); clearLeaveSelection(); await loadLeaveManagement('pending'); }catch(err){ setContent(renderError(err.message)); } }
-    async function loadLeaveManagement(status){ try{ leaveStatusFilter = status || leaveStatusFilter || 'pending'; setLoading('Memuat manajemen cuti...'); const endpoint = leaveStatusFilter==='pending' ? '/api/admin/leaves/pending' : (leaveStatusFilter==='all' ? '/api/admin/leaves?limit=500' : '/api/admin/leaves?status='+encodeURIComponent(leaveStatusFilter)); const [rows,matrix]=await Promise.all([api(endpoint), api('/api/admin/leaves/escalation-matrix').catch(function(){ return { ok:false, summary:{} }; })]); let filtered=(rows||[]).filter(function(r){ if(!leaveKeywordFilter) return true; const txt=(String(r.leave_id||'')+' '+String(r.email||'')+' '+String(r.jenis_cuti||'')).toLowerCase(); return txt.indexOf(leaveKeywordFilter)>=0; }); 
-      if(leaveStatusFilter==='pending' && leaveSlaFilter!=='all'){ filtered=filtered.filter(function(r){ return String(r.sla_priority||'normal')===leaveSlaFilter; }); }
-      const tabs='<div class="actions" style="margin-bottom:24px;"><button class="btn '+(leaveStatusFilter==='pending'?'btn-primary':'btn-secondary')+'" onclick="loadLeaveManagement(\'pending\')">Pending</button><button class="btn '+(leaveStatusFilter==='approved'?'btn-primary':'btn-secondary')+'" onclick="loadLeaveManagement(\'approved\')">Approved</button><button class="btn '+(leaveStatusFilter==='rejected'?'btn-primary':'btn-secondary')+'" onclick="loadLeaveManagement(\'rejected\')">Rejected</button><button class="btn '+(leaveStatusFilter==='all'?'btn-primary':'btn-secondary')+'" onclick="loadLeaveManagement(\'all\')">All</button></div>'; 
-      const pendingRows = (rows||[]).filter(function(r){ return String(r.status||'').toLowerCase()==='pending'; });
-      const m=(matrix&&matrix.summary)||{};
-      const sla24 = Number(m.pending_high||0) + Number(m.pending_critical||0);
-      const sla72 = Number(m.pending_critical||0);
-      const tbody = (filtered||[]).map(function(r){ const isPending=String(r.status||'').toLowerCase()==='pending'; const checked=!!selectedLeaveIds[String(r.leave_id||'')]; const actio = isPending ? '<button class="btn btn-primary" onclick="approveLeave(\''+escapeHtml(r.leave_id)+'\')">Approve</button> <button class="btn btn-danger" onclick="rejectLeave(\''+escapeHtml(r.leave_id)+'\')">Reject</button>' : '-'; const cb=isPending?('<input type="checkbox" '+(checked?'checked':'')+' onchange="toggleLeaveSelect(\''+escapeHtml(r.leave_id)+'\',this.checked)">'):'-'; return '<tr><td>'+cb+'</td><td><div style="font-weight:600;color:var(--text-main);">'+escapeHtml(r.nama||r.email||r.employee_id||'')+'</div><div style="font-size:12px;color:var(--text-sec);">'+escapeHtml(r.leave_id||'-')+'</div></td><td>'+escapeHtml(r.jenis_cuti||'-')+'</td><td>'+escapeHtml(formatDateDisplay(r.tanggal_mulai))+' to '+escapeHtml(formatDateDisplay(r.tanggal_selesai))+'</td><td>'+renderAttachmentThumb(r.lampiran_url)+'</td><td>'+normalizeStatusBadge(r.status)+'</td><td>'+slaPriorityBadge(r.sla_priority||'normal')+'</td><td>'+escapeHtml(Number(r.sla_age_hours||ageHoursFrom(r.created_at)))+'h</td><td><div class="actions" style="margin-top:0;">'+actio+'</div></td></tr>'; }).join('') || '<tr><td colspan="9">Tidak ada data</td></tr>';
-      leaveVisibleRows = filtered||[];
-      const bulkActions = leaveStatusFilter==='pending' ? '<div class="actions" style="margin-bottom:16px;"><button class="btn btn-primary" onclick="runLeaveBatchAction(\'approve\')">Approve Selected</button><button class="btn btn-danger" onclick="runLeaveBatchAction(\'reject\')">Reject Selected</button><button class="btn btn-secondary" onclick="toggleLeaveSelectAllVisible(true); loadLeaveManagement(\'pending\')">Select Visible</button><button class="btn btn-secondary" onclick="clearLeaveSelection(); loadLeaveManagement(\'pending\')">Clear Selection</button><button class="btn btn-secondary" onclick="runLeaveEscalationWorkflow(false)">Run SLA Workflow</button><button class="btn btn-primary" onclick="runLeaveEscalationWorkflow(true)">Run + Publish Digest</button></div>' : '';
-      const slaTabs = leaveStatusFilter==='pending' ? '<div class="actions" style="margin-bottom:16px;"><button class="btn '+(leaveSlaFilter==='all'?'btn-primary':'btn-secondary')+'" onclick="leaveSlaFilter=\'all\'; loadLeaveManagement(\'pending\')">SLA All</button><button class="btn '+(leaveSlaFilter==='high'?'btn-primary':'btn-secondary')+'" onclick="leaveSlaFilter=\'high\'; loadLeaveManagement(\'pending\')">SLA High</button><button class="btn '+(leaveSlaFilter==='critical'?'btn-primary':'btn-secondary')+'" onclick="leaveSlaFilter=\'critical\'; loadLeaveManagement(\'pending\')">SLA Critical</button></div>' : '';
-      setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Leave Approvals ('+escapeHtml(leaveStatusFilter)+')</h3><div class="stat-label">Total: '+escapeHtml(filtered.length)+'</div></div><div class="cards-row" style="margin-bottom:16px;"><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Pending</div><div class="stat-large">'+escapeHtml(pendingRows.length)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">SLA > '+escapeHtml(m.sla_warn_hours||24)+'h</div><div class="stat-large" style="color:var(--warning);">'+escapeHtml(sla24)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">SLA > '+escapeHtml(m.sla_critical_hours||72)+'h</div><div class="stat-large" style="color:var(--danger);">'+escapeHtml(sla72)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Selected</div><div class="stat-large">'+escapeHtml(Object.keys(selectedLeaveIds||{}).length)+'</div></div></div>'+tabs+slaTabs+bulkActions+'<div class="form-group"><label>Filter</label><input id="leave_keyword" value="'+escapeHtml(leaveKeywordFilter)+'" placeholder="Search ID / Email / Type" oninput="leaveKeywordFilter=this.value.toLowerCase(); loadLeaveManagement(leaveStatusFilter);"></div><div class="table-wrap"><table><thead><tr><th>Pick</th><th>Employee</th><th>Type</th><th>Dates</th><th>Attachment</th><th>Status</th><th>SLA</th><th>Age</th><th>Action</th></tr></thead><tbody>'+tbody+'</tbody></table></div></div>'); 
-    }catch(err){ setContent(renderError(err.message)); } }
+    async function runLeaveBatchAction(action){
+      try{
+        const ids=Object.keys(selectedLeaveIds||{});
+        if(!ids.length) throw new Error('Pilih minimal 1 pengajuan cuti.');
+        const note=prompt(action==='approve'?'Catatan batch approve:':'Catatan batch reject:', action==='approve'?'Approved in batch':'Rejected in batch');
+        if(note===null) return;
+        await api('/api/admin/leaves/batch-action','POST',{ action:action, leave_ids:ids, catatan_approver:String(note||'') });
+        clearLeaveSelection();
+        await loadLeaveManagement(leaveStatusFilter);
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    async function submitAdminLeaveApply(){
+      try{
+        const jenis=String((document.getElementById('admin_leave_jenis')||{}).value||'').trim();
+        const start=String((document.getElementById('admin_leave_start')||{}).value||'').trim();
+        const end=String((document.getElementById('admin_leave_end')||{}).value||'').trim();
+        const alasan=String((document.getElementById('admin_leave_reason')||{}).value||'').trim();
+        if(!jenis||!start||!end) throw new Error('Jenis cuti, tanggal mulai, dan tanggal selesai wajib diisi.');
+        await api('/api/admin/leaves/apply','POST',{ jenis_cuti:jenis, tanggal_mulai:start, tanggal_selesai:end, alasan:alasan });
+        alert('Pengajuan cuti admin berhasil dikirim.');
+        await loadLeaveManagement(leaveStatusFilter);
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    async function loadLeaveManagement(status){
+      try{
+        leaveStatusFilter = status || leaveStatusFilter || 'all';
+        if(!leaveMonthFilter) leaveMonthFilter = new Date().toISOString().slice(0,7);
+        setLoading('Memuat manajemen cuti...');
+        const [rows,types]=await Promise.all([
+          api('/api/admin/leaves?limit=1000'),
+          api('/api/leave-types/active').catch(function(){ return []; })
+        ]);
+        const allRows=Array.isArray(rows)?rows:[];
+        const monthRows=allRows.filter(function(r){
+          const m=String((r.tanggal_mulai||r.created_at||'')).slice(0,7);
+          return !leaveMonthFilter || m===leaveMonthFilter;
+        });
+        let filtered=monthRows.filter(function(r){
+          const st=String(r.status||'').toLowerCase();
+          return leaveStatusFilter==='all' ? true : st===leaveStatusFilter;
+        });
+        if(leaveKeywordFilter){
+          filtered=filtered.filter(function(r){
+            const txt=(String(r.leave_id||'')+' '+String(r.email||'')+' '+String(r.jenis_cuti||'')+' '+String(r.nama||'')).toLowerCase();
+            return txt.indexOf(leaveKeywordFilter)>=0;
+          });
+        }
+        const countPending=monthRows.filter(function(r){ return String(r.status||'').toLowerCase()==='pending'; }).length;
+        const countApproved=monthRows.filter(function(r){ return String(r.status||'').toLowerCase()==='approved'; }).length;
+        const countRejected=monthRows.filter(function(r){ return String(r.status||'').toLowerCase()==='rejected'; }).length;
+        const typeOptions=(Array.isArray(types)?types:[]).map(function(t){
+          return '<option value="'+escapeHtml(t.nama_jenis_cuti||'')+'">'+escapeHtml(t.nama_jenis_cuti||'-')+'</option>';
+        }).join('') || '<option value="">-</option>';
+        const tabs='<div class="actions" style="margin-bottom:16px;">'
+          + '<button class="btn '+(leaveStatusFilter==='all'?'btn-primary':'btn-secondary')+'" onclick="loadLeaveManagement(\'all\')">All</button>'
+          + '<button class="btn '+(leaveStatusFilter==='pending'?'btn-primary':'btn-secondary')+'" onclick="loadLeaveManagement(\'pending\')">Pending</button>'
+          + '<button class="btn '+(leaveStatusFilter==='approved'?'btn-primary':'btn-secondary')+'" onclick="loadLeaveManagement(\'approved\')">Approved</button>'
+          + '<button class="btn '+(leaveStatusFilter==='rejected'?'btn-primary':'btn-secondary')+'" onclick="loadLeaveManagement(\'rejected\')">Rejected</button>'
+          + '</div>';
+        const tbody=(filtered||[]).map(function(r){
+          const isPending=String(r.status||'').toLowerCase()==='pending';
+          const checked=!!selectedLeaveIds[String(r.leave_id||'')];
+          const actionHtml=isPending
+            ? '<button class="btn btn-primary" onclick="approveLeave(\''+escapeHtml(r.leave_id)+'\')">Approve</button> <button class="btn btn-danger" onclick="rejectLeave(\''+escapeHtml(r.leave_id)+'\')">Reject</button>'
+            : '-';
+          const cb=isPending
+            ? '<input type="checkbox" '+(checked?'checked':'')+' onchange="toggleLeaveSelect(\''+escapeHtml(r.leave_id)+'\',this.checked)">'
+            : '-';
+          return '<tr><td>'+cb+'</td><td><div style="font-weight:600;color:var(--text-main);">'+escapeHtml(r.nama||r.email||r.employee_id||'')+'</div><div style="font-size:12px;color:var(--text-sec);">'+escapeHtml(r.leave_id||'-')+'</div></td><td>'+escapeHtml(r.jenis_cuti||'-')+'</td><td>'+escapeHtml(formatDateDisplay(r.tanggal_mulai))+' s/d '+escapeHtml(formatDateDisplay(r.tanggal_selesai))+'</td><td>'+escapeHtml(r.alasan||'-')+'</td><td>'+normalizeStatusBadge(r.status)+'</td><td><div class="actions" style="margin-top:0;">'+actionHtml+'</div></td></tr>';
+        }).join('') || '<tr><td colspan="7">Tidak ada data</td></tr>';
+        leaveVisibleRows=filtered||[];
+        const bulkActions='<div class="actions" style="margin-bottom:16px;">'
+          + '<button class="btn btn-primary" onclick="runLeaveBatchAction(\'approve\')">Approve Selected</button>'
+          + '<button class="btn btn-danger" onclick="runLeaveBatchAction(\'reject\')">Reject Selected</button>'
+          + '<button class="btn btn-secondary" onclick="toggleLeaveSelectAllVisible(true); loadLeaveManagement(leaveStatusFilter)">Select Visible</button>'
+          + '<button class="btn btn-secondary" onclick="clearLeaveSelection(); loadLeaveManagement(leaveStatusFilter)">Clear Selection</button>'
+          + '</div>';
+        setContent(
+          '<div class="cards-row" style="margin-bottom:12px;">'
+            + '<div class="card"><div class="stat-label">PENDING</div><div class="stat-large">'+escapeHtml(countPending)+'</div></div>'
+            + '<div class="card"><div class="stat-label">APPROVED</div><div class="stat-large">'+escapeHtml(countApproved)+'</div></div>'
+            + '<div class="card"><div class="stat-label">REJECTED</div><div class="stat-large">'+escapeHtml(countRejected)+'</div></div>'
+          + '</div>'
+          + '<div class="card" style="margin-bottom:12px;"><div class="team-header"><h3 style="font-size:18px;font-weight:700;">Apply Leave (Admin)</h3></div>'
+          + '<div class="grid-4"><div class="form-group"><label>Jenis Cuti</label><select id="admin_leave_jenis">'+typeOptions+'</select></div><div class="form-group"><label>Tanggal Mulai</label><input id="admin_leave_start" type="date"></div><div class="form-group"><label>Tanggal Selesai</label><input id="admin_leave_end" type="date"></div><div class="form-group"><label>Alasan</label><input id="admin_leave_reason" placeholder="Alasan pengajuan"></div></div>'
+          + '<div class="actions"><button class="btn btn-primary" onclick="submitAdminLeaveApply()">Kirim Pengajuan</button></div></div>'
+          + '<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Leave Approval</h3><div class="actions"><input type="month" value="'+escapeHtml(leaveMonthFilter)+'" onchange="leaveMonthFilter=this.value;loadLeaveManagement(leaveStatusFilter)"><input id="leave_keyword" value="'+escapeHtml(leaveKeywordFilter)+'" placeholder="Cari ID/Email/Jenis" oninput="leaveKeywordFilter=this.value.toLowerCase();loadLeaveManagement(leaveStatusFilter);"><button class="btn btn-secondary" onclick="loadLeaveManagement(leaveStatusFilter)">Refresh</button></div></div>'
+          + tabs + bulkActions
+          + '<div class="table-wrap"><table><thead><tr><th>Pick</th><th>Karyawan</th><th>Jenis</th><th>Tanggal</th><th>Alasan</th><th>Status</th><th>Aksi</th></tr></thead><tbody>'+tbody+'</tbody></table></div></div>'
+        );
+      }catch(err){ setContent(renderError(err.message)); }
+    }
     async function approveLeave(id){ try{ const note=prompt('Catatan approver (opsional):','Approved by admin'); await api('/api/admin/leaves/approve','POST',{leave_id:id,catatan_approver:String(note===null?'Approved by admin':note||'Approved by admin')}); await loadLeaveManagement(); }catch(err){ setContent(renderError(err.message)); } }
     async function rejectLeave(id){ try{ const note=prompt('Alasan reject:','Rejected by admin'); await api('/api/admin/leaves/reject','POST',{leave_id:id,catatan_approver:String(note===null?'Rejected by admin':note||'Rejected by admin')}); await loadLeaveManagement(); }catch(err){ setContent(renderError(err.message)); } }
 
