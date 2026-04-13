@@ -404,14 +404,19 @@
         setLoading('Loading dashboard...');
         const todayDate=(new Date().toISOString().slice(0,10));
         const kpiStart=(new Date(Date.now()-29*24*60*60*1000).toISOString().slice(0,10));
-        const [emps,pending,ann,pay,today,meToday]=await Promise.all([
+        const [emps,pending,ann,pay,today,meToday,health]=await Promise.all([
           api('/api/admin/employees?limit=500').catch(()=>[]),
           api('/api/admin/leaves/pending').catch(()=>[]),
           api('/api/admin/announcements').catch(()=>[]),
           api('/api/admin/payroll-docs').catch(()=>[]),
           api('/api/admin/attendance/today?tanggal='+todayDate).catch(()=>[]),
-          api('/api/me/attendance/today').catch(()=>({ tanggal:todayDate,jam_masuk:'',jam_keluar:'',break_active:false,break_duration_digital:'00:00:00',status:'Belum Absen' }))
+          api('/api/me/attendance/today').catch(()=>({ tanggal:todayDate,jam_masuk:'',jam_keluar:'',break_active:false,break_duration_digital:'00:00:00',status:'Belum Absen' })),
+          api('/api/health').catch(()=>null)
         ]);
+        const healthOk=!!(health&&health.ok);
+        const healthSupabase=!!(health&&health.supabase_ready);
+        const healthResend=!!(health&&health.resend_ready);
+        const healthSource=String((health&&health.key_source)||'unknown');
         
         let kpiErr='';
         const kpi=await api('/api/admin/kpi/hr?start_date='+encodeURIComponent(kpiStart)+'&end_date='+encodeURIComponent(todayDate)).catch(e=>{ kpiErr=String((e&&e.message)||''); return null; });
@@ -454,6 +459,12 @@
             <div class="greeting">
                 <h1>Admin Dashboard</h1>
                 <p>Overview of today's attendance and quick HR actions.</p>
+                <div class="actions" style="margin-top:10px;">
+                    <span class="status-badge ${healthOk&&healthSupabase?'on-time':'late'}">API ${healthOk?'UP':'DOWN'}</span>
+                    <span class="status-badge ${healthSupabase?'on-time':'late'}">Supabase ${healthSupabase?'READY':'ISSUE'}</span>
+                    <span class="status-badge ${healthResend?'on-time':'late'}">Resend ${healthResend?'READY':'ISSUE'}</span>
+                    <span class="status-badge">${escapeHtml('Key '+healthSource)}</span>
+                </div>
             </div>
             
             <div class="cards-row" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
