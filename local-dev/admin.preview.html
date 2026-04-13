@@ -1385,20 +1385,21 @@
       try{
         const ids=Object.keys(scheduleSelectedIds||{});
         if(!ids.length) throw new Error('Pilih karyawan terlebih dahulu.');
-        const shift=String((document.getElementById('sched_bulk_shift')||{}).value||'PAGI').trim();
-        const offSat=!!((document.getElementById('sched_bulk_off_sat')||{}).checked);
-        const offSun=!!((document.getElementById('sched_bulk_off_sun')||{}).checked);
+        const fmt=String((document.getElementById('sched_bulk_format')||{}).value||'pagi_off_sabtu').trim().toLowerCase();
+        let shift='PAGI'; let offSat=false; let offSun=false;
+        if(fmt==='pagi_off_sabtu'){ shift='PAGI'; offSat=true; offSun=false; }
+        else if(fmt==='pagi_off_minggu'){ shift='PAGI'; offSat=false; offSun=true; }
+        else if(fmt==='sore_off_sabtu'){ shift='SORE'; offSat=true; offSun=false; }
+        else if(fmt==='sore_off_minggu'){ shift='SORE'; offSat=false; offSun=true; }
+        else if(fmt==='malam_off_sabtu'){ shift='MALAM'; offSat=true; offSun=false; }
+        else if(fmt==='malam_off_minggu'){ shift='MALAM'; offSat=false; offSun=true; }
+        else if(fmt==='flx_off_sabtu'){ shift='FLX'; offSat=true; offSun=false; }
+        else if(fmt==='flx_off_minggu'){ shift='FLX'; offSat=false; offSun=true; }
         ids.forEach(function(id){
           scheduleTemplates[String(id)]={ shift_code:shift, off_saturday:offSat, off_sunday:offSun };
         });
         renderMonthlyScheduleAdmin('', String((document.getElementById('sched_notes')||{}).value||''));
       }catch(err){ setContent(renderError(err.message)); }
-    }
-    function applyBulkShiftPreset(preset){
-      const p=String(preset||'').toLowerCase();
-      if(p==='pagi_off_sabtu'){ if(document.getElementById('sched_bulk_shift')) document.getElementById('sched_bulk_shift').value='PAGI'; if(document.getElementById('sched_bulk_off_sat')) document.getElementById('sched_bulk_off_sat').checked=true; if(document.getElementById('sched_bulk_off_sun')) document.getElementById('sched_bulk_off_sun').checked=false; }
-      else if(p==='pagi_off_minggu'){ if(document.getElementById('sched_bulk_shift')) document.getElementById('sched_bulk_shift').value='PAGI'; if(document.getElementById('sched_bulk_off_sat')) document.getElementById('sched_bulk_off_sat').checked=false; if(document.getElementById('sched_bulk_off_sun')) document.getElementById('sched_bulk_off_sun').checked=true; }
-      applyBulkScheduleToSelected();
     }
     async function copyScheduleFromMonth(){
       try{
@@ -1459,7 +1460,7 @@
           '</div>' +
           '<div class="grid-2" style="margin-bottom:10px;">' +
             '<div class="form-group"><label>Copy dari Bulan Lain</label><div class="actions"><input id="sched_copy_from" type="month" style="max-width:180px;"><button class="btn btn-secondary" onclick="copyScheduleFromMonth()">Copy</button></div></div>' +
-            '<div class="form-group"><label>Bulk Shift (Karyawan Terpilih)</label><div class="actions"><select id="sched_bulk_shift" style="max-width:120px;"><option value="PAGI">Pagi</option><option value="SORE">Sore</option><option value="MALAM">Malam</option><option value="FLX">FLX</option></select><label><input id="sched_bulk_off_sat" type="checkbox"> Off Sabtu</label><label><input id="sched_bulk_off_sun" type="checkbox"> Off Minggu</label><button class="btn btn-secondary" onclick="applyBulkScheduleToSelected()">Apply Selected ('+selectedCount+')</button></div><div class="actions" style="margin-top:8px;"><button class="btn btn-secondary" onclick="toggleScheduleSelectAll(true)">Select All</button><button class="btn btn-secondary" onclick="toggleScheduleSelectAll(false)">Clear</button><button class="btn btn-secondary" onclick="applyBulkShiftPreset(\'pagi_off_sabtu\')">Pagi Off Sabtu</button><button class="btn btn-secondary" onclick="applyBulkShiftPreset(\'pagi_off_minggu\')">Pagi Off Minggu</button></div></div>' +
+            '<div class="form-group"><label>Format Shift (Karyawan Terpilih)</label><div class="actions"><select id="sched_bulk_format" style="max-width:220px;"><option value="pagi_off_sabtu">pagi off sabtu</option><option value="pagi_off_minggu">pagi off minggu</option><option value="sore_off_sabtu">sore off sabtu</option><option value="sore_off_minggu">sore off minggu</option><option value="malam_off_sabtu">malam off sabtu</option><option value="malam_off_minggu">malam off minggu</option><option value="flx_off_sabtu">flx off sabtu</option><option value="flx_off_minggu">flx off minggu</option></select><button class="btn btn-secondary" onclick="applyBulkScheduleToSelected()">Apply Selected ('+selectedCount+')</button></div><div class="actions" style="margin-top:8px;"><button class="btn btn-secondary" onclick="toggleScheduleSelectAll(true)">Select All</button><button class="btn btn-secondary" onclick="toggleScheduleSelectAll(false)">Clear</button></div></div>' +
           '</div>' +
           '<div class="stat-label" style="margin-bottom:16px;">Published at: '+escapeHtml(formatDateTimeDisplay(publishedAt)||'-')+'</div>' +
           '<div class="card" style="box-shadow:none;background:var(--bg);margin-bottom:12px;"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Pilih Karyawan</h3><div class="actions"><input id="sched_emp_filter" placeholder="Cari nama / ID / divisi..." value="'+escapeHtml(scheduleEmpFilter)+'" oninput="scheduleEmpFilter=this.value;renderMonthlyScheduleAdmin(\''+escapeHtml(String(publishedAt||''))+'\',(document.getElementById(\'sched_notes\')||{}).value||\'\')"></div></div><div class="table-wrap"><table><thead><tr><th style="text-align:center;">Pick</th><th>Nama</th><th>ID</th><th>Divisi</th><th>Jabatan</th></tr></thead><tbody>'+pickerRows+'</tbody></table></div></div>' +
