@@ -1455,24 +1455,29 @@
           return '<tr><td>'+cb+'</td><td><div style="font-weight:600;color:var(--text-main);">'+escapeHtml(r.nama||r.email||r.employee_id||'')+'</div><div style="font-size:12px;color:var(--text-sec);">'+escapeHtml(r.leave_id||'-')+'</div></td><td>'+escapeHtml(r.jenis_cuti||'-')+'</td><td>'+escapeHtml(formatDateDisplay(r.tanggal_mulai))+' s/d '+escapeHtml(formatDateDisplay(r.tanggal_selesai))+'</td><td>'+escapeHtml(r.alasan||'-')+'</td><td>'+normalizeStatusBadge(r.status)+'</td><td><div class="actions" style="margin-top:0;">'+actionHtml+'</div></td></tr>';
         }).join('') || '<tr><td colspan="7">Tidak ada data</td></tr>';
         leaveVisibleRows=filtered||[];
-        const bulkActions='<div class="actions" style="margin-bottom:16px;">'
-          + '<button class="btn btn-primary" onclick="runLeaveBatchAction(\'approve\')">Approve Selected</button>'
-          + '<button class="btn btn-danger" onclick="runLeaveBatchAction(\'reject\')">Reject Selected</button>'
-          + '<button class="btn btn-secondary" onclick="toggleLeaveSelectAllVisible(true); loadLeaveManagement(leaveStatusFilter)">Select Visible</button>'
-          + '<button class="btn btn-secondary" onclick="clearLeaveSelection(); loadLeaveManagement(leaveStatusFilter)">Clear Selection</button>'
-          + '</div>';
         setContent(
-          '<div class="cards-row" style="margin-bottom:12px;">'
+          '<div class="cards-row" style="margin-bottom:14px;">'
             + '<div class="card"><div class="stat-label">PENDING</div><div class="stat-large">'+escapeHtml(countPending)+'</div></div>'
             + '<div class="card"><div class="stat-label">APPROVED</div><div class="stat-large">'+escapeHtml(countApproved)+'</div></div>'
             + '<div class="card"><div class="stat-label">REJECTED</div><div class="stat-large">'+escapeHtml(countRejected)+'</div></div>'
+            + '<div class="card"><div class="stat-label">VISIBLE / SELECTED</div><div class="stat-large">'+escapeHtml(filtered.length)+' / '+escapeHtml(Object.keys(selectedLeaveIds||{}).length)+'</div></div>'
           + '</div>'
-          + '<div class="card" style="margin-bottom:12px;"><div class="team-header"><h3 style="font-size:18px;font-weight:700;">Apply Leave (Admin)</h3></div>'
-          + '<div class="grid-4"><div class="form-group"><label>Jenis Cuti</label><select id="admin_leave_jenis" onchange="updateAdminLeaveAttachmentHint()">'+typeOptions+'</select></div><div class="form-group"><label>Tanggal Mulai</label><input id="admin_leave_start" type="date"></div><div class="form-group"><label>Tanggal Selesai</label><input id="admin_leave_end" type="date"></div><div class="form-group"><label>Alasan</label><input id="admin_leave_reason" placeholder="Alasan pengajuan"></div></div>'
-          + '<div class="grid-2"><div class="form-group"><label>Lampiran (Surat Sakit)</label><input type="file" id="admin_leave_attachment" accept=".jpg,.jpeg,.png,.webp,.pdf" onchange="onAdminLeaveAttachmentChange(this)"><div id="admin_leave_attachment_required" class="file-hint">Opsional</div><div id="admin_leave_attachment_info" class="file-hint">Belum ada file dipilih</div></div></div>'
-          + '<div class="actions"><button class="btn btn-primary" onclick="submitAdminLeaveApply()">Kirim Pengajuan</button></div></div>'
-          + '<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Leave Approval</h3><div class="actions"><input type="month" value="'+escapeHtml(leaveMonthFilter)+'" onchange="leaveMonthFilter=this.value;loadLeaveManagement(leaveStatusFilter)"><input id="leave_keyword" value="'+escapeHtml(leaveKeywordFilter)+'" placeholder="Cari ID/Email/Jenis" oninput="leaveKeywordFilter=this.value.toLowerCase();loadLeaveManagement(leaveStatusFilter);"><button class="btn btn-secondary" onclick="loadLeaveManagement(leaveStatusFilter)">Refresh</button></div></div>'
-          + tabs + bulkActions
+          + '<div class="grid-2" style="gap:14px;">'
+            + '<div class="card" style="margin-bottom:0;"><div class="team-header"><h3 style="font-size:18px;font-weight:700;">Apply Leave (Admin)</h3></div>'
+              + '<div class="grid-2"><div class="form-group"><label>Jenis Cuti</label><select id="admin_leave_jenis" onchange="updateAdminLeaveAttachmentHint()">'+typeOptions+'</select></div><div class="form-group"><label>Alasan</label><input id="admin_leave_reason" placeholder="Alasan pengajuan"></div></div>'
+              + '<div class="grid-2"><div class="form-group"><label>Tanggal Mulai</label><input id="admin_leave_start" type="date"></div><div class="form-group"><label>Tanggal Selesai</label><input id="admin_leave_end" type="date"></div></div>'
+              + '<div class="form-group"><label>Lampiran (Surat Sakit)</label><input type="file" id="admin_leave_attachment" accept=".jpg,.jpeg,.png,.webp,.pdf" onchange="onAdminLeaveAttachmentChange(this)"><div id="admin_leave_attachment_required" class="file-hint">Opsional</div><div id="admin_leave_attachment_info" class="file-hint">Belum ada file dipilih</div></div>'
+              + '<div class="actions"><button class="btn btn-primary" onclick="submitAdminLeaveApply()">Kirim Pengajuan</button></div>'
+            + '</div>'
+            + '<div class="card" style="margin-bottom:0;"><div class="team-header"><h3 style="font-size:18px;font-weight:700;">Filter & Aksi</h3></div>'
+              + '<div class="form-group"><label>Bulan</label><input type="month" value="'+escapeHtml(leaveMonthFilter)+'" onchange="leaveMonthFilter=this.value;loadLeaveManagement(leaveStatusFilter)"></div>'
+              + '<div class="form-group"><label>Pencarian</label><input id="leave_keyword" value="'+escapeHtml(leaveKeywordFilter)+'" placeholder="Cari ID / Nama / Email / Jenis" oninput="leaveKeywordFilter=this.value.toLowerCase();loadLeaveManagement(leaveStatusFilter);"></div>'
+              + tabs
+              + '<div class="actions"><button class="btn btn-secondary" onclick="loadLeaveManagement(leaveStatusFilter)">Refresh</button><button class="btn btn-secondary" onclick="toggleLeaveSelectAllVisible(true); loadLeaveManagement(leaveStatusFilter)">Select Visible</button><button class="btn btn-secondary" onclick="clearLeaveSelection(); loadLeaveManagement(leaveStatusFilter)">Clear Selection</button></div>'
+              + '<div class="actions" style="margin-top:8px;"><button class="btn btn-primary" onclick="runLeaveBatchAction(\'approve\')">Approve Selected</button><button class="btn btn-danger" onclick="runLeaveBatchAction(\'reject\')">Reject Selected</button></div>'
+            + '</div>'
+          + '</div>'
+          + '<div class="card" style="margin-top:14px;"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Leave Approval List</h3><div class="stat-label">Total Visible: '+escapeHtml(filtered.length)+'</div></div>'
           + '<div class="table-wrap"><table><thead><tr><th>Pick</th><th>Karyawan</th><th>Jenis</th><th>Tanggal</th><th>Alasan</th><th>Status</th><th>Aksi</th></tr></thead><tbody>'+tbody+'</tbody></table></div></div>'
         );
         updateAdminLeaveAttachmentHint();
