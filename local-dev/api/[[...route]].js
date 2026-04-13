@@ -2274,6 +2274,40 @@ module.exports = async function handler(req, res) {
       return json(res, 200, { ok: true, employee_id: employeeId, total: rows.length, rows: rows });
     }
 
+    if (path === 'admin/auth/activation/deliverability' && method === 'GET') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const limit = Math.max(20, Math.min(500, Number((req.query && req.query.limit) || 200)));
+      const q = await db('GET', 'config', { select: 'key,value', key: 'like.AUTH_EMAIL_AUDIT_%', limit: String(limit) });
+      if (!q.ok) return json(res, 500, { ok: false, message: 'Gagal mengambil data deliverability.', error: q.error });
+      const rows = (Array.isArray(q.data) ? q.data : []).map(function(r) {
+        const v = safeJsonParse(r.value, {});
+        return {
+          key: String(r.key || ''),
+          employee_id: (String(r.key || '').split('_')[3] || ''),
+          created_at: String(v.created_at || ''),
+          mode: String(v.mode || ''),
+          sent: !!v.sent,
+          to: String(v.to || ''),
+          sender: String(v.sender || ''),
+          error: String(v.error || '')
+        };
+      }).sort(function(a1, a2) { return String(a2.created_at || a2.key || '').localeCompare(String(a1.created_at || a1.key || '')); });
+      const sentCount = rows.filter(function(x) { return x.sent; }).length;
+      const failCount = rows.length - sentCount;
+      const successRate = rows.length ? Math.round((sentCount / rows.length) * 1000) / 10 : 0;
+      const modeStats = {};
+      rows.forEach(function(r) {
+        const m = r.mode || 'unknown';
+        if (!modeStats[m]) modeStats[m] = { total: 0, sent: 0, failed: 0 };
+        modeStats[m].total += 1;
+        if (r.sent) modeStats[m].sent += 1; else modeStats[m].failed += 1;
+      });
+      const recentErrors = rows.filter(function(x) { return !x.sent; }).slice(0, 10).map(function(x) {
+        return { created_at: x.created_at, employee_id: x.employee_id, to: x.to, mode: x.mode, error: x.error };
+      });
+      return json(res, 200, { ok: true, total: rows.length, sent: sentCount, failed: failCount, success_rate: successRate, mode_stats: modeStats, recent_errors: recentErrors, rows: rows.slice(0, 50) });
+    }
+
     if (path === 'admin/employees' && method === 'PATCH') {
       const a = requireAdmin(req, res); if (!a) return;
       const b = await readBody(req);

@@ -566,6 +566,7 @@
                         <button class="btn btn-secondary" onclick="loadLeaveManagement()"><i class="ph ph-calendar-blank"></i> Leaves</button>
                         <button class="btn btn-secondary" onclick="loadAllEmployees()"><i class="ph ph-users"></i> Employees</button>
                         <button class="btn btn-primary" onclick="loadKpiHrDashboard()"><i class="ph ph-chart-bar"></i> Full KPI</button>
+                        <button class="btn btn-secondary" onclick="loadEmailDeliverabilityPanel()"><i class="ph ph-envelope-simple"></i> Email Deliverability</button>
                         <button class="btn btn-primary" onclick="exportTodayStatusPdf()"><i class="ph ph-download-simple"></i> Export PDF</button>
                     </div>
                 </div>
@@ -1183,6 +1184,32 @@
           return '#'+String(idx+1)+' ['+String(x.mode||'-')+'] '+(x.sent?'TERKIRIM':'GAGAL')+' | '+String(x.created_at||'-')+' | sender='+String(x.sender||'-')+(x.error?(' | err='+String(x.error)):'');
         }).join('\n');
         alert('Audit Email Aktivasi - '+String(row.employee_id||'')+'\n\n'+txt);
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    async function loadEmailDeliverabilityPanel(){
+      try{
+        setLoading('Memuat email deliverability...');
+        const r=await api('/api/admin/auth/activation/deliverability?limit=200');
+        const ms=(r&&r.mode_stats)||{};
+        const modeRows=Object.keys(ms).sort().map(function(k){
+          const v=ms[k]||{};
+          return '<tr><td>'+escapeHtml(k)+'</td><td>'+escapeHtml(v.total||0)+'</td><td>'+escapeHtml(v.sent||0)+'</td><td>'+escapeHtml(v.failed||0)+'</td></tr>';
+        }).join('')||'<tr><td colspan="4">No data</td></tr>';
+        const errRows=((r&&r.recent_errors)||[]).map(function(e){
+          return '<tr><td>'+escapeHtml(formatDateTime(e.created_at||''))+'</td><td>'+escapeHtml(e.employee_id||'-')+'</td><td>'+escapeHtml(e.to||'-')+'</td><td>'+escapeHtml(e.mode||'-')+'</td><td>'+escapeHtml(e.error||'-')+'</td></tr>';
+        }).join('')||'<tr><td colspan="5">Tidak ada error terbaru.</td></tr>';
+        const html='' +
+          '<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Email Deliverability</h3><div class="actions"><button class="btn btn-secondary" onclick="loadSummary()"><i class="ph ph-arrow-left"></i> Back</button><button class="btn btn-primary" onclick="loadEmailDeliverabilityPanel()"><i class="ph ph-arrows-clockwise"></i> Refresh</button></div></div>' +
+          '<div class="cards-row" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom:14px;">' +
+          '<div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Total Logs</div><div class="stat-large">'+escapeHtml((r&&r.total)||0)+'</div></div>' +
+          '<div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Sent</div><div class="stat-large">'+escapeHtml((r&&r.sent)||0)+'</div></div>' +
+          '<div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Failed</div><div class="stat-large">'+escapeHtml((r&&r.failed)||0)+'</div></div>' +
+          '<div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Success Rate</div><div class="stat-large">'+escapeHtml((r&&r.success_rate)||0)+'%</div></div>' +
+          '</div>' +
+          '<div class="grid-2"><div><div class="stat-label" style="margin-bottom:8px;">By Mode</div><div class="table-wrap"><table><thead><tr><th>Mode</th><th>Total</th><th>Sent</th><th>Failed</th></tr></thead><tbody>'+modeRows+'</tbody></table></div></div>' +
+          '<div><div class="stat-label" style="margin-bottom:8px;">Recent Errors</div><div class="table-wrap"><table><thead><tr><th>Time</th><th>Employee</th><th>Email</th><th>Mode</th><th>Error</th></tr></thead><tbody>'+errRows+'</tbody></table></div></div></div>' +
+          '</div>';
+        setContent(html);
       }catch(err){ setContent(renderError(err.message)); }
     }
     async function loadEditEmployeeForm(id){
