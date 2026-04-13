@@ -1748,6 +1748,8 @@
     // ATTENDANCE LOG
     let attendanceOtherDateFilter='';
     let attendanceNameMapCache={};
+    let attendanceOtherReqSeq=0;
+    let attendanceOtherFilterTimer=null;
     function renderAttendanceRows(rows,nameMap){
       return ((rows||[]).map(function(r){
         const nama=nameMap[String(r.employee_id||'')]||r.nama||r.email||'-';
@@ -1755,17 +1757,20 @@
       }).join('')||'<tr><td colspan="7">Tidak ada data</td></tr>');
     }
     function renderAttendanceLoadingRow(){
-      return '<tr><td colspan="7" style="text-align:center;color:var(--text-sec);">⏳ Memuat data attendance...</td></tr>';
+      return '<tr><td colspan="7" style="text-align:center;color:var(--text-sec);"><i class="ph ph-spinner-gap"></i> Memuat data attendance...</td></tr>';
     }
     async function refreshAttendanceOtherDateTable(){
+      const reqSeq=++attendanceOtherReqSeq;
       try{
         const tbody=document.getElementById('att_other_tbody');
         const dateLabel=document.getElementById('att_other_date_label');
         if(tbody) tbody.innerHTML=renderAttendanceLoadingRow();
         if(dateLabel) dateLabel.textContent=String(attendanceOtherDateFilter||'-');
         const rowsOther=await api('/api/admin/attendance/today?tanggal='+encodeURIComponent(attendanceOtherDateFilter));
+        if(reqSeq!==attendanceOtherReqSeq) return;
         if(tbody) tbody.innerHTML=renderAttendanceRows(rowsOther,attendanceNameMapCache);
       }catch(err){
+        if(reqSeq!==attendanceOtherReqSeq) return;
         const tbody=document.getElementById('att_other_tbody');
         if(tbody) tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--danger);">'+escapeHtml(err.message||'Gagal memuat data')+'</td></tr>';
       }
@@ -1773,7 +1778,8 @@
     function onAttendanceOtherDateChange(v){
       attendanceOtherDateFilter=String(v||'').trim();
       if(!attendanceOtherDateFilter) return;
-      refreshAttendanceOtherDateTable();
+      if(attendanceOtherFilterTimer) clearTimeout(attendanceOtherFilterTimer);
+      attendanceOtherFilterTimer=setTimeout(function(){ refreshAttendanceOtherDateTable(); }, 120);
     }
     async function loadTodayAttendance(){
       try{
