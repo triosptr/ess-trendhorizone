@@ -3187,7 +3187,11 @@ module.exports = async function handler(req, res) {
     if (path === 'admin/control-tower/summary' && method === 'GET') {
       const a = requireAdmin(req, res); if (!a) return;
       const today = ymd();
-      const emp = await db('GET', 'employees', { select: 'employee_id,nama,email,divisi,jabatan,is_active,tanggal_lahir,jatah_cuti,sisa_cuti', order: 'nama.asc', limit: 5000 });
+      let emp = await db('GET', 'employees', { select: 'employee_id,nama,email,divisi,jabatan,is_active,tanggal_lahir,jatah_cuti,sisa_cuti', order: 'nama.asc', limit: 5000 });
+      if (!emp.ok) {
+        // Fallback for deployments where leave balance columns are not yet present.
+        emp = await db('GET', 'employees', { select: 'employee_id,nama,email,divisi,jabatan,is_active,tanggal_lahir', order: 'nama.asc', limit: 5000 });
+      }
       if (!emp.ok) return json(res, 500, { ok: false, message: 'Gagal ambil control tower summary.', error: emp.error });
       const activeRows = (emp.data || []).filter(function(e) { return String(e.is_active).toLowerCase() === 'true'; });
       const md = today.slice(5); // MM-DD
@@ -3229,9 +3233,9 @@ module.exports = async function handler(req, res) {
         };
       }).sort(function(a1, b1) { return Number(a1.sisa_cuti || 0) - Number(b1.sisa_cuti || 0); }).slice(0, 300);
       const fileLocations = [
-        { key: 'attendance', label: 'File Absensi (Foto Check-in/Check-out)', folder_id: attendanceDriveFolderId() },
-        { key: 'payslip', label: 'File Payslip', folder_id: payslipDriveFolderId() },
-        { key: 'sick_letter', label: 'File Surat Sakit (Lampiran Cuti)', folder_id: leaveAttachmentDriveFolderId() }
+        { key: 'attendance', label: 'File Absensi (Foto Check-in/Check-out)', folder_id: reportDriveFolderId() },
+        { key: 'payslip', label: 'File Payslip', folder_id: payrollDriveFolderId() },
+        { key: 'sick_letter', label: 'File Surat Sakit (Lampiran Cuti)', folder_id: leaveDriveFolderId() }
       ].map(function(x) {
         const fid = String(x.folder_id || '');
         return Object.assign({}, x, { drive_url: fid ? ('https://drive.google.com/drive/folders/' + fid) : '' });
