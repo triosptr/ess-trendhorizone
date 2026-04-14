@@ -2274,7 +2274,10 @@
         const missing=((summary&&summary.missing_employees)||[]).slice(0,12);
         const missingList=missing.map(function(x){ return '<div class="bday-person-chip"><div class="bday-person-name">'+escapeHtml(x.nama||x.employee_id||'-')+'</div><div class="bday-person-sub">'+escapeHtml((x.employee_id||'-')+' • '+(x.divisi||'-'))+'</div></div>'; }).join('') || '<div class="report-empty">Semua karyawan aktif sudah punya slip.</div>';
         const tableRows=((rows||[]).map(function(r){
-          return '<tr><td>'+escapeHtml(r.doc_id)+'</td><td>'+escapeHtml((r.employee_id||'-')+' • '+(r.email||'-'))+'</td><td>'+escapeHtml(r.bulan||'-')+'</td><td>'+escapeHtml(r.tahun||'-')+'</td><td>'+escapeHtml(moneyId(r.total_pendapatan||0))+'</td><td>'+escapeHtml(moneyId(r.total_potongan||0))+'</td><td>'+escapeHtml(moneyId(r.take_home_pay||0))+'</td><td>'+escapeHtml(formatDateTimeDisplay(r.uploaded_at)||'-')+'</td><td><div class="actions" style="margin-top:0;"><a class="btn btn-secondary" href="'+escapeHtml(r.file_url||'#')+'" target="_blank">Buka</a><button class="btn btn-primary" onclick="exportPayrollPdf(\''+escapeHtml(r.doc_id||'')+'\')">PDF</button></div></td></tr>';
+          const totalPendapatan=Number(r.total_earning||r.total_pendapatan||0);
+          const totalPotongan=Number(r.total_deduction||r.total_potongan||0);
+          const thp=Number(r.net_salary||r.take_home_pay||0);
+          return '<tr><td>'+escapeHtml(r.doc_id)+'</td><td>'+escapeHtml((r.employee_id||'-')+' • '+(r.email||'-'))+'</td><td>'+escapeHtml(r.bulan||'-')+'</td><td>'+escapeHtml(r.tahun||'-')+'</td><td>'+escapeHtml(moneyId(totalPendapatan))+'</td><td>'+escapeHtml(moneyId(totalPotongan))+'</td><td>'+escapeHtml(moneyId(thp))+'</td><td>'+escapeHtml(formatDateTimeDisplay(r.uploaded_at)||'-')+'</td><td><div class="actions" style="margin-top:0;"><a class="btn btn-secondary" href="'+escapeHtml(r.file_url||'#')+'" target="_blank">Buka</a><button class="btn btn-primary" onclick="exportPayrollPdf(\''+escapeHtml(r.doc_id||'')+'\')">PDF</button></div></td></tr>';
         }).join('')||'<tr><td colspan="9">Tidak ada data</td></tr>');
         const defaultPeriodHint='Catatan: gaji tanggal 1 diproses untuk bulan sebelumnya.';
         setContent(payrollRenderer(

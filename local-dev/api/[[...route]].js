@@ -1062,21 +1062,28 @@ function payrollPdfBuffer(payrollDoc, employeeName) {
   const earn = ((d.breakdown && d.breakdown.earnings) || []).filter(function(x) { return Number(x.value || 0) !== 0; }).map(function(x) { return String(x.name || '-') + ' : ' + money(x.value || 0); });
   const ded = ((d.breakdown && d.breakdown.deductions) || []).filter(function(x) { return Number(x.value || 0) !== 0; }).map(function(x) { return String(x.name || '-') + ' : ' + money(x.value || 0); });
   const lines = [];
-  lines.push('TREND HORIZON - PAYSLIP');
-  lines.push('Periode Gaji : ' + String(d.bulan || '-') + ' ' + String(d.tahun || '-'));
-  lines.push('Employee ID  : ' + String(d.employee_id || '-'));
-  lines.push('Nama Karyawan: ' + String(employeeName || '-'));
+  lines.push('TREND HORIZON');
+  lines.push('SLIP GAJI KARYAWAN');
+  lines.push('Generated: ' + String(nowIso()).slice(0, 19).replace('T', ' '));
+  lines.push('==================================================');
+  lines.push('Periode Gaji  : ' + String(d.bulan || '-') + ' ' + String(d.tahun || '-'));
+  lines.push('Employee ID   : ' + String(d.employee_id || '-'));
+  lines.push('Nama Karyawan : ' + String(employeeName || '-'));
   lines.push('--------------------------------------------------');
-  lines.push('PENDAPATAN');
+  lines.push('RINGKASAN PENDAPATAN');
+  if (!earn.length) lines.push('- Tidak ada komponen pendapatan');
   earn.forEach(function(x) { lines.push(x); });
   lines.push('--------------------------------------------------');
-  lines.push('POTONGAN');
+  lines.push('RINGKASAN POTONGAN');
+  if (!ded.length) lines.push('- Tidak ada komponen potongan');
   ded.forEach(function(x) { lines.push(x); });
   lines.push('--------------------------------------------------');
   lines.push('Total Pendapatan : ' + money(d.total_earning || 0));
   lines.push('Total Potongan   : ' + money(d.total_deduction || 0));
-  lines.push('Take Home Pay    : ' + money(d.net_salary || 0));
-  lines.push('Dokumen ini dibuat otomatis oleh sistem ESS.');
+  lines.push('TAKE HOME PAY    : ' + money(d.net_salary || 0));
+  lines.push('==================================================');
+  lines.push('Dokumen ini dibuat otomatis oleh sistem ESS Trend Horizon.');
+  lines.push('Jika ada perbedaan data, hubungi HR & Payroll.');
   return simplePdfBuffer('Payslip ' + String(d.bulan || '-') + ' ' + String(d.tahun || '-'), lines);
 }
 async function getEmployeeDisplayName(user) {
@@ -2203,8 +2210,8 @@ module.exports = async function handler(req, res) {
           docs_this_year: docsThisYear,
           unique_periods: Object.keys(periodMap).length,
           latest_uploaded_at: latest ? latest.uploaded_at : null,
-          latest_take_home_pay: latest ? toMoney(latest.take_home_pay || 0) : 0,
-          avg_take_home_pay: data.length > 0 ? toMoney(data.reduce(function(acc, x) { return acc + Number(x.take_home_pay || 0); }, 0) / data.length) : 0
+          latest_take_home_pay: latest ? toMoney(latest.net_salary || latest.take_home_pay || 0) : 0,
+          avg_take_home_pay: data.length > 0 ? toMoney(data.reduce(function(acc, x) { return acc + Number(x.net_salary || x.take_home_pay || 0); }, 0) / data.length) : 0
         },
         latest_doc: latest
       });
@@ -4008,7 +4015,7 @@ module.exports = async function handler(req, res) {
           missing_employees: missing.length,
           duplicate_employees: duplicates.length,
           completion_rate: active.length > 0 ? Math.round((coveredEmployeeIds.length / active.length) * 10000) / 100 : 0,
-          total_take_home_pay: toMoney(filteredDocs.reduce(function(acc, x) { return acc + Number(x.take_home_pay || 0); }, 0))
+          total_take_home_pay: toMoney(filteredDocs.reduce(function(acc, x) { return acc + Number(x.net_salary || x.take_home_pay || 0); }, 0))
         },
         duplicate_employee_ids: duplicates,
         missing_employees: missing.slice(0, 200),
