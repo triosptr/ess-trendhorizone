@@ -1487,6 +1487,12 @@ function routePath(req) {
 async function handleMeAttendanceCheckIn(req, res, user) {
   const body = await readBody(req);
   const tanggal = String(body.tanggal || ymd()).trim();
+  const openAny = await db('GET', 'attendance', { select: '*', employee_id: 'eq.' + user.employee_id, order: 'tanggal.desc,created_at.desc', limit: 120 });
+  if (!openAny.ok) return json(res, 500, { ok: false, message: 'Gagal cek attendance aktif.', error: openAny.error });
+  const openRow = (openAny.data || []).find(function(x) { return !!(x && x.jam_masuk) && !x.jam_keluar; }) || null;
+  if (openRow && String(openRow.tanggal || '') !== tanggal) {
+    return json(res, 400, { ok: false, message: 'Masih ada check-in aktif pada tanggal ' + String(openRow.tanggal || '-') + '. Silakan check-out dulu.' });
+  }
   const existing = await db('GET', 'attendance', { select: '*', employee_id: 'eq.' + user.employee_id, tanggal: 'eq.' + tanggal, limit: 1, order: 'created_at.desc' });
   if (!existing.ok) return json(res, 500, { ok: false, message: 'Gagal cek attendance.', error: existing.error });
   const row = Array.isArray(existing.data) && existing.data[0] ? existing.data[0] : null;
@@ -1533,17 +1539,22 @@ async function handleMeAttendanceCheckIn(req, res, user) {
 
 async function handleMeAttendanceCheckOut(req, res, user) {
   const body = await readBody(req);
-  const tanggal = String(body.tanggal || ymd()).trim();
-  const existing = await db('GET', 'attendance', { select: '*', employee_id: 'eq.' + user.employee_id, tanggal: 'eq.' + tanggal, limit: 1, order: 'created_at.desc' });
+  const requestedDate = String(body.tanggal || ymd()).trim();
+  const existing = await db('GET', 'attendance', { select: '*', employee_id: 'eq.' + user.employee_id, tanggal: 'eq.' + requestedDate, limit: 1, order: 'created_at.desc' });
   if (!existing.ok) return json(res, 500, { ok: false, message: 'Gagal cek attendance.', error: existing.error });
-  const row = Array.isArray(existing.data) && existing.data[0] ? existing.data[0] : null;
-  if (!row || !row.attendance_id || !row.jam_masuk) return json(res, 400, { ok: false, message: 'Belum check-in hari ini.' });
-  if (row.jam_keluar) return json(res, 400, { ok: false, message: 'Sudah check-out hari ini.' });
+  let row = Array.isArray(existing.data) && existing.data[0] ? existing.data[0] : null;
+  if (!row || !row.attendance_id || !row.jam_masuk || row.jam_keluar) {
+    const hist = await db('GET', 'attendance', { select: '*', employee_id: 'eq.' + user.employee_id, order: 'tanggal.desc,created_at.desc', limit: 120 });
+    if (!hist.ok) return json(res, 500, { ok: false, message: 'Gagal cari attendance aktif.', error: hist.error });
+    row = (hist.data || []).find(function(x) { return !!(x && x.jam_masuk) && !x.jam_keluar; }) || null;
+  }
+  if (!row || !row.attendance_id || !row.jam_masuk) return json(res, 400, { ok: false, message: 'Tidak ada sesi check-in aktif yang bisa di-check-out.' });
+  if (row.jam_keluar) return json(res, 400, { ok: false, message: 'Sesi ini sudah check-out.' });
 
   const jamKeluar = String(body.jam_keluar || hms()).trim();
   const employeeName = await getEmployeeDisplayName(user);
   const sourcePhotoUrl = String(body.foto_keluar_url || '').trim() || toDataUrlFromFileObject(body.photo);
-  const drivePhotoUrl = await tryUploadAttendancePhotoToDrive(body.photo, { type: 'checkout', employee_id: user.employee_id, employee_name: employeeName, tanggal: tanggal, jam: jamKeluar });
+  const drivePhotoUrl = await tryUploadAttendancePhotoToDrive(body.photo, { type: 'checkout', employee_id: user.employee_id, employee_name: employeeName, tanggal: String(row.tanggal || requestedDate), jam: jamKeluar });
   const meta = await attendanceMetaGet(row.attendance_id);
   if (meta.break_active_start) {
     const extraSec = workDurationSeconds(meta.break_active_start, jamKeluar);
@@ -1860,6 +1871,37 @@ module.exports = async function handler(req, res) {
       if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil attendance today.', error: r.error });
       const row = (r.data && r.data[0]) || null;
       if (!row) {
+        const openHist = await db('GET', 'attendance', { select: '*', employee_id: 'eq.' + u.employee_id, order: 'tanggal.desc,created_at.desc', limit: 120 });
+        if (!openHist.ok) return json(res, 500, { ok: false, message: 'Gagal ambil attendance aktif.', error: openHist.error });
+        const openRow = (openHist.data || []).find(function(x) { return !!(x && x.jam_masuk) && !x.jam_keluar; }) || null;
+        if (openRow) {
+          const metaOpen = await attendanceMetaGet(openRow.attendance_id);
+          const workSecondsOpen = effectiveWorkSeconds(openRow.jam_masuk, openRow.jam_keluar, metaOpen, hms());
+          const workMinutesOpen = Math.floor(workSecondsOpen / 60);
+          const breakTotalSecondsOpen = Number(metaOpen.break_total_seconds || (Number(metaOpen.break_total_minutes || 0) * 60) || 0);
+          const schedOpen = await resolveEmployeeShiftForDate(u.employee_id, String(openRow.tanggal || tanggal));
+          const shiftCodeOpen = schedOpen.shift_code === 'OFF' ? 'PAGI' : normalizeShiftCode(schedOpen.shift_code || 'PAGI');
+          const progressOpen = shiftProgress(workMinutesOpen, metaOpen.shift_code || shiftCodeOpen);
+          return json(res, 200, Object.assign({}, openRow, {
+            status: 'Sedang Kerja',
+            cross_day_active: String(openRow.tanggal || '') !== String(tanggal || ''),
+            current_date: tanggal,
+            work_seconds: workSecondsOpen,
+            work_minutes: workMinutesOpen,
+            work_duration_digital: workDurationDigital(workSecondsOpen),
+            work_duration: workDurationLabel(workMinutesOpen),
+            break_total_seconds: breakTotalSecondsOpen,
+            break_total_minutes: Number(metaOpen.break_total_minutes || 0),
+            break_duration_digital: workDurationDigital(breakTotalSecondsOpen),
+            break_active: !!metaOpen.break_active_start,
+            break_active_start: String(metaOpen.break_active_start || ''),
+            shift_code: progressOpen.shift_code,
+            shift_target_duration: progressOpen.target_duration,
+            shift_progress_percent: progressOpen.progress_percent,
+            shift_late_after: shiftLateAfterTime(progressOpen.shift_code),
+            shift_published_at: schedOpen.published_at || ''
+          }));
+        }
         const leaveToday = await db('GET', 'leave_requests', {
           select: 'leave_id,jenis_cuti,tanggal_mulai,tanggal_selesai,status',
           employee_id: 'eq.' + u.employee_id,
