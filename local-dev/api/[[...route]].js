@@ -3187,81 +3187,73 @@ module.exports = async function handler(req, res) {
     if (path === 'admin/control-tower/summary' && method === 'GET') {
       const a = requireAdmin(req, res); if (!a) return;
       const today = ymd();
-      const [cfg, emp, att, leaves, leavesApprovedToday] = await Promise.all([
-        db('GET', 'config', { select: 'key,value', key: 'in.(OPS_CHECKIN_GAP_HIGH,OPS_CHECKIN_GAP_CRITICAL,OPS_PENDING_LEAVES_MEDIUM,OPS_PENDING_LEAVES_CRITICAL,OPS_LEAVE_SLA_WARN_HOURS,OPS_LEAVE_SLA_CRITICAL_HOURS)', limit: 20 }),
-        db('GET', 'employees', { select: 'employee_id,nama,email,divisi,jabatan,is_active', limit: 5000 }),
-        db('GET', 'attendance', { select: 'employee_id', tanggal: 'eq.' + today, limit: 10000 }),
-        db('GET', 'leave_requests', { select: 'leave_id,created_at,status', status: 'eq.pending', limit: 3000 }),
-        db('GET', 'leave_requests', { select: 'employee_id', status: 'eq.approved', and: '(tanggal_mulai.lte.' + today + ',tanggal_selesai.gte.' + today + ')', limit: 5000 })
-      ]);
-      if (!cfg.ok || !emp.ok || !att.ok || !leaves.ok || !leavesApprovedToday.ok) {
-        const err = !cfg.ok ? cfg.error : (!emp.ok ? emp.error : (!att.ok ? att.error : (!leaves.ok ? leaves.error : leavesApprovedToday.error)));
-        return json(res, 500, { ok: false, message: 'Gagal ambil control tower summary.', error: err });
-      }
-      const map = {};
-      (cfg.data || []).forEach(function(x) { map[String(x.key || '')] = Number(x.value || 0); });
+      const emp = await db('GET', 'employees', { select: 'employee_id,nama,email,divisi,jabatan,is_active,tanggal_lahir,jatah_cuti,sisa_cuti', order: 'nama.asc', limit: 5000 });
+      if (!emp.ok) return json(res, 500, { ok: false, message: 'Gagal ambil control tower summary.', error: emp.error });
       const activeRows = (emp.data || []).filter(function(e) { return String(e.is_active).toLowerCase() === 'true'; });
-      const checkedSet = new Set((att.data || []).map(function(x) { return String(x.employee_id || ''); }).filter(Boolean));
-      const leaveApprovedSet = new Set((leavesApprovedToday.data || []).map(function(x) { return String(x.employee_id || ''); }).filter(Boolean));
-      const noCheckinRows = activeRows.filter(function(e) {
-        const id = String(e.employee_id || '');
-        if (!id) return false;
-        if (checkedSet.has(id)) return false;
-        if (leaveApprovedSet.has(id)) return false;
-        return true;
+      const md = today.slice(5); // MM-DD
+      const monthPrefix = today.slice(0, 7); // YYYY-MM
+      const birthdaysToday = activeRows.filter(function(e) {
+        const d = String(e.tanggal_lahir || '');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+        return d.slice(5) === md;
       }).map(function(e) {
+        const birthYear = Number(String(e.tanggal_lahir || '').slice(0, 4) || 0);
+        const age = birthYear > 0 ? (Number(today.slice(0, 4)) - birthYear) : 0;
         return {
           employee_id: String(e.employee_id || ''),
           nama: String(e.nama || ''),
           email: String(e.email || ''),
           divisi: String(e.divisi || ''),
-          jabatan: String(e.jabatan || '')
+          jabatan: String(e.jabatan || ''),
+          tanggal_lahir: String(e.tanggal_lahir || ''),
+          usia: age > 0 ? age : null
         };
       });
-      const activeEmployees = activeRows.length;
-      const checkedInToday = activeEmployees - noCheckinRows.length;
-      const notCheckedIn = noCheckinRows.length;
-      const checkinRateGap = activeEmployees > 0 ? Math.round((notCheckedIn / activeEmployees) * 10000) / 100 : 0;
-      const warnH = Number(map.OPS_LEAVE_SLA_WARN_HOURS || 24);
-      const criticalH = Number(map.OPS_LEAVE_SLA_CRITICAL_HOURS || 72);
-      const leaveRows = (leaves.data || []).map(function(x) {
-        const age = x.created_at ? Math.max(0, Math.floor((Date.now() - new Date(String(x.created_at)).getTime()) / 3600000)) : 0;
-        return { leave_id: x.leave_id, age_hours: age, priority: age >= criticalH ? 'critical' : (age >= warnH ? 'high' : 'normal') };
+      const birthdaysThisMonthCount = activeRows.filter(function(e) {
+        const d = String(e.tanggal_lahir || '');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+        return d.slice(5, 7) === monthPrefix.slice(5, 7);
+      }).length;
+      const missingBirthdateCount = activeRows.filter(function(e) {
+        const d = String(e.tanggal_lahir || '');
+        return !/^\d{4}-\d{2}-\d{2}$/.test(d);
+      }).length;
+      const leaveBalanceRows = activeRows.map(function(e) {
+        return {
+          employee_id: String(e.employee_id || ''),
+          nama: String(e.nama || ''),
+          divisi: String(e.divisi || ''),
+          jabatan: String(e.jabatan || ''),
+          jatah_cuti: Number(e.jatah_cuti || 0),
+          sisa_cuti: Number(e.sisa_cuti || 0)
+        };
+      }).sort(function(a1, b1) { return Number(a1.sisa_cuti || 0) - Number(b1.sisa_cuti || 0); }).slice(0, 300);
+      const fileLocations = [
+        { key: 'attendance', label: 'File Absensi (Foto Check-in/Check-out)', folder_id: attendanceDriveFolderId() },
+        { key: 'payslip', label: 'File Payslip', folder_id: payslipDriveFolderId() },
+        { key: 'sick_letter', label: 'File Surat Sakit (Lampiran Cuti)', folder_id: leaveAttachmentDriveFolderId() }
+      ].map(function(x) {
+        const fid = String(x.folder_id || '');
+        return Object.assign({}, x, { drive_url: fid ? ('https://drive.google.com/drive/folders/' + fid) : '' });
       });
-      const sla = {
-        pending_total: leaveRows.length,
-        pending_high: leaveRows.filter(function(x) { return x.priority === 'high'; }).length,
-        pending_critical: leaveRows.filter(function(x) { return x.priority === 'critical'; }).length
-      };
-      const healthScore = Math.max(0, 100 - Math.min(70, Math.round(checkinRateGap)) - Math.min(30, sla.pending_critical * 3));
       const recommendations = [];
-      if (sla.pending_critical > 0) recommendations.push({ priority: 'critical', text: 'Eksekusi workflow Control Tower sekarang dan publish Leave SLA Digest.', action_route: 'leave' });
-      if (sla.pending_high > 0) recommendations.push({ priority: 'high', text: 'Lakukan triase antrean High SLA agar tidak naik ke Critical.', action_route: 'leave' });
-      if (healthScore < 70) recommendations.push({ priority: 'high', text: 'Jalankan Incident Timeline untuk investigasi penyebab penurunan health score.', action_route: 'ops' });
-      if (healthScore >= 70 && sla.pending_critical === 0 && sla.pending_high === 0) recommendations.push({ priority: 'low', text: 'Operasional stabil. Jalankan workflow terjadwal untuk menjaga konsistensi.', action_route: 'tower' });
+      if (birthdaysToday.length > 0) recommendations.push({ priority: 'high', text: 'Kirim ucapan ulang tahun broadcast hari ini ke seluruh karyawan.', action_route: 'tower' });
+      if (missingBirthdateCount > 0) recommendations.push({ priority: 'medium', text: missingBirthdateCount + ' karyawan belum memiliki tanggal lahir valid. Lengkapi data untuk akurasi ulang tahun.', action_route: 'emp' });
+      const lowLeave = leaveBalanceRows.filter(function(x) { return Number(x.sisa_cuti || 0) <= 3; }).length;
+      if (lowLeave > 0) recommendations.push({ priority: 'medium', text: lowLeave + ' karyawan memiliki sisa cuti <= 3 hari. Perlu monitoring HR.', action_route: 'leave' });
+      if (!recommendations.length) recommendations.push({ priority: 'low', text: 'Tidak ada tindakan khusus hari ini. Lanjutkan monitoring rutin.', action_route: 'tower' });
       return json(res, 200, {
         ok: true,
         date: today,
-        health_score: healthScore,
         metrics: {
-          active_employees: activeEmployees,
-          checked_in_today: checkedInToday,
-          not_checked_in_today: notCheckedIn,
-          no_checkin_rate: checkinRateGap,
-          pending_leaves: sla.pending_total,
-          pending_high_sla: sla.pending_high,
-          pending_critical_sla: sla.pending_critical
+          active_employees: activeRows.length,
+          birthdays_today: birthdaysToday.length,
+          birthdays_this_month: birthdaysThisMonthCount,
+          missing_birthdate: missingBirthdateCount
         },
-        thresholds: {
-          checkin_gap_high: Number(map.OPS_CHECKIN_GAP_HIGH || 10),
-          checkin_gap_critical: Number(map.OPS_CHECKIN_GAP_CRITICAL || 25),
-          pending_leaves_medium: Number(map.OPS_PENDING_LEAVES_MEDIUM || 5),
-          pending_leaves_critical: Number(map.OPS_PENDING_LEAVES_CRITICAL || 15),
-          leave_sla_warn_hours: warnH,
-          leave_sla_critical_hours: criticalH
-        },
-        top_overdue: leaveRows.sort(function(a1, b1) { return Number(b1.age_hours || 0) - Number(a1.age_hours || 0); }).slice(0, 10),
-        no_checkin_employees: noCheckinRows.slice(0, 200),
+        birthdays_today: birthdaysToday,
+        file_locations: fileLocations,
+        leave_balance_rows: leaveBalanceRows,
         recommendations: recommendations
       });
     }
@@ -3348,6 +3340,49 @@ module.exports = async function handler(req, res) {
           checkin_alert_failed: checkinAlertResult.failed_count
         },
         announcements: [opsAnnouncement, leaveAnnouncement].filter(Boolean)
+      });
+    }
+
+    if (path === 'admin/control-tower/birthday-broadcast' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const today = ymd();
+      const emp = await db('GET', 'employees', { select: 'employee_id,nama,email,is_active,tanggal_lahir,divisi,jabatan', limit: 5000 });
+      if (!emp.ok) return json(res, 500, { ok: false, message: 'Gagal ambil data karyawan.', error: emp.error });
+      const activeRows = (emp.data || []).filter(function(e) { return String(e.is_active).toLowerCase() === 'true'; });
+      const md = today.slice(5);
+      const birthdaysToday = activeRows.filter(function(e) {
+        const d = String(e.tanggal_lahir || '');
+        return /^\d{4}-\d{2}-\d{2}$/.test(d) && d.slice(5) === md;
+      });
+      const recipientRows = activeRows.filter(function(e) { return isValidEmail(String(e.email || '').trim().toLowerCase()); });
+      const customMessage = String(b.message || '').trim();
+      const names = birthdaysToday.map(function(e) { return String(e.nama || e.employee_id || '-'); });
+      const title = 'Ucapan Ulang Tahun Karyawan - ' + today;
+      const lines = [
+        'Halo rekan-rekan,',
+        birthdaysToday.length
+          ? ('Hari ini kita merayakan ulang tahun: <b>' + names.join(', ') + '</b>. Selamat ulang tahun, semoga sehat selalu dan sukses!')
+          : 'Tidak ada data ulang tahun hari ini.',
+        customMessage || 'Salam hangat dari tim HR.'
+      ];
+      const html = leaveMailTemplate('Broadcast Ulang Tahun Karyawan', lines);
+      let sent = 0;
+      let failed = 0;
+      for (const e of recipientRows) {
+        const rs = await sendEssEmail(String(e.email || ''), title, html);
+        if (rs && rs.sent) sent += 1; else failed += 1;
+      }
+      await auditLog(a.email, 'CREATE', 'birthday_broadcast', 'Broadcast ulang tahun ke ' + String(recipientRows.length) + ' karyawan', String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, {
+        ok: true,
+        message: 'Broadcast ulang tahun selesai.',
+        date: today,
+        birthdays_today: birthdaysToday.length,
+        birthday_names: names,
+        recipients: recipientRows.length,
+        sent: sent,
+        failed: failed
       });
     }
 

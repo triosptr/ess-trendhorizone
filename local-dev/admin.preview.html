@@ -739,59 +739,52 @@
     }
     async function loadWorkforceControlTower(){
       try{
-        setLoading('Memuat Workforce Control Tower...');
+        setLoading('Memuat Birthday & Files Control Tower...');
         const s=await api('/api/admin/control-tower/summary');
         const m=(s&&s.metrics)||{};
-        const t=(s&&s.thresholds)||{};
-        const overCards=((s&&s.top_overdue)||[]).map(function(x){
-          return '<div class="card report-tile report-tone-leave"><div class="stat-label">'+escapeHtml(x.leave_id||'-')+'</div><div class="stat-large">'+escapeHtml(x.age_hours||0)+'h</div><div>'+slaPriorityBadge(x.priority||'normal')+'</div></div>';
+        const birthdays=((s&&s.birthdays_today)||[]);
+        const files=((s&&s.file_locations)||[]);
+        const leaveRows=((s&&s.leave_balance_rows)||[]);
+        const recs=((s&&s.recommendations)||[]);
+        const bdayCards=birthdays.map(function(x){
+          return '<div class="card report-tile report-tone-people"><div class="stat-label">'+escapeHtml(x.employee_id||'-')+'</div><div style="font-weight:700;color:var(--text-main);">'+escapeHtml(x.nama||'-')+'</div><div class="muted">'+escapeHtml(x.divisi||'-')+' • '+escapeHtml(x.jabatan||'-')+'</div><div class="muted">Tgl Lahir: '+escapeHtml(x.tanggal_lahir||'-')+(x.usia?(' • Usia '+x.usia):'')+'</div></div>';
         }).join('');
-        const recCards=((s&&s.recommendations)||[]).map(function(r){
+        const fileCards=files.map(function(f){
+          const url=String(f.drive_url||'').trim();
+          return '<div class="card report-tile report-tone-kpi"><div class="stat-label">'+escapeHtml(f.label||'-')+'</div><div class="muted" style="margin:8px 0 10px;">Folder ID: '+escapeHtml(f.folder_id||'-')+'</div><div class="actions">'+(url?('<a class="btn btn-secondary" href="'+escapeHtml(url)+'" target="_blank" rel="noopener">Buka Folder</a>'):'<span class="stat-label">Folder belum diset</span>')+'</div></div>';
+        }).join('');
+        const leaveTbody=leaveRows.slice(0,120).map(function(r){
+          const sisa=Number(r.sisa_cuti||0);
+          const color=sisa<=3?'var(--danger)':(sisa<=6?'var(--warning)':'var(--success)');
+          return '<tr><td>'+escapeHtml(r.employee_id||'-')+'</td><td>'+escapeHtml(r.nama||'-')+'</td><td>'+escapeHtml(r.divisi||'-')+'</td><td>'+escapeHtml(r.jatah_cuti||0)+'</td><td style="color:'+color+';font-weight:700;">'+escapeHtml(sisa)+'</td></tr>';
+        }).join('')||'<tr><td colspan="5">Tidak ada data sisa cuti.</td></tr>';
+        const recCards=recs.map(function(r){
           const route=String(r.action_route||'tower');
           return '<div class="card report-tile"><div class="team-header"><div class="stat-label">'+escapeHtml(r.priority||'-')+'</div><button class="btn btn-secondary" onclick="openIncidentAction(\''+escapeHtml(route)+'\')">Open</button></div><div style="font-weight:700;color:var(--text-main);">'+escapeHtml(r.text||'-')+'</div></div>';
         }).join('')||'<div class="report-empty">Tidak ada rekomendasi.</div>';
         const html=''
           + '<div class="report-center">'
-          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Workforce Control Tower</h3><div class="actions"><button class="btn btn-secondary" onclick="loadWorkforceControlTower()"><i class="ph ph-arrows-clockwise"></i> Refresh</button><button class="btn btn-secondary" onclick="loadIncidentTimeline()">Open Timeline</button></div></div><div class="stat-label">Orkestrasi operasional realtime untuk attendance dan leave SLA.</div></div>'
+          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Birthday & Files Control Tower</h3><div class="actions"><button class="btn btn-secondary" onclick="loadWorkforceControlTower()"><i class="ph ph-arrows-clockwise"></i> Refresh</button><button class="btn btn-primary" onclick="runControlTowerExecution()">Kirim Broadcast Ulang Tahun</button></div></div><div class="stat-label">Pusat kontrol HR untuk ulang tahun karyawan, lokasi file upload, dan monitoring sisa cuti.</div></div>'
           + '<div class="report-kpi-grid">'
-          + '<div class="card report-tile report-tone-kpi"><div class="stat-label">Health Score</div><div class="stat-large">'+escapeHtml(s.health_score||0)+'</div></div>'
-          + '<div class="card report-tile report-tone-people"><div class="stat-label">Active Employees</div><div class="stat-large">'+escapeHtml(m.active_employees||0)+'</div></div>'
-          + '<div class="card report-tile report-tone-leave"><div class="stat-label">Pending High SLA</div><div class="stat-large" style="color:var(--warning);">'+escapeHtml(m.pending_high_sla||0)+'</div></div>'
-          + '<div class="card report-tile report-tone-leave"><div class="stat-label">Pending Critical SLA</div><div class="stat-large" style="color:var(--danger);">'+escapeHtml(m.pending_critical_sla||0)+'</div></div>'
+          + '<div class="card report-tile report-tone-people"><div class="stat-label">Karyawan Aktif</div><div class="stat-large">'+escapeHtml(m.active_employees||0)+'</div></div>'
+          + '<div class="card report-tile report-tone-people"><div class="stat-label">Ulang Tahun Hari Ini</div><div class="stat-large">'+escapeHtml(m.birthdays_today||0)+'</div></div>'
+          + '<div class="card report-tile report-tone-people"><div class="stat-label">Ulang Tahun Bulan Ini</div><div class="stat-large">'+escapeHtml(m.birthdays_this_month||0)+'</div></div>'
+          + '<div class="card report-tile report-tone-leave"><div class="stat-label">Data Tgl Lahir Belum Lengkap</div><div class="stat-large" style="color:var(--warning);">'+escapeHtml(m.missing_birthdate||0)+'</div></div>'
           + '</div>'
-          + '<div class="grid-2" style="gap:14px;align-items:start;">'
-          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Kontrol Harian HR</h3></div>'
-          + '<div class="form-group"><label>Mode Proses</label><select id="ct_mode" onchange="applyControlTowerMode(this.value)"><option value="normal">Normal (Rekomendasi)</option><option value="sibuk">Sibuk (Prioritas Cuti)</option><option value="manual">Manual</option></select><div class="file-hint">Normal: kirim ringkasan operasional. Sibuk: kirim ringkasan operasional + antrean cuti.</div></div>'
-          + '<div class="form-group"><label><input id="ct_ops_digest" type="checkbox" checked> Kirim Ringkasan Operasional ke Admin</label></div>'
-          + '<div class="form-group"><label><input id="ct_leave_digest" type="checkbox"> Kirim Ringkasan Antrean Cuti ke Admin</label></div>'
-          + '<div class="actions"><button class="btn btn-primary" onclick="runControlTowerExecution()"><i class="ph ph-rocket-launch"></i> Jalankan Kontrol Harian</button><button class="btn btn-secondary" onclick="loadOperationsIntelligenceCenter()">Buka Menu Operation</button></div>'
-          + '<div class="stat-label" style="margin-top:10px;">Patokan sistem: Check-in kritis '+escapeHtml(t.checkin_gap_critical||25)+'% • Antrean cuti '+escapeHtml(t.leave_sla_warn_hours||24)+'j/'+escapeHtml(t.leave_sla_critical_hours||72)+'j</div></div>'
-          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Top Overdue Queue</h3><div class="stat-label">'+escapeHtml(((s&&s.top_overdue)||[]).length||0)+' item</div></div>'+(overCards?('<div class="report-list-grid">'+overCards+'</div>'):'<div class="report-empty">Tidak ada data overdue.</div>')+'</div>'
-          + '</div>'
+          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Daftar Ulang Tahun Hari Ini</h3><div class="stat-label">'+escapeHtml(birthdays.length||0)+' orang</div></div>'+(bdayCards?('<div class="report-list-grid">'+bdayCards+'</div>'):'<div class="report-empty">Tidak ada ulang tahun hari ini.</div>')+'</div>'
+          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Lokasi File Upload Karyawan</h3></div>'+(fileCards?('<div class="report-list-grid">'+fileCards+'</div>'):'<div class="report-empty">Lokasi file belum tersedia.</div>')+'</div>'
+          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Monitor Sisa Cuti Karyawan</h3><div class="stat-label">Urut dari sisa terendah</div></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Divisi</th><th>Jatah</th><th>Sisa</th></tr></thead><tbody>'+leaveTbody+'</tbody></table></div></div>'
           + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Rekomendasi Control Tower</h3></div><div class="report-list-grid">'+recCards+'</div></div>'
           + '</div>';
         setContent(html);
-        applyControlTowerMode('normal');
       }catch(err){ setContent(renderError(err.message)); }
-    }
-    function applyControlTowerMode(mode){
-      const m=String(mode||'normal').toLowerCase();
-      const ops=document.getElementById('ct_ops_digest');
-      const leave=document.getElementById('ct_leave_digest');
-      const sel=document.getElementById('ct_mode');
-      if(sel && sel.value!==m) sel.value=m;
-      if(!ops || !leave) return;
-      if(m==='sibuk'){ ops.checked=true; leave.checked=true; return; }
-      if(m==='normal'){ ops.checked=true; leave.checked=false; return; }
-      // manual: biarkan pilihan user
     }
     async function runControlTowerExecution(){
       try{
-        const publishOps=!!((document.getElementById('ct_ops_digest')||{}).checked);
-        const publishLeave=!!((document.getElementById('ct_leave_digest')||{}).checked);
-        const r=await api('/api/admin/control-tower/execute','POST',{ publish_ops_digest:publishOps, publish_leave_digest:publishLeave, send_checkin_alert:false });
-        const x=(r&&r.result)||{};
-        alert('Kontrol Harian selesai.\nPending cuti: '+String(x.pending_leaves||0)+'\nRingkasan operasional: '+(x.ops_digest_published?'terkirim':'tidak dikirim')+'\nRingkasan antrean cuti: '+(x.leave_digest_published?'terkirim':'tidak dikirim'));
+        const msg=prompt('Pesan tambahan (opsional) untuk broadcast ulang tahun:', 'Salam hangat dari tim HR.');
+        if(msg===null) return;
+        const r=await api('/api/admin/control-tower/birthday-broadcast','POST',{ message:String(msg||'') });
+        alert('Broadcast ulang tahun selesai.\nUlang tahun hari ini: '+Number((r&&r.birthdays_today)||0)+'\nPenerima: '+Number((r&&r.recipients)||0)+'\nTerkirim: '+Number((r&&r.sent)||0)+'\nGagal: '+Number((r&&r.failed)||0));
         loadWorkforceControlTower();
       }catch(err){ setContent(renderError(err.message)); }
     }
