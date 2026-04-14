@@ -1158,43 +1158,55 @@ function payrollPdfBuffer(payrollDoc, employeeName) {
   const line = function(x1, y1, x2, y2) { cmds.push(String(x1) + ' ' + String(y1) + ' m ' + String(x2) + ' ' + String(y2) + ' l S'); };
   const box = function(x1, y1, w, h) { cmds.push(String(x1) + ' ' + String(y1) + ' ' + String(w) + ' ' + String(h) + ' re S'); };
   
-  // Draw Logo (150x55 points)
-  cmds.push('q\n150 0 0 55 415 770 cm\n/Logo Do\nQ');
+  // Margins
+  const marginX = 40;
+  const pageW = 595;
+  const rightEdge = pageW - marginX;
+  
+  // Draw Logo (150x55 points) -> right aligned
+  cmds.push('q\n150 0 0 55 ' + (rightEdge - 150) + ' 750 cm\n/Logo Do\nQ');
   
   color(0, 0, 0);
-  text(30, 810, 16, 'TREND HORIZON', true);
-  text(30, 790, 11, 'SLIP GAJI KARYAWAN', true);
+  text(marginX, 790, 16, 'TREND HORIZON', true);
+  text(marginX, 770, 11, 'SLIP GAJI KARYAWAN', true);
   
-  text(420, 830, 8, 'Generated: ' + String(nowIso()).slice(0, 19).replace('T', ' '), false);
+  text(rightEdge - 160, 810, 8, 'Generated: ' + String(nowIso()).slice(0, 19).replace('T', ' '), false);
   
-  // Employee Info
-  const infoY = 750;
+  // Employee Info (with more top spacing)
+  const infoY = 720;
   const lh = 14;
-  text(30, infoY, 9, 'Payroll Period', true); text(110, infoY, 9, ': ' + String(d.bulan || '-') + ' ' + String(d.tahun || '-'), false);
-  text(30, infoY - lh, 9, 'Employee No', true); text(110, infoY - lh, 9, ': ' + String(d.employee_id || '-'), false);
-  text(30, infoY - lh*2, 9, 'Name', true); text(110, infoY - lh*2, 9, ': ' + String(employeeName || '-'), false);
-  text(30, infoY - lh*3, 9, 'Tax Status', true); text(110, infoY - lh*3, 9, ': -', false);
-  text(30, infoY - lh*4, 9, 'NPWP', true); text(110, infoY - lh*4, 9, ': -', false);
+  text(marginX, infoY, 9, 'Payroll Period', true); text(120, infoY, 9, ': ' + String(d.bulan || '-') + ' ' + String(d.tahun || '-'), false);
+  text(marginX, infoY - lh, 9, 'Employee No', true); text(120, infoY - lh, 9, ': ' + String(d.employee_id || '-'), false);
+  text(marginX, infoY - lh*2, 9, 'Name', true); text(120, infoY - lh*2, 9, ': ' + String(employeeName || '-'), false);
+  text(marginX, infoY - lh*3, 9, 'Tax Status', true); text(120, infoY - lh*3, 9, ': -', false);
+  text(marginX, infoY - lh*4, 9, 'NPWP', true); text(120, infoY - lh*4, 9, ': -', false);
 
-  text(320, infoY, 9, 'Department', true); text(400, infoY, 9, ': -', false);
-  text(320, infoY - lh, 9, 'Position', true); text(400, infoY - lh, 9, ': -', false);
-  text(320, infoY - lh*2, 9, 'Grade', true); text(400, infoY - lh*2, 9, ': -', false);
-  text(320, infoY - lh*3, 9, 'Work Location', true); text(400, infoY - lh*3, 9, ': -', false);
+  const rightColInfoX = 330;
+  text(rightColInfoX, infoY, 9, 'Department', true); text(410, infoY, 9, ': -', false);
+  text(rightColInfoX, infoY - lh, 9, 'Position', true); text(410, infoY - lh, 9, ': -', false);
+  text(rightColInfoX, infoY - lh*2, 9, 'Grade', true); text(410, infoY - lh*2, 9, ': -', false);
+  text(rightColInfoX, infoY - lh*3, 9, 'Work Location', true); text(410, infoY - lh*3, 9, ': -', false);
 
-  // Table Setup
-  const startY = 670;
-  const col1 = 30;
-  const col2 = 210;
-  const col3 = 297.5;
-  const col4 = 480;
-  const col5 = 565;
+  // Table Setup (with gap from info)
+  const startY = 630;
+  const col1 = marginX;
+  const col3 = marginX + (rightEdge - marginX) / 2; // Middle divider
+  const col5 = rightEdge;
+  
+  const amountW = 80; // width reserved for amount column
+  const col2 = col3 - amountW;
+  const col4 = col5 - amountW;
+  
+  const padX = 6; // padding inside cells
   
   // Header Row
   box(col1, startY - 20, col5 - col1, 20);
-  text(95, startY - 14, 9, 'Description', true);
-  text(240, startY - 14, 9, 'Amount', true);
-  text(365, startY - 14, 9, 'Description', true);
-  text(510, startY - 14, 9, 'Amount', true);
+  
+  // center text in header cells
+  text(col1 + (col2 - col1)/2 - 25, startY - 14, 9, 'Description', true);
+  text(col2 + (col3 - col2)/2 - 15, startY - 14, 9, 'Amount', true);
+  text(col3 + (col4 - col3)/2 - 25, startY - 14, 9, 'Description', true);
+  text(col4 + (col5 - col4)/2 - 15, startY - 14, 9, 'Amount', true);
   
   let currentY = startY - 20;
   const maxRows = Math.max(earn.length, ded.length, 8);
@@ -1207,17 +1219,17 @@ function payrollPdfBuffer(payrollDoc, employeeName) {
     let nextYRight = currentY;
     
     if (e) {
-      nextYLeft = textMultiline(col1 + 4, currentY - 11, 8.5, e.name, false, 160, 10);
-      textRight(col3 - 4, currentY - 11, 8.5, money(e.value), false);
+      nextYLeft = textMultiline(col1 + padX, currentY - 13, 8.5, e.name, false, col2 - col1 - padX*2, 10);
+      textRight(col3 - padX, currentY - 13, 8.5, money(e.value), false);
     }
     if (dObj) {
-      nextYRight = textMultiline(col3 + 4, currentY - 11, 8.5, dObj.name, false, 160, 10);
-      textRight(col5 - 4, currentY - 11, 8.5, money(dObj.value), false);
+      nextYRight = textMultiline(col3 + padX, currentY - 13, 8.5, dObj.name, false, col4 - col3 - padX*2, 10);
+      textRight(col5 - padX, currentY - 13, 8.5, money(dObj.value), false);
     }
     
-    let rowBottom = Math.min(nextYLeft, nextYRight) - 5;
-    if (currentY - rowBottom < 16) {
-       rowBottom = currentY - 16;
+    let rowBottom = Math.min(nextYLeft, nextYRight) - 7;
+    if (currentY - rowBottom < 20) { // min height per row with padding
+       rowBottom = currentY - 20;
     }
     
     line(col1, rowBottom, col5, rowBottom);
@@ -1226,7 +1238,7 @@ function payrollPdfBuffer(payrollDoc, employeeName) {
   
   const bottomY = currentY;
   
-  // Draw vertical lines
+  // Draw vertical lines for table body
   line(col1, bottomY, col1, startY - 20);
   line(col2, bottomY, col2, startY - 20);
   line(col3, bottomY, col3, startY - 20);
@@ -1234,35 +1246,36 @@ function payrollPdfBuffer(payrollDoc, employeeName) {
   line(col5, bottomY, col5, startY - 20);
   
   // Totals Row
-  const totalsY = bottomY - 20;
-  box(col1, totalsY, col5 - col1, 20);
+  const totalsY = bottomY - 24; // height 24 for totals
+  box(col1, totalsY, col5 - col1, 24);
   line(col2, totalsY, col2, bottomY);
   line(col3, totalsY, col3, bottomY);
   line(col4, totalsY, col4, bottomY);
   
-  text(col1 + 4, totalsY + 6, 9, 'Total Income', true);
-  textRight(col3 - 4, totalsY + 6, 9, money(d.total_earning || 0), true);
-  text(col3 + 4, totalsY + 6, 9, 'Total Deduction', true);
-  textRight(col5 - 4, totalsY + 6, 9, money(d.total_deduction || 0), true);
+  text(col1 + padX, totalsY + 8, 9, 'Total Income', true);
+  textRight(col3 - padX, totalsY + 8, 9, money(d.total_earning || 0), true);
+  text(col3 + padX, totalsY + 8, 9, 'Total Deduction', true);
+  textRight(col5 - padX, totalsY + 8, 9, money(d.total_deduction || 0), true);
   
-  // Take Home Pay Row
-  const thpY = totalsY - 20;
-  box(col3, thpY, col5 - col3, 20);
+  // Transfer Info (Left side, matching Take Home Pay row height)
+  const thpY = totalsY - 24;
+  box(col1, thpY, col3 - col1, 24);
+  line(col1 + 60, thpY, col1 + 60, totalsY);
+  line(col2, thpY, col2, totalsY); // line before amount
+  
+  text(col1 + padX, thpY + 8, 9, 'Transfer', false);
+  text(col1 + 60 + padX, thpY + 8, 9, '-', false);
+  textRight(col3 - padX, thpY + 8, 9, money(d.net_salary || 0), false);
+  
+  // Take Home Pay Row (Right side)
+  box(col3, thpY, col5 - col3, 24);
   line(col4, thpY, col4, totalsY);
   
-  text(col3 + 4, thpY + 6, 10, 'Take Home Pay', true);
-  textRight(col5 - 4, thpY + 6, 10, money(d.net_salary || 0), true);
-  
-  // Bank Info
-  box(col1, thpY, 267.5, 20);
-  line(col1 + 60, thpY, col1 + 60, totalsY);
-  line(col1 + 170, thpY, col1 + 170, totalsY);
-  text(col1 + 4, thpY + 6, 9, 'Transfer', false);
-  text(col1 + 64, thpY + 6, 9, '-', false);
-  textRight(col3 - 4, thpY + 6, 9, money(d.net_salary || 0), false);
+  text(col3 + padX, thpY + 8, 10, 'Take Home Pay', true);
+  textRight(col5 - padX, thpY + 8, 10, money(d.net_salary || 0), true);
   
   // Footer
-  text(col1, thpY - 20, 8, 'This is system generated message and requires no signature', false);
+  text(col1, thpY - 30, 8, 'This is system generated message and requires no signature', false);
   
   return pdfBufferFromContent(cmds.join('\n'), LOGO_B64);
 }
