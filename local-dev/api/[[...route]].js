@@ -2681,12 +2681,15 @@ module.exports = async function handler(req, res) {
       }
       if (b.no_hp !== undefined) patch.no_hp = String(b.no_hp || '').trim();
       if (b.alamat !== undefined) patch.alamat = String(b.alamat || '').trim();
+      if (b.tempat_lahir !== undefined) patch.tempat_lahir = String(b.tempat_lahir || '').trim();
+      if (b.tanggal_lahir !== undefined) patch.tanggal_lahir = b.tanggal_lahir || null;
       const allowedRoles = ['employee', 'admin', 'superadmin', 'manager'];
       const allowedStatus = ['Tetap', 'Kontrak', 'Magang', 'Probation', 'Outsource'];
       if (patch.email !== undefined && patch.email && !isValidEmail(patch.email)) return json(res, 400, { ok: false, message: 'Format email tidak valid.' });
       if (patch.role !== undefined && !allowedRoles.includes(patch.role)) return json(res, 400, { ok: false, message: 'Role tidak valid.' });
       if (patch.status_karyawan !== undefined && !allowedStatus.includes(patch.status_karyawan)) return json(res, 400, { ok: false, message: 'Status karyawan tidak valid.' });
       if (patch.tanggal_masuk !== undefined && patch.tanggal_masuk !== null && !isValidDateYmd(patch.tanggal_masuk)) return json(res, 400, { ok: false, message: 'tanggal_masuk harus format YYYY-MM-DD.' });
+      if (patch.tanggal_lahir !== undefined && patch.tanggal_lahir !== null && !isValidDateYmd(patch.tanggal_lahir)) return json(res, 400, { ok: false, message: 'tanggal_lahir harus format YYYY-MM-DD.' });
       if (patch.jatah_cuti !== undefined && Number(patch.jatah_cuti) < 0) return json(res, 400, { ok: false, message: 'Jatah cuti tidak boleh negatif.' });
       if (patch.sisa_cuti !== undefined && Number(patch.sisa_cuti) < 0) return json(res, 400, { ok: false, message: 'Sisa cuti tidak boleh negatif.' });
       const finalJatah = patch.jatah_cuti !== undefined ? Number(patch.jatah_cuti) : Number(current.jatah_cuti || 0);
