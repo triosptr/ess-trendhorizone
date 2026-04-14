@@ -4198,14 +4198,20 @@ module.exports = async function handler(req, res) {
       const b = await readBody(req);
       const bulan = String(b.bulan || '').trim();
       const tahun = String(b.tahun || '').trim();
+      const docIds = Array.isArray(b.doc_ids) ? b.doc_ids : [];
       
       if (!bulan || !tahun) return json(res, 400, { ok: false, message: 'Bulan dan tahun wajib diisi.' });
       
-      const docsReq = await db('GET', 'payroll_docs', { select: 'doc_id,employee_id,email,file_url', bulan: 'eq.' + bulan, tahun: 'eq.' + tahun, limit: 5000 });
+      let q = { select: 'doc_id,employee_id,email,file_url', bulan: 'eq.' + bulan, tahun: 'eq.' + tahun, limit: 5000 };
+      if (docIds.length > 0) {
+        q.doc_id = 'in.(' + docIds.map(function(id) { return String(id).trim(); }).join(',') + ')';
+      }
+      
+      const docsReq = await db('GET', 'payroll_docs', q);
       if (!docsReq.ok) return json(res, 500, { ok: false, message: 'Gagal ambil dokumen payroll.', error: docsReq.error });
       
       const docs = docsReq.data || [];
-      if (!docs.length) return json(res, 400, { ok: false, message: 'Tidak ada dokumen payroll untuk bulan dan tahun tersebut.' });
+      if (!docs.length) return json(res, 400, { ok: false, message: 'Tidak ada dokumen payroll untuk kriteria tersebut.' });
       
       const result = { target: 0, sent: 0, failed: 0 };
       
