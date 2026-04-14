@@ -1056,35 +1056,79 @@ function simplePdfBuffer(title, rows) {
   pdf += 'trailer << /Size ' + String(objects.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + String(xrefPos) + '\n%%EOF';
   return Buffer.from(pdf, 'utf8');
 }
+function pdfEscapeText(text) {
+  return String(text || '').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+}
+function pdfBufferFromContent(content) {
+  const objects = [];
+  objects.push('1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj');
+  objects.push('2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj');
+  objects.push('3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 6 0 R >> >> /Contents 5 0 R >> endobj');
+  objects.push('4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj');
+  objects.push('5 0 obj << /Length ' + String(Buffer.byteLength(content, 'utf8')) + ' >> stream\n' + content + '\nendstream endobj');
+  objects.push('6 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >> endobj');
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  objects.forEach(function(obj) { offsets.push(Buffer.byteLength(pdf, 'utf8')); pdf += obj + '\n'; });
+  const xrefPos = Buffer.byteLength(pdf, 'utf8');
+  pdf += 'xref\n0 ' + String(objects.length + 1) + '\n';
+  pdf += '0000000000 65535 f \n';
+  for (let i = 1; i <= objects.length; i += 1) pdf += String(offsets[i]).padStart(10, '0') + ' 00000 n \n';
+  pdf += 'trailer << /Size ' + String(objects.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + String(xrefPos) + '\n%%EOF';
+  return Buffer.from(pdf, 'utf8');
+}
 function payrollPdfBuffer(payrollDoc, employeeName) {
   const d = payrollDoc || {};
   const money = function(v) { return 'Rp ' + Number(toMoney(v)).toLocaleString('id-ID'); };
-  const earn = ((d.breakdown && d.breakdown.earnings) || []).filter(function(x) { return Number(x.value || 0) !== 0; }).map(function(x) { return String(x.name || '-') + ' : ' + money(x.value || 0); });
-  const ded = ((d.breakdown && d.breakdown.deductions) || []).filter(function(x) { return Number(x.value || 0) !== 0; }).map(function(x) { return String(x.name || '-') + ' : ' + money(x.value || 0); });
-  const lines = [];
-  lines.push('TREND HORIZON');
-  lines.push('SLIP GAJI KARYAWAN');
-  lines.push('Generated: ' + String(nowIso()).slice(0, 19).replace('T', ' '));
-  lines.push('==================================================');
-  lines.push('Periode Gaji  : ' + String(d.bulan || '-') + ' ' + String(d.tahun || '-'));
-  lines.push('Employee ID   : ' + String(d.employee_id || '-'));
-  lines.push('Nama Karyawan : ' + String(employeeName || '-'));
-  lines.push('--------------------------------------------------');
-  lines.push('RINGKASAN PENDAPATAN');
-  if (!earn.length) lines.push('- Tidak ada komponen pendapatan');
-  earn.forEach(function(x) { lines.push(x); });
-  lines.push('--------------------------------------------------');
-  lines.push('RINGKASAN POTONGAN');
-  if (!ded.length) lines.push('- Tidak ada komponen potongan');
-  ded.forEach(function(x) { lines.push(x); });
-  lines.push('--------------------------------------------------');
-  lines.push('Total Pendapatan : ' + money(d.total_earning || 0));
-  lines.push('Total Potongan   : ' + money(d.total_deduction || 0));
-  lines.push('TAKE HOME PAY    : ' + money(d.net_salary || 0));
-  lines.push('==================================================');
-  lines.push('Dokumen ini dibuat otomatis oleh sistem ESS Trend Horizon.');
-  lines.push('Jika ada perbedaan data, hubungi HR & Payroll.');
-  return simplePdfBuffer('Payslip ' + String(d.bulan || '-') + ' ' + String(d.tahun || '-'), lines);
+  const earn = ((d.breakdown && d.breakdown.earnings) || []).filter(function(x) { return Number(x.value || 0) !== 0; });
+  const ded = ((d.breakdown && d.breakdown.deductions) || []).filter(function(x) { return Number(x.value || 0) !== 0; });
+  const leftX = 36;
+  const rightX = 305;
+  let y = 805;
+  const cmds = [];
+  const text = function(x, yy, size, val, bold) {
+    const font = bold ? '/F2' : '/F1';
+    cmds.push('BT ' + font + ' ' + String(size) + ' Tf ' + String(x) + ' ' + String(yy) + ' Td (' + pdfEscapeText(val) + ') Tj ET');
+  };
+  const line = function(x1, y1, x2, y2) { cmds.push(String(x1) + ' ' + String(y1) + ' m ' + String(x2) + ' ' + String(y2) + ' l S'); };
+  const box = function(x1, y1, w, h) { cmds.push(String(x1) + ' ' + String(y1) + ' ' + String(w) + ' ' + String(h) + ' re S'); };
+  text(leftX, y, 18, 'TREND HORIZON', true);
+  text(leftX, y - 20, 12, 'SLIP GAJI KARYAWAN', true);
+  text(430, y - 4, 9, 'Generated: ' + String(nowIso()).slice(0, 19).replace('T', ' '), false);
+  line(30, y - 30, 565, y - 30);
+  y -= 52;
+  text(leftX, y, 10, 'Periode Gaji', true); text(leftX + 95, y, 10, ': ' + String(d.bulan || '-') + ' ' + String(d.tahun || '-'), false);
+  text(leftX, y - 16, 10, 'Employee ID', true); text(leftX + 95, y - 16, 10, ': ' + String(d.employee_id || '-'), false);
+  text(leftX, y - 32, 10, 'Nama Karyawan', true); text(leftX + 95, y - 32, 10, ': ' + String(employeeName || '-'), false);
+  text(rightX, y, 10, 'Total Pendapatan', true); text(rightX + 105, y, 10, ': ' + money(d.total_earning || 0), false);
+  text(rightX, y - 16, 10, 'Total Potongan', true); text(rightX + 105, y - 16, 10, ': ' + money(d.total_deduction || 0), false);
+  text(rightX, y - 32, 11, 'TAKE HOME PAY', true); text(rightX + 105, y - 32, 11, ': ' + money(d.net_salary || 0), true);
+  y -= 52;
+  line(30, y, 565, y);
+  y -= 18;
+  text(leftX, y, 11, 'PENDAPATAN', true);
+  text(rightX, y, 11, 'POTONGAN', true);
+  y -= 10;
+  box(30, y - 410, 255, 410);
+  box(300, y - 410, 265, 410);
+  let ly = y - 18;
+  let ry = y - 18;
+  const rowGap = 14;
+  if (!earn.length) { text(leftX, ly, 9, '- Tidak ada komponen pendapatan', false); ly -= rowGap; }
+  earn.slice(0, 24).forEach(function(x) {
+    text(leftX, ly, 9, String(x.name || '-'), false);
+    text(245, ly, 9, money(x.value || 0), false);
+    ly -= rowGap;
+  });
+  if (!ded.length) { text(rightX, ry, 9, '- Tidak ada komponen potongan', false); ry -= rowGap; }
+  ded.slice(0, 24).forEach(function(x) {
+    text(rightX, ry, 9, String(x.name || '-'), false);
+    text(525, ry, 9, money(x.value || 0), false);
+    ry -= rowGap;
+  });
+  text(36, 70, 9, 'Dokumen ini dibuat otomatis oleh sistem ESS Trend Horizon.', false);
+  text(36, 56, 9, 'Jika ada perbedaan data, hubungi tim HR & Payroll.', false);
+  return pdfBufferFromContent(cmds.join('\n'));
 }
 async function getEmployeeDisplayName(user) {
   const r = await db('GET', 'employees', { select: 'nama', employee_id: 'eq.' + String(user.employee_id || ''), limit: 1 });
