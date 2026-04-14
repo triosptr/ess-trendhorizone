@@ -2126,7 +2126,51 @@
     }
 
     // MASTER DATA HUB
-    function loadMasterDataHub(){ setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Master Data & Operations</h3></div><div class="cards-row"><div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3>Divisions</h3><p class="muted" style="margin-bottom:16px;">Manage company divisions.</p><div class="actions"><button class="btn btn-secondary" onclick="loadDivisions()">View</button></div></div><div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3>Positions</h3><p class="muted" style="margin-bottom:16px;">Manage job titles.</p><div class="actions"><button class="btn btn-secondary" onclick="loadPositions()">View</button></div></div><div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3>Leave Types</h3><p class="muted" style="margin-bottom:16px;">Manage leave categories.</p><div class="actions"><button class="btn btn-secondary" onclick="loadLeaveTypes()">View</button></div></div><div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3>Payroll Docs</h3><p class="muted" style="margin-bottom:16px;">Upload salary slips.</p><div class="actions"><button class="btn btn-secondary" onclick="loadPayrollDocs()">View</button></div></div><div class="card" style="box-shadow:none;border:1px solid var(--border);"><h3>Announcements</h3><p class="muted" style="margin-bottom:16px;">Broadcast messages.</p><div class="actions"><button class="btn btn-secondary" onclick="loadAnnouncements()">View</button></div></div></div></div>'); }
+    async function loadMasterDataHub(){
+      try{
+        setLoading('Memuat Master Data...');
+        const [divs,positions,leaveTypes,payrollDocs,announcements,employees]=await Promise.all([
+          api('/api/admin/master/divisions').catch(()=>[]),
+          api('/api/admin/master/positions').catch(()=>[]),
+          api('/api/admin/master/leave-types').catch(()=>[]),
+          api('/api/admin/payroll-docs?limit=500').catch(()=>[]),
+          api('/api/admin/announcements?limit=500').catch(()=>[]),
+          api('/api/admin/employees?limit=5000').catch(()=>[])
+        ]);
+        const dCount=(divs||[]).length;
+        const pCount=(positions||[]).length;
+        const lCount=(leaveTypes||[]).length;
+        const payCount=(payrollDocs||[]).length;
+        const annCount=(announcements||[]).length;
+        const activeEmp=(employees||[]).filter(function(e){ return String(e.is_active).toLowerCase()==='true'; }).length;
+        const missingBirthdate=(employees||[]).filter(function(e){ return String(e.is_active).toLowerCase()==='true' && !/^\d{4}-\d{2}-\d{2}$/.test(String(e.tanggal_lahir||'')); }).length;
+        const html=''
+          + '<div class="report-center">'
+          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Master Data Hub</h3><div class="actions"><button class="btn btn-secondary" onclick="loadMasterDataHub()"><i class="ph ph-arrows-clockwise"></i> Refresh</button><button class="btn btn-primary" onclick="syncMasterFromEmployees()"><i class="ph ph-arrows-clockwise"></i> Sinkron Divisi/Jabatan</button></div></div><div class="stat-label">Pusat pengelolaan data master HR agar konsisten untuk seluruh modul ESS.</div></div>'
+          + '<div class="report-kpi-grid">'
+          + '<div class="card report-tile report-tone-kpi"><div class="stat-label">Divisions</div><div class="stat-large">'+escapeHtml(dCount)+'</div></div>'
+          + '<div class="card report-tile report-tone-kpi"><div class="stat-label">Positions</div><div class="stat-large">'+escapeHtml(pCount)+'</div></div>'
+          + '<div class="card report-tile report-tone-kpi"><div class="stat-label">Leave Types</div><div class="stat-large">'+escapeHtml(lCount)+'</div></div>'
+          + '<div class="card report-tile report-tone-kpi"><div class="stat-label">Payroll Docs</div><div class="stat-large">'+escapeHtml(payCount)+'</div></div>'
+          + '<div class="card report-tile report-tone-kpi"><div class="stat-label">Announcements</div><div class="stat-large">'+escapeHtml(annCount)+'</div></div>'
+          + '<div class="card report-tile report-tone-people"><div class="stat-label">Active Employees</div><div class="stat-large">'+escapeHtml(activeEmp)+'</div></div>'
+          + '</div>'
+          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Modul Master Data</h3></div><div class="report-list-grid">'
+          + '<div class="card report-tile report-tone-people"><div style="font-weight:700;color:var(--text-main);margin-bottom:4px;">Divisions</div><div class="muted">Kelola struktur divisi perusahaan.</div><div class="actions" style="margin-top:10px;"><button class="btn btn-secondary" onclick="loadDivisions()">Buka</button></div></div>'
+          + '<div class="card report-tile report-tone-people"><div style="font-weight:700;color:var(--text-main);margin-bottom:4px;">Positions</div><div class="muted">Kelola jabatan per divisi.</div><div class="actions" style="margin-top:10px;"><button class="btn btn-secondary" onclick="loadPositions()">Buka</button></div></div>'
+          + '<div class="card report-tile report-tone-leave"><div style="font-weight:700;color:var(--text-main);margin-bottom:4px;">Leave Types</div><div class="muted">Jenis cuti & aturan lampiran.</div><div class="actions" style="margin-top:10px;"><button class="btn btn-secondary" onclick="loadLeaveTypes()">Buka</button></div></div>'
+          + '<div class="card report-tile report-tone-payroll"><div style="font-weight:700;color:var(--text-main);margin-bottom:4px;">Payroll Docs</div><div class="muted">Upload dan monitoring slip gaji.</div><div class="actions" style="margin-top:10px;"><button class="btn btn-secondary" onclick="loadPayrollDocs()">Buka</button></div></div>'
+          + '<div class="card report-tile report-tone-kpi"><div style="font-weight:700;color:var(--text-main);margin-bottom:4px;">Announcements</div><div class="muted">Broadcast informasi resmi.</div><div class="actions" style="margin-top:10px;"><button class="btn btn-secondary" onclick="loadAnnouncements()">Buka</button></div></div>'
+          + '</div></div>'
+          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Optimasi yang Disarankan</h3></div><div class="report-list-grid">'
+          + '<div class="card report-tile"><div class="stat-label">Data Quality</div><div style="font-weight:700;color:var(--text-main);">'+escapeHtml(missingBirthdate)+' karyawan belum punya tanggal lahir valid.</div></div>'
+          + '<div class="card report-tile"><div class="stat-label">Governance</div><div style="font-weight:700;color:var(--text-main);">Tetapkan aturan bahwa jabatan wajib punya divisi aktif.</div></div>'
+          + '<div class="card report-tile"><div class="stat-label">Payroll Cadence</div><div style="font-weight:700;color:var(--text-main);">Aktifkan checklist bulanan upload payroll agar coverage 100%.</div></div>'
+          + '</div></div>'
+          + '</div>';
+        setContent(html);
+      }catch(err){ setContent(renderError(err.message)); }
+    }
 
     // MASTER DATA OPERATIONS
     async function loadDivisions(){ try{ setLoading(); const rows=await api('/api/admin/master/divisions'); setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Divisions</h3><div class="actions"><button class="btn btn-primary" onclick="addDivisionPrompt()"><i class="ph ph-plus"></i> Add New</button><button class="btn btn-secondary" onclick="loadMasterDataHub()">Back</button></div></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Aktif</th><th>Aksi</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.division_id)+'</td><td>'+escapeHtml(r.nama_divisi)+'</td><td>'+normalizeStatusBadge(String(r.is_active))+'</td><td><div class="actions" style="margin-top:0;"><button class="btn btn-secondary" onclick="editDivisionPrompt(\''+escapeHtml(r.division_id)+'\',\''+escapeHtml(r.nama_divisi)+'\')">Edit</button><button class="btn btn-secondary" onclick="toggleDivisionActive(\''+escapeHtml(r.division_id)+'\','+(String(r.is_active).toLowerCase()==='true'?'true':'false')+')">'+(String(r.is_active).toLowerCase()==='true'?'Nonaktifkan':'Aktifkan')+'</button></div></td></tr>';}).join('')||'<tr><td colspan="4">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
