@@ -743,8 +743,31 @@
         const s=await api('/api/admin/control-tower/summary');
         const m=(s&&s.metrics)||{};
         const t=(s&&s.thresholds)||{};
-        const over=((s&&s.top_overdue)||[]).map(function(x){ return '<tr><td>'+escapeHtml(x.leave_id||'-')+'</td><td>'+escapeHtml(x.age_hours||0)+'h</td><td>'+slaPriorityBadge(x.priority||'normal')+'</td></tr>'; }).join('') || '<tr><td colspan="3">Tidak ada data overdue.</td></tr>';
-        const html='<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Workforce Control Tower</h3><div class="actions"><button class="btn btn-secondary" onclick="loadSummary()">Back Dashboard</button></div></div><div class="cards-row" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));"><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Health Score</div><div class="stat-large">'+escapeHtml(s.health_score||0)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">No Check-in</div><div class="stat-large" style="color:var(--warning);">'+escapeHtml(m.not_checked_in_today||0)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Pending High SLA</div><div class="stat-large" style="color:var(--warning);">'+escapeHtml(m.pending_high_sla||0)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Pending Critical SLA</div><div class="stat-large" style="color:var(--danger);">'+escapeHtml(m.pending_critical_sla||0)+'</div></div></div><div class="grid-2" style="margin-top:24px;"><div class="card" style="box-shadow:none;background:var(--bg);"><h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">Execution Controls</h3><div class="form-group"><label><input id="ct_ops_digest" type="checkbox" checked> Publish Ops Digest</label></div><div class="form-group"><label><input id="ct_leave_digest" type="checkbox" checked> Publish Leave SLA Digest</label></div><div class="actions"><button class="btn btn-primary" onclick="runControlTowerExecution()"><i class="ph ph-rocket-launch"></i> Execute Workflow</button><button class="btn btn-secondary" onclick="loadWorkforceControlTower()">Refresh</button><button class="btn btn-secondary" onclick="loadIncidentTimeline()">Open Timeline</button></div><div class="stat-label" style="margin-top:12px;">Thresholds: Checkin Critical '+escapeHtml(t.checkin_gap_critical||25)+'% • Leave SLA '+escapeHtml(t.leave_sla_warn_hours||24)+'h/'+escapeHtml(t.leave_sla_critical_hours||72)+'h</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">Top Overdue Queue</h3><div class="table-wrap"><table><thead><tr><th>Leave ID</th><th>Age</th><th>SLA</th></tr></thead><tbody>'+over+'</tbody></table></div></div></div></div>';
+        const overCards=((s&&s.top_overdue)||[]).map(function(x){
+          return '<div class="card report-tile report-tone-leave"><div class="stat-label">'+escapeHtml(x.leave_id||'-')+'</div><div class="stat-large">'+escapeHtml(x.age_hours||0)+'h</div><div>'+slaPriorityBadge(x.priority||'normal')+'</div></div>';
+        }).join('');
+        const noCheckinCards=((s&&s.no_checkin_employees)||[]).slice(0,60).map(function(e){
+          return '<div class="card report-tile report-tone-attendance"><div style="font-weight:700;color:var(--text-main);">'+escapeHtml(e.nama||e.employee_id||'-')+'</div><div class="muted">'+escapeHtml(e.employee_id||'-')+' • '+escapeHtml(e.divisi||'-')+'</div><div class="muted" style="margin-bottom:8px;">'+escapeHtml(e.email||'-')+'</div><button class="btn btn-secondary" onclick="sendCheckinAlertSingle(\''+escapeHtml(e.employee_id||'')+'\')">Send Alert</button></div>';
+        }).join('');
+        const recCards=((s&&s.recommendations)||[]).map(function(r){
+          return '<div class="card report-tile"><div class="stat-label">'+escapeHtml(r.priority||'-')+'</div><div style="font-weight:700;color:var(--text-main);">'+escapeHtml(r.text||'-')+'</div></div>';
+        }).join('')||'<div class="report-empty">Tidak ada rekomendasi.</div>';
+        const html=''
+          + '<div class="report-center">'
+          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Workforce Control Tower</h3><div class="actions"><button class="btn btn-secondary" onclick="loadWorkforceControlTower()"><i class="ph ph-arrows-clockwise"></i> Refresh</button><button class="btn btn-secondary" onclick="loadIncidentTimeline()">Open Timeline</button></div></div><div class="stat-label">Orkestrasi operasional realtime untuk attendance dan leave SLA.</div></div>'
+          + '<div class="report-kpi-grid">'
+          + '<div class="card report-tile report-tone-kpi"><div class="stat-label">Health Score</div><div class="stat-large">'+escapeHtml(s.health_score||0)+'</div></div>'
+          + '<div class="card report-tile report-tone-attendance"><div class="stat-label">No Check-in</div><div class="stat-large" style="color:var(--warning);">'+escapeHtml(m.not_checked_in_today||0)+'</div></div>'
+          + '<div class="card report-tile report-tone-leave"><div class="stat-label">Pending High SLA</div><div class="stat-large" style="color:var(--warning);">'+escapeHtml(m.pending_high_sla||0)+'</div></div>'
+          + '<div class="card report-tile report-tone-leave"><div class="stat-label">Pending Critical SLA</div><div class="stat-large" style="color:var(--danger);">'+escapeHtml(m.pending_critical_sla||0)+'</div></div>'
+          + '</div>'
+          + '<div class="grid-2" style="gap:14px;align-items:start;">'
+          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Execution Controls</h3></div><div class="form-group"><label><input id="ct_ops_digest" type="checkbox" checked> Publish Ops Digest</label></div><div class="form-group"><label><input id="ct_leave_digest" type="checkbox" checked> Publish Leave SLA Digest</label></div><div class="form-group"><label><input id="ct_checkin_alert" type="checkbox" checked> Send Check-in Alert Email</label></div><div class="actions"><button class="btn btn-primary" onclick="runControlTowerExecution()"><i class="ph ph-rocket-launch"></i> Execute Workflow</button><button class="btn btn-secondary" onclick="sendCheckinAlertAll()">Alert Semua Belum Check-in</button></div><div class="stat-label" style="margin-top:10px;">Thresholds: Checkin Critical '+escapeHtml(t.checkin_gap_critical||25)+'% • Leave SLA '+escapeHtml(t.leave_sla_warn_hours||24)+'h/'+escapeHtml(t.leave_sla_critical_hours||72)+'h</div></div>'
+          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Top Overdue Queue</h3><div class="stat-label">'+escapeHtml(((s&&s.top_overdue)||[]).length||0)+' item</div></div>'+(overCards?('<div class="report-list-grid">'+overCards+'</div>'):'<div class="report-empty">Tidak ada data overdue.</div>')+'</div>'
+          + '</div>'
+          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Karyawan Belum Check-in Hari Ini</h3><div class="actions"><button class="btn btn-primary" onclick="sendCheckinAlertAll()">Send Alert ke Semua</button></div></div>'+(noCheckinCards?('<div class="report-list-grid">'+noCheckinCards+'</div>'):'<div class="report-empty">Semua karyawan aktif sudah check-in atau sedang cuti approved.</div>')+'</div>'
+          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Rekomendasi Otomatis</h3></div><div class="report-list-grid">'+recCards+'</div></div>'
+          + '</div>';
         setContent(html);
       }catch(err){ setContent(renderError(err.message)); }
     }
@@ -752,9 +775,10 @@
       try{
         const publishOps=!!((document.getElementById('ct_ops_digest')||{}).checked);
         const publishLeave=!!((document.getElementById('ct_leave_digest')||{}).checked);
-        const r=await api('/api/admin/control-tower/execute','POST',{ publish_ops_digest:publishOps, publish_leave_digest:publishLeave });
+        const sendCheckin=!!((document.getElementById('ct_checkin_alert')||{}).checked);
+        const r=await api('/api/admin/control-tower/execute','POST',{ publish_ops_digest:publishOps, publish_leave_digest:publishLeave, send_checkin_alert:sendCheckin });
         const x=(r&&r.result)||{};
-        alert('Control Tower selesai. Pending='+String(x.pending_leaves||0)+' | OpsDigest='+(x.ops_digest_published?'yes':'no')+' | LeaveDigest='+(x.leave_digest_published?'yes':'no'));
+        alert('Control Tower selesai. Pending='+String(x.pending_leaves||0)+' | OpsDigest='+(x.ops_digest_published?'yes':'no')+' | LeaveDigest='+(x.leave_digest_published?'yes':'no')+' | CheckinAlert='+String(x.checkin_alert_sent||0)+'/'+String(x.checkin_alert_target||0));
         loadWorkforceControlTower();
       }catch(err){ setContent(renderError(err.message)); }
     }

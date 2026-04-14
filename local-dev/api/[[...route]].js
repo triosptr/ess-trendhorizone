@@ -3187,18 +3187,40 @@ module.exports = async function handler(req, res) {
     if (path === 'admin/control-tower/summary' && method === 'GET') {
       const a = requireAdmin(req, res); if (!a) return;
       const today = ymd();
-      const [cfg, emp, att, leaves] = await Promise.all([
+      const [cfg, emp, att, leaves, leavesApprovedToday] = await Promise.all([
         db('GET', 'config', { select: 'key,value', key: 'in.(OPS_CHECKIN_GAP_HIGH,OPS_CHECKIN_GAP_CRITICAL,OPS_PENDING_LEAVES_MEDIUM,OPS_PENDING_LEAVES_CRITICAL,OPS_LEAVE_SLA_WARN_HOURS,OPS_LEAVE_SLA_CRITICAL_HOURS)', limit: 20 }),
-        db('GET', 'employees', { select: 'employee_id,is_active', limit: 5000 }),
+        db('GET', 'employees', { select: 'employee_id,nama,email,divisi,jabatan,is_active', limit: 5000 }),
         db('GET', 'attendance', { select: 'employee_id', tanggal: 'eq.' + today, limit: 10000 }),
-        db('GET', 'leave_requests', { select: 'leave_id,created_at,status', status: 'eq.pending', limit: 3000 })
+        db('GET', 'leave_requests', { select: 'leave_id,created_at,status', status: 'eq.pending', limit: 3000 }),
+        db('GET', 'leave_requests', { select: 'employee_id', status: 'eq.approved', and: '(tanggal_mulai.lte.' + today + ',tanggal_selesai.gte.' + today + ')', limit: 5000 })
       ]);
-      if (!cfg.ok || !emp.ok || !att.ok || !leaves.ok) return json(res, 500, { ok: false, message: 'Gagal ambil control tower summary.', error: (!cfg.ok ? cfg.error : (!emp.ok ? emp.error : (!att.ok ? att.error : leaves.error))) });
+      if (!cfg.ok || !emp.ok || !att.ok || !leaves.ok || !leavesApprovedToday.ok) {
+        const err = !cfg.ok ? cfg.error : (!emp.ok ? emp.error : (!att.ok ? att.error : (!leaves.ok ? leaves.error : leavesApprovedToday.error)));
+        return json(res, 500, { ok: false, message: 'Gagal ambil control tower summary.', error: err });
+      }
       const map = {};
       (cfg.data || []).forEach(function(x) { map[String(x.key || '')] = Number(x.value || 0); });
-      const activeEmployees = (emp.data || []).filter(function(e) { return String(e.is_active).toLowerCase() === 'true'; }).length;
-      const checkedInToday = new Set((att.data || []).map(function(x) { return String(x.employee_id || ''); }).filter(Boolean)).size;
-      const notCheckedIn = Math.max(0, activeEmployees - checkedInToday);
+      const activeRows = (emp.data || []).filter(function(e) { return String(e.is_active).toLowerCase() === 'true'; });
+      const checkedSet = new Set((att.data || []).map(function(x) { return String(x.employee_id || ''); }).filter(Boolean));
+      const leaveApprovedSet = new Set((leavesApprovedToday.data || []).map(function(x) { return String(x.employee_id || ''); }).filter(Boolean));
+      const noCheckinRows = activeRows.filter(function(e) {
+        const id = String(e.employee_id || '');
+        if (!id) return false;
+        if (checkedSet.has(id)) return false;
+        if (leaveApprovedSet.has(id)) return false;
+        return true;
+      }).map(function(e) {
+        return {
+          employee_id: String(e.employee_id || ''),
+          nama: String(e.nama || ''),
+          email: String(e.email || ''),
+          divisi: String(e.divisi || ''),
+          jabatan: String(e.jabatan || '')
+        };
+      });
+      const activeEmployees = activeRows.length;
+      const checkedInToday = activeEmployees - noCheckinRows.length;
+      const notCheckedIn = noCheckinRows.length;
       const checkinRateGap = activeEmployees > 0 ? Math.round((notCheckedIn / activeEmployees) * 10000) / 100 : 0;
       const warnH = Number(map.OPS_LEAVE_SLA_WARN_HOURS || 24);
       const criticalH = Number(map.OPS_LEAVE_SLA_CRITICAL_HOURS || 72);
@@ -3212,6 +3234,12 @@ module.exports = async function handler(req, res) {
         pending_critical: leaveRows.filter(function(x) { return x.priority === 'critical'; }).length
       };
       const healthScore = Math.max(0, 100 - Math.min(70, Math.round(checkinRateGap)) - Math.min(30, sla.pending_critical * 3));
+      const recommendations = [];
+      if (checkinRateGap >= Number(map.OPS_CHECKIN_GAP_CRITICAL || 25)) recommendations.push({ priority: 'critical', text: 'Kirim alert email check-in ke seluruh karyawan yang belum check-in hari ini.' });
+      else if (checkinRateGap >= Number(map.OPS_CHECKIN_GAP_HIGH || 10)) recommendations.push({ priority: 'high', text: 'Trigger reminder check-in untuk karyawan yang belum check-in.' });
+      if (sla.pending_critical > 0) recommendations.push({ priority: 'critical', text: 'Prioritaskan approval leave pada antrean critical SLA.' });
+      if (sla.pending_high > 0) recommendations.push({ priority: 'high', text: 'Review antrean leave high SLA sebelum melewati critical.' });
+      if (!recommendations.length) recommendations.push({ priority: 'low', text: 'Operasional stabil. Lanjutkan monitoring rutin.' });
       return json(res, 200, {
         ok: true,
         date: today,
@@ -3233,7 +3261,9 @@ module.exports = async function handler(req, res) {
           leave_sla_warn_hours: warnH,
           leave_sla_critical_hours: criticalH
         },
-        top_overdue: leaveRows.sort(function(a1, b1) { return Number(b1.age_hours || 0) - Number(a1.age_hours || 0); }).slice(0, 10)
+        top_overdue: leaveRows.sort(function(a1, b1) { return Number(b1.age_hours || 0) - Number(a1.age_hours || 0); }).slice(0, 10),
+        no_checkin_employees: noCheckinRows.slice(0, 200),
+        recommendations: recommendations
       });
     }
 
@@ -3242,12 +3272,14 @@ module.exports = async function handler(req, res) {
       const b = await readBody(req);
       const publishOpsDigest = String(b.publish_ops_digest || '').toLowerCase() === 'true' || b.publish_ops_digest === true;
       const publishLeaveDigest = String(b.publish_leave_digest || '').toLowerCase() === 'true' || b.publish_leave_digest === true;
+      const sendCheckinAlert = String(b.send_checkin_alert || '').toLowerCase() === 'true' || b.send_checkin_alert === true;
       const today = ymd();
       const summaryReq = await db('GET', 'leave_requests', { select: 'leave_id,created_at,status', status: 'eq.pending', limit: 3000 });
       if (!summaryReq.ok) return json(res, 500, { ok: false, message: 'Gagal eksekusi control tower.', error: summaryReq.error });
       const pendingCount = (summaryReq.data || []).length;
       let opsAnnouncement = null;
       let leaveAnnouncement = null;
+      let checkinAlertResult = { target_count: 0, sent_count: 0, failed_count: 0 };
       if (publishOpsDigest) {
         const p = {
           announcement_id: rid('ANN'),
@@ -3276,6 +3308,34 @@ module.exports = async function handler(req, res) {
         const ins2 = await db('POST', 'announcements', null, p2, { Prefer: 'return=representation' });
         if (ins2.ok) leaveAnnouncement = (ins2.data && ins2.data[0]) || null;
       }
+      if (sendCheckinAlert) {
+        const [emp, att, leaveApproved] = await Promise.all([
+          db('GET', 'employees', { select: 'employee_id,nama,email,is_active', limit: 5000 }),
+          db('GET', 'attendance', { select: 'employee_id', tanggal: 'eq.' + today, limit: 10000 }),
+          db('GET', 'leave_requests', { select: 'employee_id', status: 'eq.approved', and: '(tanggal_mulai.lte.' + today + ',tanggal_selesai.gte.' + today + ')', limit: 5000 })
+        ]);
+        if (emp.ok && att.ok && leaveApproved.ok) {
+          const checkedSet = new Set((att.data || []).map(function(x) { return String(x.employee_id || ''); }).filter(Boolean));
+          const leaveSet = new Set((leaveApproved.data || []).map(function(x) { return String(x.employee_id || ''); }).filter(Boolean));
+          const targets = (emp.data || []).filter(function(e) {
+            const id = String(e.employee_id || '');
+            if (String(e.is_active).toLowerCase() !== 'true') return false;
+            if (!id || checkedSet.has(id) || leaveSet.has(id)) return false;
+            return isValidEmail(String(e.email || '').trim().toLowerCase());
+          });
+          checkinAlertResult.target_count = targets.length;
+          for (const e of targets) {
+            const html = leaveMailTemplate('Reminder Check-in ESS', [
+              'Halo ' + String(e.nama || e.employee_id) + ',',
+              'Sampai saat ini sistem belum mencatat check-in Anda untuk tanggal <b>' + today + '</b>.',
+              'Silakan login ESS dan lakukan check-in sesuai jadwal kerja.'
+            ]);
+            const rs = await sendEssEmail(String(e.email || ''), 'Reminder Check-in ESS - ' + today, html);
+            if (rs && rs.sent) checkinAlertResult.sent_count += 1;
+            else checkinAlertResult.failed_count += 1;
+          }
+        }
+      }
       await auditLog(a.email, 'RUN', 'control_tower', 'Execute workforce control tower workflow', String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, {
         ok: true,
@@ -3283,7 +3343,10 @@ module.exports = async function handler(req, res) {
         result: {
           pending_leaves: pendingCount,
           ops_digest_published: !!opsAnnouncement,
-          leave_digest_published: !!leaveAnnouncement
+          leave_digest_published: !!leaveAnnouncement,
+          checkin_alert_sent: checkinAlertResult.sent_count,
+          checkin_alert_target: checkinAlertResult.target_count,
+          checkin_alert_failed: checkinAlertResult.failed_count
         },
         announcements: [opsAnnouncement, leaveAnnouncement].filter(Boolean)
       });
