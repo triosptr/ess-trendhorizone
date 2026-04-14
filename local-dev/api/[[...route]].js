@@ -530,6 +530,11 @@ function enrichPayrollDoc(row) {
   Object.assign(r, meta.payroll_output);
   r.components = meta.components || [];
   r.context = meta.context || {};
+  if (meta.csv_source) {
+    r.npwp = meta.csv_source.npwp || '';
+    r.jabatan = meta.csv_source.jabatan || '';
+    r.divisi = meta.csv_source.divisi || '';
+  }
   return r;
 }
 function componentMapperFromMatrixRows(rows) {
@@ -1190,11 +1195,11 @@ function payrollPdfBuffer(payrollDoc, employeeName) {
   text(marginX, infoY - lh, 9, 'Employee No', true); text(120, infoY - lh, 9, ': ' + String(d.employee_id || '-'), false);
   text(marginX, infoY - lh*2, 9, 'Employee Name', true); text(120, infoY - lh*2, 9, ': ' + String(employeeName || '-'), false);
   text(marginX, infoY - lh*3, 9, 'Tax Status', true); text(120, infoY - lh*3, 9, ': -', false);
-  text(marginX, infoY - lh*4, 9, 'NPWP', true); text(120, infoY - lh*4, 9, ': -', false);
+  text(marginX, infoY - lh*4, 9, 'NPWP', true); text(120, infoY - lh*4, 9, ': ' + String(d.npwp || '-'), false);
 
   const rightColInfoX = midX + 10;
-  text(rightColInfoX, infoY, 9, 'Department', true); text(rightColInfoX + 80, infoY, 9, ': -', false);
-  text(rightColInfoX, infoY - lh, 9, 'Position', true); text(rightColInfoX + 80, infoY - lh, 9, ': -', false);
+  text(rightColInfoX, infoY, 9, 'Department', true); text(rightColInfoX + 80, infoY, 9, ': ' + String(d.divisi || '-'), false);
+  text(rightColInfoX, infoY - lh, 9, 'Position', true); text(rightColInfoX + 80, infoY - lh, 9, ': ' + String(d.jabatan || '-'), false);
   text(rightColInfoX, infoY - lh*2, 9, 'Grade', true); text(rightColInfoX + 80, infoY - lh*2, 9, ': -', false);
   text(rightColInfoX, infoY - lh*3, 9, 'Work Location', true); text(rightColInfoX + 80, infoY - lh*3, 9, ': -', false);
 
@@ -4039,7 +4044,7 @@ module.exports = async function handler(req, res) {
         const n = Number(s || 0);
         return Number.isFinite(n) ? n : 0;
       };
-      const activeEmployees = await db('GET', 'employees', { select: 'employee_id,nama,email', limit: 5000 });
+      const activeEmployees = await db('GET', 'employees', { select: 'employee_id,nama,email,divisi,jabatan,npwp', limit: 5000 });
       if (!activeEmployees.ok) return json(res, 500, { ok: false, message: 'Gagal ambil data karyawan.', error: activeEmployees.error });
       const empMap = {};
       (activeEmployees.data || []).forEach(function(e) { empMap[String(e.employee_id || '').trim()] = e; });
@@ -4088,7 +4093,7 @@ module.exports = async function handler(req, res) {
           keterangan: composePayrollKeterangan('Import CSV payroll', {
             version: 3,
             employee_id: employeeId,
-            csv_source: { full_name: fullName, ktp_number: ktp, take_home_pay_csv: thpCsv },
+            csv_source: { full_name: fullName, ktp_number: ktp, take_home_pay_csv: thpCsv, npwp: (emp && emp.npwp) || '', jabatan: (emp && emp.jabatan) || '', divisi: (emp && emp.divisi) || '' },
             components: payrollOut.breakdown.earnings.concat(payrollOut.breakdown.deductions),
             payroll_output: payrollOut
           }),
@@ -4116,10 +4121,19 @@ module.exports = async function handler(req, res) {
           status = 'inserted';
         }
         const enriched = enrichPayrollDoc(stored);
+        if (emp) {
+          enriched.divisi = emp.divisi || '';
+          enriched.jabatan = emp.jabatan || '';
+          enriched.npwp = emp.npwp || '';
+        }
         const pdf = payrollPdfBuffer(enriched, String((emp && emp.nama) || fullName || employeeId));
         const pdfName = toSafeFileToken('payslip_' + bulan + '_' + tahun + '_' + String((emp && emp.nama) || fullName || employeeId), 'payslip') + '.pdf';
-        const pdfUrl = await uploadBufferToDrive(pdfName, 'application/pdf', pdf, payrollDriveFolderId());
-        if (pdfUrl) await db('PATCH', 'payroll_docs', { doc_id: 'eq.' + String(stored.doc_id || '') }, { file_url: pdfUrl }, { Prefer: 'return=minimal' });
+        
+        let pdfUrl = stored.file_url || '';
+        if (!pdfUrl || status === 'updated' || diff >= 1) {
+           pdfUrl = await uploadBufferToDrive(pdfName, 'application/pdf', pdf, payrollDriveFolderId());
+           if (pdfUrl) await db('PATCH', 'payroll_docs', { doc_id: 'eq.' + String(stored.doc_id || '') }, { file_url: pdfUrl }, { Prefer: 'return=minimal' });
+        }
         if (status === 'inserted') result.inserted += 1; else result.updated += 1;
         result.details.push({ employee_id: employeeId, status: status, file_url: pdfUrl || '' });
       }
@@ -4162,6 +4176,13 @@ module.exports = async function handler(req, res) {
       const em = await db('GET', 'employees', { select: 'nama', employee_id: 'eq.' + String(row.employee_id || ''), limit: 1 });
       const employeeName = em.ok && Array.isArray(em.data) && em.data[0] ? String(em.data[0].nama || row.employee_id || 'Karyawan') : String(row.employee_id || 'Karyawan');
       const enriched = enrichPayrollDoc(row);
+      if (em.ok && Array.isArray(em.data) && em.data[0]) {
+        const emp = em.data[0];
+        enriched.employee_id = emp.employee_id || enriched.employee_id;
+        enriched.divisi = emp.divisi || '';
+        enriched.jabatan = emp.jabatan || '';
+        enriched.npwp = emp.npwp || '';
+      }
       const pdf = payrollPdfBuffer(enriched, employeeName);
       const pdfName = toSafeFileToken('payslip_' + String(row.bulan || '') + '_' + String(row.tahun || '') + '_' + employeeName, 'payslip') + '.pdf';
       const pdfUrl = await uploadBufferToDrive(pdfName, 'application/pdf', pdf, payrollDriveFolderId());
@@ -4170,6 +4191,42 @@ module.exports = async function handler(req, res) {
       if (!upd.ok) return json(res, 500, { ok: false, message: 'PDF berhasil dibuat, tetapi gagal update payroll doc.', file_url: pdfUrl, error: upd.error });
       await auditLog(a.email, 'EXPORT', 'payroll_docs', 'Export payslip PDF ' + docId, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, { ok: true, message: 'Payslip PDF berhasil dibuat dan disimpan ke Google Drive.', file_url: pdfUrl, data: (upd.data || []).map(enrichPayrollDoc) });
+    }
+
+    if (path === 'admin/payroll/bulk-email' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const bulan = String(b.bulan || '').trim();
+      const tahun = String(b.tahun || '').trim();
+      
+      if (!bulan || !tahun) return json(res, 400, { ok: false, message: 'Bulan dan tahun wajib diisi.' });
+      
+      const docsReq = await db('GET', 'payroll_docs', { select: 'doc_id,employee_id,email,file_url', bulan: 'eq.' + bulan, tahun: 'eq.' + tahun, limit: 5000 });
+      if (!docsReq.ok) return json(res, 500, { ok: false, message: 'Gagal ambil dokumen payroll.', error: docsReq.error });
+      
+      const docs = docsReq.data || [];
+      if (!docs.length) return json(res, 400, { ok: false, message: 'Tidak ada dokumen payroll untuk bulan dan tahun tersebut.' });
+      
+      const result = { target: 0, sent: 0, failed: 0 };
+      
+      for (const d of docs) {
+        if (!d.email || !isValidEmail(d.email) || !d.file_url) continue;
+        result.target++;
+        
+        const html = leaveMailTemplate('Slip Gaji - ' + bulan + ' ' + tahun, [
+          'Halo,',
+          'Slip gaji Anda untuk periode <b>' + bulan + ' ' + tahun + '</b> telah diterbitkan.',
+          'Anda dapat melihat atau mengunduh slip gaji Anda melalui tautan di bawah ini:',
+          '<a href="' + String(d.file_url).replace(/"/g, '&quot;') + '" style="display:inline-block;margin-top:10px;padding:8px 16px;background:#1d4ed8;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Lihat Slip Gaji</a>'
+        ]);
+        
+        const mailRes = await sendEssEmail(d.email, 'Slip Gaji - ' + bulan + ' ' + tahun, html);
+        if (mailRes.sent) result.sent++;
+        else result.failed++;
+      }
+      
+      await auditLog(a.email, 'EXPORT', 'payroll_docs', 'Bulk send payslip emails ' + bulan + ' ' + tahun + ' (sent: ' + result.sent + ')', String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, { ok: true, message: 'Bulk email selesai', result: result });
     }
 
     if (path === 'admin/payroll/summary' && method === 'GET') {

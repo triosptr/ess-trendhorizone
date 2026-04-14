@@ -2277,12 +2277,12 @@
           const totalPendapatan=Number(r.total_earning||r.total_pendapatan||0);
           const totalPotongan=Number(r.total_deduction||r.total_potongan||0);
           const thp=Number(r.net_salary||r.take_home_pay||0);
-          return '<tr><td>'+escapeHtml(r.doc_id)+'</td><td>'+escapeHtml((r.employee_id||'-')+' • '+(r.email||'-'))+'</td><td>'+escapeHtml(r.bulan||'-')+'</td><td>'+escapeHtml(r.tahun||'-')+'</td><td>'+escapeHtml(moneyId(totalPendapatan))+'</td><td>'+escapeHtml(moneyId(totalPotongan))+'</td><td>'+escapeHtml(moneyId(thp))+'</td><td>'+escapeHtml(formatDateTimeDisplay(r.uploaded_at)||'-')+'</td><td><div class="actions" style="margin-top:0;"><a class="btn btn-secondary" href="'+escapeHtml(r.file_url||'#')+'" target="_blank">Buka</a><button class="btn btn-primary" onclick="exportPayrollPdf(\''+escapeHtml(r.doc_id||'')+'\')">PDF</button></div></td></tr>';
+          return '<tr><td>'+escapeHtml(r.doc_id)+'</td><td>'+escapeHtml((r.employee_id||'-')+' • '+(r.email||'-'))+'</td><td>'+escapeHtml(r.bulan||'-')+'</td><td>'+escapeHtml(r.tahun||'-')+'</td><td>'+escapeHtml(moneyId(totalPendapatan))+'</td><td>'+escapeHtml(moneyId(totalPotongan))+'</td><td>'+escapeHtml(moneyId(thp))+'</td><td>'+escapeHtml(formatDateTimeDisplay(r.uploaded_at)||'-')+'</td><td><div class="actions" style="margin-top:0;"><a class="btn btn-secondary" href="'+escapeHtml(r.file_url||'#')+'" target="_blank">Buka</a><button class="btn btn-primary" id="btn_pdf_'+escapeHtml(r.doc_id)+'" onclick="exportPayrollPdf(\''+escapeHtml(r.doc_id||'')+'\')">PDF</button></div></td></tr>';
         }).join('')||'<tr><td colspan="9">Tidak ada data</td></tr>');
         const defaultPeriodHint='Catatan: gaji tanggal 1 diproses untuk bulan sebelumnya.';
         setContent(payrollRenderer(
           '<div class="report-center">'
-          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Payroll Command Center</h3><div class="actions"><button class="btn btn-primary" onclick="submitPayrollCsvImport()"><i class="ph ph-upload-simple"></i> Import CSV & Generate Payslip</button><button class="btn btn-secondary" onclick="loadMasterDataHub()">Back</button></div></div><div class="stat-label">'+defaultPeriodHint+'</div></div>'
+          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Payroll Command Center</h3><div class="actions"><button class="btn btn-secondary" id="pay_bulk_email_btn" onclick="bulkSendPayrollEmails()"><i class="ph ph-envelope-simple"></i> Bulk Send Emails</button><button class="btn btn-primary" id="pay_import_btn_top" onclick="submitPayrollCsvImport()"><i class="ph ph-upload-simple"></i> Import CSV & Generate Payslip</button><button class="btn btn-secondary" onclick="loadMasterDataHub()">Back</button></div></div><div class="stat-label">'+defaultPeriodHint+'</div></div>'
           + '<div class="report-kpi-grid"><div class="card report-tile report-tone-kpi"><div class="stat-label">Active Employees</div><div class="stat-large">'+escapeHtml(s.active_employees||0)+'</div></div><div class="card report-tile report-tone-kpi"><div class="stat-label">Covered</div><div class="stat-large">'+escapeHtml(s.covered_employees||0)+'</div></div><div class="card report-tile report-tone-kpi"><div class="stat-label">Missing</div><div class="stat-large" style="color:var(--warning);">'+escapeHtml(s.missing_employees||0)+'</div></div><div class="card report-tile report-tone-kpi"><div class="stat-label">Completion</div><div class="stat-large">'+escapeHtml(s.completion_rate||0)+'%</div></div><div class="card report-tile report-tone-kpi"><div class="stat-label">Total THP</div><div class="stat-large">'+escapeHtml(moneyId(s.total_take_home_pay||0))+'</div></div></div>'
           + '<div class="grid-2" style="gap:14px;align-items:start;">'
           + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Import CSV Payroll</h3></div><div class="grid-2"><div class="form-group"><label>Bulan Payroll</label><input id="pay_bulan" value="'+escapeHtml(fBulan)+'"></div><div class="form-group"><label>Tahun Payroll</label><input id="pay_tahun" value="'+escapeHtml(fTahun)+'"></div></div><div class="form-group"><label>Upload CSV</label><input id="pay_csv_file" type="file" accept=\".csv,text/csv\"></div><div class="form-group"><label>Preview CSV (opsional, auto terisi)</label><textarea id="pay_csv_text" placeholder=\"Paste CSV di sini jika tidak upload file\"></textarea></div><div id="pay_import_status" class="file-hint" style="margin-bottom:8px;"></div><div class="actions"><button id="pay_import_btn" class="btn btn-primary" onclick="submitPayrollCsvImport()">Proses Import</button><button class="btn btn-secondary" onclick="loadPayrollDocs()">Refresh</button></div></div>'
@@ -2329,6 +2329,55 @@
         await loadPayrollDocs();
       }catch(err){ setContent(renderError(err.message)); }
     }
+    async function exportPayrollPdf(docId) {
+      try {
+        const btn = document.getElementById('btn_pdf_' + docId);
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ph ph-spinner-gap"></i>'; }
+        
+        const r = await api('/api/admin/payroll/export-pdf', 'POST', { doc_id: docId });
+        if (r.ok) {
+          alert('PDF berhasil digenerate.');
+          await loadPayrollDocs();
+        } else {
+          alert('Gagal: ' + (r.message || 'Error tidak diketahui'));
+        }
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        const btn = document.getElementById('btn_pdf_' + docId);
+        if (btn) { btn.disabled = false; btn.innerHTML = 'PDF'; }
+      }
+    }
+    
+    async function bulkSendPayrollEmails() {
+      try {
+        const bulan = String((document.getElementById('pay_filter_bulan')||{}).value||'').trim();
+        const tahun = String((document.getElementById('pay_filter_tahun')||{}).value||'').trim();
+        if (!bulan || !tahun) {
+          alert('Gunakan filter bulan dan tahun terlebih dahulu sebelum bulk send email.');
+          return;
+        }
+        
+        const confirmSend = confirm('Apakah Anda yakin ingin mengirim payslip bulan ' + bulan + ' ' + tahun + ' ke semua karyawan via email?');
+        if (!confirmSend) return;
+        
+        const btn = document.getElementById('pay_bulk_email_btn');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ph ph-spinner-gap"></i> Sending...'; }
+        
+        const r = await api('/api/admin/payroll/bulk-email', 'POST', { bulan: bulan, tahun: tahun });
+        if (r.ok) {
+          alert('Proses bulk send selesai.\nTarget: ' + r.result.target + '\nSent: ' + r.result.sent + '\nFailed: ' + r.result.failed);
+        } else {
+          alert('Gagal: ' + (r.message || 'Error'));
+        }
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        const btn = document.getElementById('pay_bulk_email_btn');
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph ph-envelope-simple"></i> Bulk Send Emails'; }
+      }
+    }
+
     async function loadAnnouncements(){ try{ setLoading(); const rows=await api('/api/admin/announcements?limit=200'); setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Announcements</h3><div class="actions"><button class="btn btn-primary" onclick="loadAddAnnouncementForm()"><i class="ph ph-plus"></i> Add New</button><button class="btn btn-secondary" onclick="loadMasterDataHub()">Back</button></div></div><div class="table-wrap"><table><thead><tr><th>Judul</th><th>Target</th><th>Published</th><th>Aktif</th><th>Aksi</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td><div style="font-weight:600;color:var(--text-main);">'+escapeHtml(r.judul||'-')+'</div><div style="font-size:12px;color:var(--text-sec);">'+escapeHtml(r.announcement_id||'-')+'</div></td><td>'+escapeHtml(r.target_role||'all')+'</td><td>'+escapeHtml(formatDateTimeDisplay(r.published_at)||'-')+'</td><td>'+normalizeStatusBadge(String(r.is_active))+'</td><td><div class="actions" style="margin-top:0;"><button class="btn btn-secondary" onclick="loadEditAnnouncementForm(\''+escapeHtml(r.announcement_id||'')+'\')">Edit</button><button class="btn btn-secondary" onclick="toggleAnnouncementActive(\''+escapeHtml(r.announcement_id||'')+'\','+(String(r.is_active).toLowerCase()==='true'?'true':'false')+')">'+(String(r.is_active).toLowerCase()==='true'?'Nonaktifkan':'Aktifkan')+'</button></div></td></tr>';}).join('')||'<tr><td colspan="5">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
     function loadAddAnnouncementForm(){ setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Tambah Pemberitahuan</h3></div><div class="form-group"><label>Judul</label><input id="ann_judul"></div><div class="form-group"><label>Target Role</label><select id="ann_target"><option value="all">all</option><option value="employee">employee</option><option value="admin">admin</option></select></div><div class="form-group"><label>Isi</label><textarea id="ann_isi"></textarea></div><div class="actions"><button class="btn btn-primary" onclick="submitAddAnnouncement()">Simpan</button><button class="btn btn-secondary" onclick="loadAnnouncements()">Batal</button></div></div>'); }
     async function submitAddAnnouncement(){ try{ await api('/api/admin/announcements','POST',{judul:(document.getElementById('ann_judul')||{}).value||'',target_role:(document.getElementById('ann_target')||{}).value||'all',isi:(document.getElementById('ann_isi')||{}).value||''}); await loadAnnouncements(); }catch(err){ setContent(renderError(err.message)); } }
