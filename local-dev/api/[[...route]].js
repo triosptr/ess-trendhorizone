@@ -1988,8 +1988,13 @@ module.exports = async function handler(req, res) {
       const tanggal = String((await readBody(req)).tanggal || ymd()).trim();
       const r = await db('GET', 'attendance', { select: '*', employee_id: 'eq.' + u.employee_id, tanggal: 'eq.' + tanggal, order: 'created_at.desc', limit: 1 });
       if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil attendance.', error: r.error });
-      const row = Array.isArray(r.data) && r.data[0] ? r.data[0] : null;
-      if (!row || !row.jam_masuk) return json(res, 400, { ok: false, message: 'Belum check-in.' });
+      let row = Array.isArray(r.data) && r.data[0] ? r.data[0] : null;
+      if (!row || !row.jam_masuk || row.jam_keluar) {
+        const hist = await db('GET', 'attendance', { select: '*', employee_id: 'eq.' + u.employee_id, order: 'tanggal.desc,created_at.desc', limit: 120 });
+        if (!hist.ok) return json(res, 500, { ok: false, message: 'Gagal cari sesi attendance aktif.', error: hist.error });
+        row = (hist.data || []).find(function(x) { return !!(x && x.jam_masuk) && !x.jam_keluar; }) || null;
+      }
+      if (!row || !row.jam_masuk) return json(res, 400, { ok: false, message: 'Tidak ada sesi check-in aktif.' });
       if (row.jam_keluar) return json(res, 400, { ok: false, message: 'Sudah check-out.' });
       const meta = await attendanceMetaGet(row.attendance_id);
       if (meta.break_active_start) return json(res, 400, { ok: false, message: 'Istirahat sudah berjalan.' });
@@ -2007,8 +2012,13 @@ module.exports = async function handler(req, res) {
       const tanggal = String((await readBody(req)).tanggal || ymd()).trim();
       const r = await db('GET', 'attendance', { select: '*', employee_id: 'eq.' + u.employee_id, tanggal: 'eq.' + tanggal, order: 'created_at.desc', limit: 1 });
       if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil attendance.', error: r.error });
-      const row = Array.isArray(r.data) && r.data[0] ? r.data[0] : null;
-      if (!row || !row.jam_masuk) return json(res, 400, { ok: false, message: 'Belum check-in.' });
+      let row = Array.isArray(r.data) && r.data[0] ? r.data[0] : null;
+      if (!row || !row.jam_masuk || row.jam_keluar) {
+        const hist = await db('GET', 'attendance', { select: '*', employee_id: 'eq.' + u.employee_id, order: 'tanggal.desc,created_at.desc', limit: 120 });
+        if (!hist.ok) return json(res, 500, { ok: false, message: 'Gagal cari sesi attendance aktif.', error: hist.error });
+        row = (hist.data || []).find(function(x) { return !!(x && x.jam_masuk) && !x.jam_keluar; }) || null;
+      }
+      if (!row || !row.jam_masuk) return json(res, 400, { ok: false, message: 'Tidak ada sesi check-in aktif.' });
       if (row.jam_keluar) return json(res, 400, { ok: false, message: 'Sudah check-out.' });
       const meta = await attendanceMetaGet(row.attendance_id);
       if (!meta.break_active_start) return json(res, 400, { ok: false, message: 'Istirahat tidak aktif.' });
