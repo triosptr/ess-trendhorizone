@@ -765,9 +765,9 @@
         const m=(s&&s.metrics)||{};
         const birthdays=((s&&s.birthdays_today)||[]);
         const birthdayCalendar=((s&&s.birthdays_calendar)||[]);
+        const approvedLeavesCalendar=((s&&s.approved_leaves_calendar)||[]);
         const files=((s&&s.file_locations)||[]);
         const leaveRows=((s&&s.leave_balance_rows)||[]);
-        const recs=((s&&s.recommendations)||[]);
         const bdayCards=birthdays.map(function(x){
           const day=String(x.tanggal_lahir||'').slice(8,10)||'--';
           return '<div class="bday-person-chip"><div class="team-header" style="margin-bottom:6px;"><div class="bday-person-name">'+escapeHtml(x.nama||'-')+'</div><div class="bday-day-pill">'+escapeHtml(day)+'</div></div><div class="bday-person-sub">'+escapeHtml(x.employee_id||'-')+' • '+escapeHtml(x.divisi||'-')+'</div><div class="bday-person-sub">Usia '+escapeHtml(x.usia||'-')+'</div></div>';
@@ -789,10 +789,14 @@
           const color=sisa<=3?'var(--danger)':(sisa<=6?'var(--warning)':'var(--success)');
           return '<tr><td>'+escapeHtml(r.employee_id||'-')+'</td><td>'+escapeHtml(r.nama||'-')+'</td><td>'+escapeHtml(r.divisi||'-')+'</td><td>'+escapeHtml(r.jatah_cuti||0)+'</td><td style="color:'+color+';font-weight:700;">'+escapeHtml(sisa)+'</td></tr>';
         }).join('')||'<tr><td colspan="5">Tidak ada data sisa cuti.</td></tr>';
-        const recCards=recs.map(function(r){
-          const route=String(r.action_route||'tower');
-          return '<div class="card report-tile"><div class="team-header"><div class="stat-label">'+escapeHtml(r.priority||'-')+'</div><button class="btn btn-secondary" onclick="openIncidentAction(\''+escapeHtml(route)+'\')">Open</button></div><div style="font-weight:700;color:var(--text-main);">'+escapeHtml(r.text||'-')+'</div></div>';
-        }).join('')||'<div class="report-empty">Tidak ada rekomendasi.</div>';
+        const approvedLeaveMonthCards=approvedLeavesCalendar.map(function(mo){
+          const tone='bday-m'+String(mo.month||1);
+          const items=(mo.items||[]).map(function(p){
+            const dd=String(p.day||'').padStart(2,'0');
+            return '<div class="bday-person-chip"><div class="team-header" style="margin-bottom:6px;"><div class="bday-person-name">'+escapeHtml(p.nama||'-')+'</div><div class="bday-day-pill">'+dd+'</div></div><div class="bday-person-sub">'+escapeHtml(p.employee_id||'-')+' • '+escapeHtml(p.jenis_cuti||'-')+'</div><div class="bday-person-sub">'+escapeHtml(p.tanggal_mulai||'-')+' s/d '+escapeHtml(p.tanggal_selesai||'-')+'</div></div>';
+          }).join('');
+          return '<div class="bday-month-card '+tone+'"><div class="team-header" style="margin-bottom:8px;"><h4>'+escapeHtml(mo.month_name||'-')+'</h4><div class="bday-month-count">'+escapeHtml(mo.total||0)+' approve</div></div><div class="bday-person-grid">'+items+'</div></div>';
+        }).join('');
         const html=''
           + '<div class="report-center">'
           + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Birthday & Files Control Tower</h3><div class="actions"><button class="btn btn-secondary" onclick="loadWorkforceControlTower()"><i class="ph ph-arrows-clockwise"></i> Refresh</button><button class="btn btn-primary" onclick="runControlTowerExecution()">Kirim Broadcast Ulang Tahun</button></div></div><div class="stat-label">Pusat kontrol HR untuk ulang tahun karyawan, lokasi file upload, dan monitoring sisa cuti.</div></div>'
@@ -800,13 +804,14 @@
           + '<div class="card report-tile report-tone-people"><div class="stat-label">Karyawan Aktif</div><div class="stat-large">'+escapeHtml(m.active_employees||0)+'</div></div>'
           + '<div class="card report-tile report-tone-people"><div class="stat-label">Ulang Tahun Hari Ini</div><div class="stat-large">'+escapeHtml(m.birthdays_today||0)+'</div></div>'
           + '<div class="card report-tile report-tone-people"><div class="stat-label">Ulang Tahun Bulan Ini</div><div class="stat-large">'+escapeHtml(m.birthdays_this_month||0)+'</div></div>'
+          + '<div class="card report-tile report-tone-leave"><div class="stat-label">Leave Approved Tahun Ini</div><div class="stat-large">'+escapeHtml(m.approved_leaves_year||0)+'</div></div>'
           + '<div class="card report-tile report-tone-leave"><div class="stat-label">Data Tgl Lahir Belum Lengkap</div><div class="stat-large" style="color:var(--warning);">'+escapeHtml(m.missing_birthdate||0)+'</div></div>'
           + '</div>'
           + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Ulang Tahun Hari Ini</h3><div class="stat-label">'+escapeHtml(birthdays.length||0)+' orang</div></div>'+(bdayCards?('<div class="bday-person-grid">'+bdayCards+'</div>'):'<div class="report-empty">Tidak ada ulang tahun hari ini.</div>')+'</div>'
           + (bdayMonthCards?('<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Kalender Ulang Tahun Karyawan</h3><div class="stat-label">Hanya bulan yang memiliki data</div></div><div class="bday-month-wrap">'+bdayMonthCards+'</div></div>'):'')
+          + (approvedLeaveMonthCards?('<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Kalender Leave Approved</h3><div class="stat-label">Per bulan approve</div></div><div class="bday-month-wrap">'+approvedLeaveMonthCards+'</div></div>'):'')
           + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Lokasi File Upload Karyawan</h3></div>'+(fileCards?('<div class="report-list-grid">'+fileCards+'</div>'):'<div class="report-empty">Lokasi file belum tersedia.</div>')+'</div>'
           + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Monitor Sisa Cuti Karyawan</h3><div class="stat-label">Urut dari sisa terendah</div></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Divisi</th><th>Jatah</th><th>Sisa</th></tr></thead><tbody>'+leaveTbody+'</tbody></table></div></div>'
-          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Rekomendasi Control Tower</h3></div><div class="report-list-grid">'+recCards+'</div></div>'
           + '</div>';
         setContent(html);
       }catch(err){ setContent(renderError(err.message)); }

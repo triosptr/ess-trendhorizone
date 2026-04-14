@@ -3192,6 +3192,7 @@ module.exports = async function handler(req, res) {
     if (path === 'admin/control-tower/summary' && method === 'GET') {
       const a = requireAdmin(req, res); if (!a) return;
       const today = ymd();
+      const currentYear = String(today).slice(0, 4);
       let emp = await db('GET', 'employees', { select: 'employee_id,nama,email,divisi,jabatan,is_active,tanggal_lahir,jatah_cuti,sisa_cuti', order: 'nama.asc', limit: 5000 });
       if (!emp.ok) {
         // Fallback for deployments where leave balance columns are not yet present.
@@ -3199,6 +3200,14 @@ module.exports = async function handler(req, res) {
       }
       if (!emp.ok) return json(res, 500, { ok: false, message: 'Gagal ambil control tower summary.', error: emp.error });
       const activeRows = (emp.data || []).filter(function(e) { return String(e.is_active).toLowerCase() === 'true'; });
+      const approvedLeavesReq = await db('GET', 'leave_requests', {
+        select: 'leave_id,employee_id,jenis_cuti,tanggal_mulai,tanggal_selesai,status,approved_at',
+        status: 'eq.approved',
+        tanggal_mulai: 'gte.' + currentYear + '-01-01',
+        order: 'tanggal_mulai.asc',
+        limit: 8000
+      });
+      if (!approvedLeavesReq.ok) return json(res, 500, { ok: false, message: 'Gagal ambil data leave approved.', error: approvedLeavesReq.error });
       const md = today.slice(5); // MM-DD
       const monthPrefix = today.slice(0, 7); // YYYY-MM
       const birthdaysToday = activeRows.filter(function(e) {
@@ -3242,6 +3251,32 @@ module.exports = async function handler(req, res) {
         x.items.sort(function(a1, b1) { return Number(a1.day || 0) - Number(b1.day || 0); });
         return x;
       }).sort(function(a1, b1) { return Number(a1.month || 0) - Number(b1.month || 0); });
+      const empNameMap = {};
+      activeRows.forEach(function(e) { empNameMap[String(e.employee_id || '')] = String(e.nama || ''); });
+      const leaveMonthMap = {};
+      (approvedLeavesReq.data || []).forEach(function(r) {
+        const ds = String(r.tanggal_mulai || '');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(ds)) return;
+        const m = Number(ds.slice(5, 7) || 0);
+        const day = Number(ds.slice(8, 10) || 0);
+        if (m < 1 || m > 12 || day < 1 || day > 31) return;
+        const k = String(m);
+        if (!leaveMonthMap[k]) leaveMonthMap[k] = { month: m, month_name: monthNames[m - 1], total: 0, items: [] };
+        leaveMonthMap[k].total += 1;
+        leaveMonthMap[k].items.push({
+          leave_id: String(r.leave_id || ''),
+          employee_id: String(r.employee_id || ''),
+          nama: String(empNameMap[String(r.employee_id || '')] || r.employee_id || '-'),
+          jenis_cuti: String(r.jenis_cuti || ''),
+          tanggal_mulai: String(r.tanggal_mulai || ''),
+          tanggal_selesai: String(r.tanggal_selesai || ''),
+          day: day
+        });
+      });
+      const approvedLeavesCalendar = Object.values(leaveMonthMap).map(function(x) {
+        x.items.sort(function(a1, b1) { return Number(a1.day || 0) - Number(b1.day || 0); });
+        return x;
+      }).sort(function(a1, b1) { return Number(a1.month || 0) - Number(b1.month || 0); });
       const birthdaysThisMonthCount = activeRows.filter(function(e) {
         const d = String(e.tanggal_lahir || '');
         if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
@@ -3269,12 +3304,6 @@ module.exports = async function handler(req, res) {
         const fid = String(x.folder_id || '');
         return Object.assign({}, x, { drive_url: fid ? ('https://drive.google.com/drive/folders/' + fid) : '' });
       });
-      const recommendations = [];
-      if (birthdaysToday.length > 0) recommendations.push({ priority: 'high', text: 'Kirim ucapan ulang tahun broadcast hari ini ke seluruh karyawan.', action_route: 'tower' });
-      if (missingBirthdateCount > 0) recommendations.push({ priority: 'medium', text: missingBirthdateCount + ' karyawan belum memiliki tanggal lahir valid. Lengkapi data untuk akurasi ulang tahun.', action_route: 'emp' });
-      const lowLeave = leaveBalanceRows.filter(function(x) { return Number(x.sisa_cuti || 0) <= 3; }).length;
-      if (lowLeave > 0) recommendations.push({ priority: 'medium', text: lowLeave + ' karyawan memiliki sisa cuti <= 3 hari. Perlu monitoring HR.', action_route: 'leave' });
-      if (!recommendations.length) recommendations.push({ priority: 'low', text: 'Tidak ada tindakan khusus hari ini. Lanjutkan monitoring rutin.', action_route: 'tower' });
       return json(res, 200, {
         ok: true,
         date: today,
@@ -3282,13 +3311,14 @@ module.exports = async function handler(req, res) {
           active_employees: activeRows.length,
           birthdays_today: birthdaysToday.length,
           birthdays_this_month: birthdaysThisMonthCount,
-          missing_birthdate: missingBirthdateCount
+          missing_birthdate: missingBirthdateCount,
+          approved_leaves_year: approvedLeavesReq.data ? approvedLeavesReq.data.length : 0
         },
         birthdays_today: birthdaysToday,
         birthdays_calendar: birthdaysCalendar,
+        approved_leaves_calendar: approvedLeavesCalendar,
         file_locations: fileLocations,
-        leave_balance_rows: leaveBalanceRows,
-        recommendations: recommendations
+        leave_balance_rows: leaveBalanceRows
       });
     }
 
