@@ -4171,7 +4171,7 @@ module.exports = async function handler(req, res) {
       if (!d.ok) return json(res, 500, { ok: false, message: 'Gagal ambil payroll doc.', error: d.error });
       const row = Array.isArray(d.data) && d.data[0] ? d.data[0] : null;
       if (!row) return json(res, 404, { ok: false, message: 'Payroll doc tidak ditemukan.' });
-      const em = await db('GET', 'employees', { select: 'nama', employee_id: 'eq.' + String(row.employee_id || ''), limit: 1 });
+      const em = await db('GET', 'employees', { select: 'nama,divisi,jabatan,npwp', employee_id: 'eq.' + String(row.employee_id || ''), limit: 1 });
       const employeeName = em.ok && Array.isArray(em.data) && em.data[0] ? String(em.data[0].nama || row.employee_id || 'Karyawan') : String(row.employee_id || 'Karyawan');
       const enriched = enrichPayrollDoc(row);
       if (em.ok && Array.isArray(em.data) && em.data[0]) {
