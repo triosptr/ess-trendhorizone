@@ -657,6 +657,7 @@
         const alerts=(ops&&ops.alerts)||[];
         const recs=(ops&&ops.recommendations)||[];
         const risks=(ops&&ops.top_risk_divisions)||[];
+        const noCheckinEmployees=(ops&&ops.not_checked_in_employees)||[];
         const riskCards=risks.slice(0,8).map(function(r){
           return '<div class="card report-tile report-tone-kpi"><div class="stat-label">'+escapeHtml(r.divisi||'-')+'</div><div class="stat-large">'+escapeHtml(r.late_rate||0)+'%</div><div class="muted">Total '+escapeHtml(r.total||0)+' • Telat '+escapeHtml(r.late||0)+'</div></div>';
         }).join('');
@@ -665,6 +666,9 @@
         }).join('');
         const recCards=recs.slice(0,8).map(function(r){
           return '<div class="card report-tile"><div class="stat-label">'+escapeHtml(r.priority||'-')+'</div><div style="font-weight:700;color:var(--text-main);">'+escapeHtml(r.text||'-')+'</div></div>';
+        }).join('');
+        const noCheckinCards=noCheckinEmployees.slice(0,60).map(function(e){
+          return '<div class="card report-tile report-tone-attendance"><div class="team-header"><div><div style="font-weight:700;color:var(--text-main);">'+escapeHtml(e.nama||e.employee_id||'-')+'</div><div class="muted">'+escapeHtml(e.employee_id||'-')+' • '+escapeHtml(e.divisi||'-')+'</div></div><button class="btn btn-secondary" onclick="sendCheckinAlertSingle(\''+escapeHtml(e.employee_id||'')+'\')">Send Alert</button></div><div class="muted">'+escapeHtml(e.email||'-')+'</div></div>';
         }).join('');
         const html=''
           + '<div class="report-center">'
@@ -675,6 +679,7 @@
           + '<div class="card report-tile report-tone-leave"><div class="stat-label">Pending Leaves</div><div class="stat-large" style="color:var(--danger);">'+escapeHtml(s.pending_leaves||0)+'</div></div>'
           + '<div class="card report-tile report-tone-kpi"><div class="stat-label">Late Rate Period</div><div class="stat-large">'+escapeHtml(s.late_rate_period||0)+'%</div></div>'
           + '</div>'
+          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Karyawan Belum Check-in Hari Ini</h3><div class="actions"><button class="btn btn-primary" onclick="sendCheckinAlertAll()">Send Alert ke Semua</button></div></div>'+(noCheckinCards?('<div class="report-list-grid">'+noCheckinCards+'</div>'):'<div class="report-empty">Semua karyawan aktif sudah check-in atau sedang cuti approved.</div>')+'</div>'
           + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Escalation Digest</h3><span class="status-badge '+(digest&&digest.should_escalate?'danger':'on-time')+'">'+escapeHtml((digest&&digest.should_escalate)?'Escalate':'Stable')+'</span></div><div class="stat-label" style="margin-bottom:10px;">'+escapeHtml((digest&&digest.detail)||'-')+'</div><div class="actions"><button class="btn btn-primary" onclick="publishEscalationDigest(\''+escapeHtml((digest&&digest.title)||'Ops Digest')+'\',\''+escapeHtml((digest&&digest.detail)||'')+'\')">Publish Digest</button></div></div>'
           + '<div class="grid-2" style="gap:14px;">'
           + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Rules</h3></div><div class="grid-2"><div class="form-group"><label>Check-in Gap High (%)</label><input id="ops_rule_checkin_high" type="number" min="0" max="100" value="'+escapeHtml(rules.checkin_gap_high||10)+'"></div><div class="form-group"><label>Check-in Gap Critical (%)</label><input id="ops_rule_checkin_critical" type="number" min="0" max="100" value="'+escapeHtml(rules.checkin_gap_critical||25)+'"></div><div class="form-group"><label>Pending Leaves Medium</label><input id="ops_rule_pending_medium" type="number" min="0" max="999" value="'+escapeHtml(rules.pending_leaves_medium||5)+'"></div><div class="form-group"><label>Pending Leaves Critical</label><input id="ops_rule_pending_critical" type="number" min="0" max="999" value="'+escapeHtml(rules.pending_leaves_critical||15)+'"></div><div class="form-group"><label>Late Rate High (%)</label><input id="ops_rule_late_high" type="number" min="0" max="100" value="'+escapeHtml(rules.late_rate_high||20)+'"></div><div class="form-group"><label>Division Risk Medium (%)</label><input id="ops_rule_div_risk" type="number" min="0" max="100" value="'+escapeHtml(rules.division_risk_medium||20)+'"></div></div><div class="actions"><button class="btn btn-primary" onclick="saveOperationsRules()">Save Rules</button></div></div>'
@@ -686,6 +691,24 @@
           + '</div>'
           + '</div>';
         setContent(html);
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    async function sendCheckinAlertAll(){
+      try{
+        const ok=confirm('Kirim alert email ke semua karyawan yang belum check-in hari ini?');
+        if(!ok) return;
+        const r=await api('/api/admin/operations-intelligence/checkin-alert','POST',{});
+        alert('Alert check-in selesai. Target: '+Number((r&&r.target_count)||0)+', Terkirim: '+Number((r&&r.sent_count)||0)+', Gagal: '+Number((r&&r.failed_count)||0));
+        await loadOperationsIntelligenceCenter();
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    async function sendCheckinAlertSingle(employeeId){
+      try{
+        const id=String(employeeId||'').trim();
+        if(!id) throw new Error('employee_id tidak valid.');
+        const r=await api('/api/admin/operations-intelligence/checkin-alert','POST',{ employee_ids:[id] });
+        alert('Alert '+id+' -> terkirim '+Number((r&&r.sent_count)||0)+', gagal '+Number((r&&r.failed_count)||0));
+        await loadOperationsIntelligenceCenter();
       }catch(err){ setContent(renderError(err.message)); }
     }
 

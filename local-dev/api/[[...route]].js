@@ -4071,6 +4071,63 @@ module.exports = async function handler(req, res) {
       return json(res, 200, { ok: true, message: 'Auto-announcement berhasil dibuat.', data: ins.data });
     }
 
+    if (path === 'admin/operations-intelligence/checkin-alert' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      const today = ymd();
+      const rEmp = await db('GET', 'employees', { select: 'employee_id,nama,email,divisi,jabatan,is_active', order: 'employee_id.asc', limit: 5000 });
+      const rToday = await db('GET', 'attendance', { select: 'employee_id', tanggal: 'eq.' + today, limit: 10000 });
+      const rLeavesApprovedToday = await db('GET', 'leave_requests', {
+        select: 'employee_id',
+        status: 'eq.approved',
+        and: '(tanggal_mulai.lte.' + today + ',tanggal_selesai.gte.' + today + ')',
+        limit: 5000
+      });
+      if (!rEmp.ok || !rToday.ok || !rLeavesApprovedToday.ok) {
+        const err = !rEmp.ok ? rEmp.error : (!rToday.ok ? rToday.error : rLeavesApprovedToday.error);
+        return json(res, 500, { ok: false, message: 'Gagal menyiapkan daftar alert check-in.', error: err });
+      }
+      const idsReq = Array.isArray(b.employee_ids) ? b.employee_ids.map(function(x) { return String(x || '').trim(); }).filter(Boolean) : [];
+      const idsSetReq = new Set(idsReq);
+      const todaySet = new Set((rToday.data || []).map(function(x) { return String(x.employee_id || ''); }).filter(Boolean));
+      const approvedLeaveSet = new Set((rLeavesApprovedToday.data || []).map(function(x) { return String(x.employee_id || ''); }).filter(Boolean));
+      const baseTargets = (rEmp.data || []).filter(function(e) {
+        const id = String(e.employee_id || '');
+        if (!id) return false;
+        if (String(e.is_active).toLowerCase() !== 'true') return false;
+        if (todaySet.has(id)) return false;
+        if (approvedLeaveSet.has(id)) return false;
+        return true;
+      });
+      const targets = idsSetReq.size ? baseTargets.filter(function(e) { return idsSetReq.has(String(e.employee_id || '')); }) : baseTargets;
+      let sent = 0;
+      const failed = [];
+      const app = appBaseUrl();
+      for (const e of targets) {
+        const email = String(e.email || '').trim().toLowerCase();
+        if (!isValidEmail(email)) { failed.push({ employee_id: e.employee_id, reason: 'email_tidak_valid' }); continue; }
+        const html = leaveMailTemplate('Reminder Check-in ESS', [
+          'Halo ' + String(e.nama || e.employee_id) + ',',
+          'Sampai saat ini sistem belum mencatat check-in Anda untuk tanggal <b>' + today + '</b>.',
+          'Silakan login ESS dan lakukan check-in sesuai jadwal kerja.',
+          'Akses ESS: <a href="' + app + '/employee">' + app + '/employee</a>'
+        ]);
+        const rs = await sendEssEmail(email, 'Reminder Check-in ESS - ' + today, html);
+        if (rs && rs.sent) sent += 1;
+        else failed.push({ employee_id: e.employee_id, reason: 'gagal_kirim_email' });
+      }
+      await auditLog(a.email, 'CREATE', 'ops_checkin_alert', 'Send checkin alert total=' + String(targets.length) + ', sent=' + String(sent), String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, {
+        ok: true,
+        message: 'Pengiriman alert check-in selesai.',
+        date: today,
+        target_count: targets.length,
+        sent_count: sent,
+        failed_count: failed.length,
+        failed: failed
+      });
+    }
+
     if (path === 'admin/operations-intelligence/escalation-digest' && method === 'GET') {
       const a = requireAdmin(req, res); if (!a) return;
       const today = ymd();
@@ -4126,17 +4183,23 @@ module.exports = async function handler(req, res) {
       const startDate = String(req.query.start_date || dateShift(today, -13)).trim();
       const endDate = String(req.query.end_date || today).trim();
       const rCfg = await db('GET', 'config', { select: 'key,value', key: 'in.(LATE_AFTER_TIME,OPS_CHECKIN_GAP_HIGH,OPS_CHECKIN_GAP_CRITICAL,OPS_PENDING_LEAVES_MEDIUM,OPS_PENDING_LEAVES_CRITICAL,OPS_LATE_RATE_HIGH,OPS_DIVISION_RISK_MEDIUM)', limit: 100 });
-      const rEmp = await db('GET', 'employees', { select: 'employee_id,nama,divisi,jabatan,is_active', order: 'employee_id.asc', limit: 5000 });
+      const rEmp = await db('GET', 'employees', { select: 'employee_id,nama,email,divisi,jabatan,is_active', order: 'employee_id.asc', limit: 5000 });
       const rToday = await db('GET', 'attendance', { select: 'employee_id,jam_masuk,jam_keluar,status,tanggal', tanggal: 'eq.' + today, order: 'created_at.desc', limit: 10000 });
       const rLeavesPending = await db('GET', 'leave_requests', { select: 'leave_id,employee_id,jenis_cuti,tanggal_mulai,tanggal_selesai,status,created_at', status: 'eq.pending', order: 'created_at.desc', limit: 5000 });
+      const rLeavesApprovedToday = await db('GET', 'leave_requests', {
+        select: 'employee_id',
+        status: 'eq.approved',
+        and: '(tanggal_mulai.lte.' + today + ',tanggal_selesai.gte.' + today + ')',
+        limit: 5000
+      });
       const rAttendancePeriod = await db('GET', 'attendance', {
         select: 'employee_id,tanggal,jam_masuk,status',
         order: 'tanggal.asc,created_at.asc',
         limit: 30000,
         and: '(tanggal.gte.' + startDate + ',tanggal.lte.' + endDate + ')'
       });
-      if (!rCfg.ok || !rEmp.ok || !rToday.ok || !rLeavesPending.ok || !rAttendancePeriod.ok) {
-        const err = !rCfg.ok ? rCfg.error : !rEmp.ok ? rEmp.error : !rToday.ok ? rToday.error : !rLeavesPending.ok ? rLeavesPending.error : rAttendancePeriod.error;
+      if (!rCfg.ok || !rEmp.ok || !rToday.ok || !rLeavesPending.ok || !rLeavesApprovedToday.ok || !rAttendancePeriod.ok) {
+        const err = !rCfg.ok ? rCfg.error : !rEmp.ok ? rEmp.error : !rToday.ok ? rToday.error : !rLeavesPending.ok ? rLeavesPending.error : (!rLeavesApprovedToday.ok ? rLeavesApprovedToday.error : rAttendancePeriod.error);
         return json(res, 500, { ok: false, message: 'Gagal menghitung operations intelligence.', error: err });
       }
       const cfgMap = {};
@@ -4157,8 +4220,24 @@ module.exports = async function handler(req, res) {
       emps.forEach(function(e) { empMap[String(e.employee_id || '')] = e; });
       const todayMap = {};
       todayRows.forEach(function(r) { if (!todayMap[r.employee_id]) todayMap[r.employee_id] = r; });
-      const checkedInCount = Object.keys(todayMap).length;
-      const noCheckInCount = Math.max(0, activeEmployees.length - checkedInCount);
+      const approvedLeaveSet = new Set((rLeavesApprovedToday.data || []).map(function(x) { return String(x.employee_id || ''); }).filter(Boolean));
+      const noCheckInEmployees = activeEmployees.filter(function(e) {
+        const id = String(e.employee_id || '');
+        if (!id) return false;
+        if (todayMap[id]) return false;
+        if (approvedLeaveSet.has(id)) return false;
+        return true;
+      }).map(function(e) {
+        return {
+          employee_id: String(e.employee_id || ''),
+          nama: String(e.nama || ''),
+          email: String(e.email || ''),
+          divisi: String(e.divisi || ''),
+          jabatan: String(e.jabatan || '')
+        };
+      });
+      const checkedInCount = activeEmployees.length - noCheckInEmployees.length;
+      const noCheckInCount = noCheckInEmployees.length;
       const noCheckInRate = activeEmployees.length > 0 ? Math.round((noCheckInCount / activeEmployees.length) * 10000) / 100 : 0;
       let lateCountPeriod = 0;
       const divLate = {};
@@ -4208,6 +4287,7 @@ module.exports = async function handler(req, res) {
           late_rate_period: periodLateRate,
           late_after_time: lateAfter
         },
+        not_checked_in_employees: noCheckInEmployees,
         rules: {
           checkin_gap_high: thCheckinHigh,
           checkin_gap_critical: thCheckinCritical,
