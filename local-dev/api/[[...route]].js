@@ -2695,10 +2695,12 @@ module.exports = async function handler(req, res) {
       const finalJatah = patch.jatah_cuti !== undefined ? Number(patch.jatah_cuti) : Number(current.jatah_cuti || 0);
       const finalSisa = patch.sisa_cuti !== undefined ? Number(patch.sisa_cuti) : Number(current.sisa_cuti || 0);
       if (finalSisa > finalJatah) return json(res, 400, { ok: false, message: 'Sisa cuti tidak boleh lebih besar dari jatah cuti.' });
-      const finalDivisi = patch.divisi !== undefined ? patch.divisi : String(current.divisi || '');
-      const finalJabatan = patch.jabatan !== undefined ? patch.jabatan : String(current.jabatan || '');
-      const vdp = await validateDivisionAndPosition(finalDivisi, finalJabatan);
-      if (!vdp.ok) return json(res, 400, { ok: false, message: vdp.message, error: vdp.error });
+      if (patch.divisi !== undefined || patch.jabatan !== undefined) {
+        const finalDivisi = patch.divisi !== undefined ? patch.divisi : String(current.divisi || '');
+        const finalJabatan = patch.jabatan !== undefined ? patch.jabatan : String(current.jabatan || '');
+        const vdp = await validateDivisionAndPosition(finalDivisi, finalJabatan);
+        if (!vdp.ok) return json(res, 400, { ok: false, message: vdp.message, error: vdp.error });
+      }
       if (Object.keys(patch).length <= 1) return json(res, 400, { ok: false, message: 'Tidak ada field yang diupdate.' });
       const upd = await db('PATCH', 'employees', { employee_id: 'eq.' + employeeId }, patch, { Prefer: 'return=representation' });
       if (!upd.ok) return json(res, 500, { ok: false, message: 'Gagal update employee.', error: upd.error });
