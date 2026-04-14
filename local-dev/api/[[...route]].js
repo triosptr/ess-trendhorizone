@@ -1200,8 +1200,6 @@ function payrollPdfBuffer(payrollDoc, employeeName) {
   const rightColInfoX = midX + 10;
   text(rightColInfoX, infoY, 9, 'Department', true); text(rightColInfoX + 80, infoY, 9, ': ' + String(d.divisi || '-'), false);
   text(rightColInfoX, infoY - lh, 9, 'Position', true); text(rightColInfoX + 80, infoY - lh, 9, ': ' + String(d.jabatan || '-'), false);
-  text(rightColInfoX, infoY - lh*2, 9, 'Grade', true); text(rightColInfoX + 80, infoY - lh*2, 9, ': -', false);
-  text(rightColInfoX, infoY - lh*3, 9, 'Work Location', true); text(rightColInfoX + 80, infoY - lh*3, 9, ': -', false);
 
   // Table Setup
   const startY = 620;
