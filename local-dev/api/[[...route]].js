@@ -1058,24 +1058,25 @@ function simplePdfBuffer(title, rows) {
 }
 function payrollPdfBuffer(payrollDoc, employeeName) {
   const d = payrollDoc || {};
-  const earn = ((d.breakdown && d.breakdown.earnings) || []).map(function(x) { return String(x.name || '-') + ' : ' + String(toMoney(x.value || 0)); });
-  const ded = ((d.breakdown && d.breakdown.deductions) || []).map(function(x) { return String(x.name || '-') + ' : ' + String(toMoney(x.value || 0)); });
+  const money = function(v) { return 'Rp ' + Number(toMoney(v)).toLocaleString('id-ID'); };
+  const earn = ((d.breakdown && d.breakdown.earnings) || []).filter(function(x) { return Number(x.value || 0) !== 0; }).map(function(x) { return String(x.name || '-') + ' : ' + money(x.value || 0); });
+  const ded = ((d.breakdown && d.breakdown.deductions) || []).filter(function(x) { return Number(x.value || 0) !== 0; }).map(function(x) { return String(x.name || '-') + ' : ' + money(x.value || 0); });
   const lines = [];
-  lines.push('Company: Tren Gen Horizon');
-  lines.push('Payroll Period: ' + String(d.bulan || '-') + ' ' + String(d.tahun || '-'));
-  lines.push('Employee ID: ' + String(d.employee_id || '-'));
-  lines.push('Employee Name: ' + String(employeeName || '-'));
-  lines.push('----------------------------------------');
-  lines.push('EARNINGS');
+  lines.push('TREND HORIZON - PAYSLIP');
+  lines.push('Periode Gaji : ' + String(d.bulan || '-') + ' ' + String(d.tahun || '-'));
+  lines.push('Employee ID  : ' + String(d.employee_id || '-'));
+  lines.push('Nama Karyawan: ' + String(employeeName || '-'));
+  lines.push('--------------------------------------------------');
+  lines.push('PENDAPATAN');
   earn.forEach(function(x) { lines.push(x); });
-  lines.push('----------------------------------------');
-  lines.push('DEDUCTIONS');
+  lines.push('--------------------------------------------------');
+  lines.push('POTONGAN');
   ded.forEach(function(x) { lines.push(x); });
-  lines.push('----------------------------------------');
-  lines.push('Total Income: ' + String(toMoney(d.total_earning || 0)));
-  lines.push('Total Deduction: ' + String(toMoney(d.total_deduction || 0)));
-  lines.push('Take Home Pay: ' + String(toMoney(d.net_salary || 0)));
-  lines.push('This is system generated message and requires no signature');
+  lines.push('--------------------------------------------------');
+  lines.push('Total Pendapatan : ' + money(d.total_earning || 0));
+  lines.push('Total Potongan   : ' + money(d.total_deduction || 0));
+  lines.push('Take Home Pay    : ' + money(d.net_salary || 0));
+  lines.push('Dokumen ini dibuat otomatis oleh sistem ESS.');
   return simplePdfBuffer('Payslip ' + String(d.bulan || '-') + ' ' + String(d.tahun || '-'), lines);
 }
 async function getEmployeeDisplayName(user) {
@@ -3790,6 +3791,129 @@ module.exports = async function handler(req, res) {
       const out = await db('GET', 'payroll_docs', { select: '*', doc_id: 'eq.' + String(payload.doc_id), limit: 1 });
       const data = out.ok ? (out.data || []) : (ins.data || []);
       return json(res, 200, { ok: true, message: 'Payroll doc berhasil dibuat.', data: data.map(enrichPayrollDoc) });
+    }
+
+    if (path === 'admin/payroll/import-csv' && method === 'POST') {
+      const a = requireAdmin(req, res); if (!a) return;
+      const b = await readBody(req);
+      let csvText = String(b.csv_text || '').trim();
+      if (!csvText && b.csv_base64) {
+        try { csvText = Buffer.from(String(b.csv_base64 || ''), 'base64').toString('utf8'); } catch (_) { csvText = ''; }
+      }
+      if (!csvText) return json(res, 400, { ok: false, message: 'CSV kosong.' });
+      const rows = csvRowsToObjects(csvText);
+      if (!rows.length) return json(res, 400, { ok: false, message: 'CSV tidak memiliki data baris.' });
+      const headers = Object.keys(rows[0] || {});
+      const normalize = function(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); };
+      const hmap = {};
+      headers.forEach(function(h) { hmap[normalize(h)] = h; });
+      const need = [
+        'employee id number', 'full name', 'ktp number', 'basic salary', 'bonus',
+        'transportation allowance', 'role based allowance', 'thr',
+        'bpjs kesehatan perusahaan 4 deduction', 'bpjs kesehatan karyawan 1 deduction',
+        'jht 3 7 by company deduction', 'jht 2 by employee deduction',
+        'jaminan pensiun 2 perusahaan deduction', 'jaminan pensiun 1 karyawan deduction',
+        'jkk 0 24 deduction', 'jkm 0 3 deduction', 'tax', 'take home pay'
+      ];
+      const missingHeader = need.filter(function(k) { return !hmap[k]; });
+      if (missingHeader.length) return json(res, 400, { ok: false, message: 'Header CSV belum sesuai.', missing_headers: missingHeader });
+      const now = new Date();
+      const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const defaultMonth = prev.toLocaleString('id-ID', { month: 'long' });
+      const defaultYear = String(prev.getFullYear());
+      const bulan = String(b.bulan || defaultMonth).trim();
+      const tahun = String(b.tahun || defaultYear).trim();
+      const parseNum = function(v) {
+        const s = String(v || '').replace(/\s+/g, '').replace(/\./g, '').replace(/,/g, '.').replace(/[^0-9.\-]/g, '');
+        const n = Number(s || 0);
+        return Number.isFinite(n) ? n : 0;
+      };
+      const activeEmployees = await db('GET', 'employees', { select: 'employee_id,nama,email', limit: 5000 });
+      if (!activeEmployees.ok) return json(res, 500, { ok: false, message: 'Gagal ambil data karyawan.', error: activeEmployees.error });
+      const empMap = {};
+      (activeEmployees.data || []).forEach(function(e) { empMap[String(e.employee_id || '').trim()] = e; });
+      const result = { period: { bulan: bulan, tahun: tahun }, total_rows: rows.length, inserted: 0, updated: 0, failed: 0, details: [] };
+      for (const row of rows) {
+        const employeeId = String(row[hmap['employee id number']] || '').trim();
+        const fullName = String(row[hmap['full name']] || '').trim();
+        const ktp = String(row[hmap['ktp number']] || '').trim();
+        if (!employeeId) { result.failed += 1; result.details.push({ employee_id: '', status: 'failed', reason: 'employee_id_kosong' }); continue; }
+        const emp = empMap[employeeId] || null;
+        const email = String((emp && emp.email) || '').trim().toLowerCase();
+        if (!isValidEmail(email)) { result.failed += 1; result.details.push({ employee_id: employeeId, status: 'failed', reason: 'email_karyawan_tidak_valid' }); continue; }
+        const components = [
+          { name: 'Basic Salary', type: 'EARNING', category: 'FIXED', value: parseNum(row[hmap['basic salary']]) },
+          { name: 'Bonus / Incentive', type: 'EARNING', category: 'VARIABLE', value: parseNum(row[hmap['bonus']]) },
+          { name: 'Transport Allowance', type: 'EARNING', category: 'FIXED', value: parseNum(row[hmap['transportation allowance']]) },
+          { name: 'Allowance', type: 'EARNING', category: 'FIXED', value: parseNum(row[hmap['role based allowance']]) },
+          { name: 'THR', type: 'EARNING', category: 'VARIABLE', value: parseNum(row[hmap['thr']]) },
+          { name: 'BPJS KESEHATAN PERUSAHAAN 4% DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE', value: parseNum(row[hmap['bpjs kesehatan perusahaan 4 deduction']]) },
+          { name: 'BPJS KESEHATAN KARYAWAN 1% DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE', value: parseNum(row[hmap['bpjs kesehatan karyawan 1 deduction']]) },
+          { name: 'JHT 3.7% BY COMPANY DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE', value: parseNum(row[hmap['jht 3 7 by company deduction']]) },
+          { name: 'JHT 2% BY EMPLOYEE DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE', value: parseNum(row[hmap['jht 2 by employee deduction']]) },
+          { name: 'JAMINAN PENSIUN 2% PERUSAHAAN DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE', value: parseNum(row[hmap['jaminan pensiun 2 perusahaan deduction']]) },
+          { name: 'JAMINAN PENSIUN 1% KARYAWAN DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE', value: parseNum(row[hmap['jaminan pensiun 1 karyawan deduction']]) },
+          { name: 'JKK 0.24% DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE', value: parseNum(row[hmap['jkk 0 24 deduction']]) },
+          { name: 'JKM 0.3% DEDUCTION', type: 'DEDUCTION', category: 'VARIABLE', value: parseNum(row[hmap['jkm 0 3 deduction']]) },
+          { name: 'Tax (PPh21)', type: 'DEDUCTION', category: 'VARIABLE', value: parseNum(row[hmap['tax']]) }
+        ];
+        const thpCsv = parseNum(row[hmap['take home pay']]);
+        const calc = payrollEngine({ employee_id: employeeId, components: components, context: {} });
+        if (Array.isArray(calc.errors) && calc.errors.length) { result.failed += 1; result.details.push({ employee_id: employeeId, status: 'failed', reason: calc.errors[0] }); continue; }
+        let payrollOut = calc;
+        const diff = toMoney(thpCsv - Number(calc.net_salary || 0));
+        if (Math.abs(diff) >= 1) {
+          const adjComp = components.concat([{ name: 'CSV Adjustment', type: diff > 0 ? 'EARNING' : 'DEDUCTION', category: 'VARIABLE', value: Math.abs(diff) }]);
+          payrollOut = payrollEngine({ employee_id: employeeId, components: adjComp, context: {} });
+        }
+        const payload = {
+          doc_id: rid('PAY'),
+          employee_id: employeeId,
+          email: email,
+          bulan: bulan,
+          tahun: tahun,
+          nama_file: 'Slip Gaji ' + bulan + ' ' + tahun + ' - ' + String((emp && emp.nama) || fullName || employeeId),
+          file_url: '',
+          keterangan: composePayrollKeterangan('Import CSV payroll', {
+            version: 3,
+            employee_id: employeeId,
+            csv_source: { full_name: fullName, ktp_number: ktp, take_home_pay_csv: thpCsv },
+            components: payrollOut.breakdown.earnings.concat(payrollOut.breakdown.deductions),
+            payroll_output: payrollOut
+          }),
+          uploaded_at: nowIso()
+        };
+        const dup = await db('GET', 'payroll_docs', { select: '*', employee_id: 'eq.' + employeeId, bulan: 'eq.' + bulan, tahun: 'eq.' + tahun, limit: 1 });
+        if (!dup.ok) { result.failed += 1; result.details.push({ employee_id: employeeId, status: 'failed', reason: 'gagal_cek_duplikasi' }); continue; }
+        let stored = null;
+        let status = 'inserted';
+        if (Array.isArray(dup.data) && dup.data[0]) {
+          const docId = String(dup.data[0].doc_id || '');
+          const patch = await db('PATCH', 'payroll_docs', { doc_id: 'eq.' + docId }, {
+            email: payload.email,
+            nama_file: payload.nama_file,
+            keterangan: payload.keterangan,
+            uploaded_at: payload.uploaded_at
+          }, { Prefer: 'return=representation' });
+          if (!patch.ok || !Array.isArray(patch.data) || !patch.data[0]) { result.failed += 1; result.details.push({ employee_id: employeeId, status: 'failed', reason: 'gagal_update_doc' }); continue; }
+          stored = patch.data[0];
+          status = 'updated';
+        } else {
+          const ins = await db('POST', 'payroll_docs', null, payload, { Prefer: 'return=representation' });
+          if (!ins.ok || !Array.isArray(ins.data) || !ins.data[0]) { result.failed += 1; result.details.push({ employee_id: employeeId, status: 'failed', reason: 'gagal_insert_doc' }); continue; }
+          stored = ins.data[0];
+          status = 'inserted';
+        }
+        const enriched = enrichPayrollDoc(stored);
+        const pdf = payrollPdfBuffer(enriched, String((emp && emp.nama) || fullName || employeeId));
+        const pdfName = toSafeFileToken('payslip_' + bulan + '_' + tahun + '_' + String((emp && emp.nama) || fullName || employeeId), 'payslip') + '.pdf';
+        const pdfUrl = await uploadBufferToDrive(pdfName, 'application/pdf', pdf, payrollDriveFolderId());
+        if (pdfUrl) await db('PATCH', 'payroll_docs', { doc_id: 'eq.' + String(stored.doc_id || '') }, { file_url: pdfUrl }, { Prefer: 'return=minimal' });
+        if (status === 'inserted') result.inserted += 1; else result.updated += 1;
+        result.details.push({ employee_id: employeeId, status: status, file_url: pdfUrl || '' });
+      }
+      await auditLog(a.email, 'IMPORT', 'payroll_docs', 'Import payroll CSV period ' + bulan + ' ' + tahun + ' rows=' + String(rows.length), String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
+      return json(res, 200, { ok: true, message: 'Import payroll CSV selesai.', result: result });
     }
 
     if (path === 'admin/payroll/calculate' && method === 'POST') {

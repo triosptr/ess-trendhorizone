@@ -2263,59 +2263,58 @@
     }
     async function loadPayrollDocs(){
       try{
-        setLoading();
+        setLoading('Memuat Payroll Command Center...');
         const period=currentPayrollPeriod();
         const fBulan=String((document.getElementById('pay_filter_bulan')||{}).value||period.bulan).trim();
         const fTahun=String((document.getElementById('pay_filter_tahun')||{}).value||period.tahun).trim();
         const fKeyword=String((document.getElementById('pay_filter_keyword')||{}).value||'').trim();
         const q='/api/admin/payroll-docs?limit=400&bulan='+encodeURIComponent(fBulan)+'&tahun='+encodeURIComponent(fTahun)+(fKeyword?'&keyword='+encodeURIComponent(fKeyword):'');
         const [rows,summary]=await Promise.all([api(q),api('/api/admin/payroll/summary?bulan='+encodeURIComponent(fBulan)+'&tahun='+encodeURIComponent(fTahun))]);
-        await loadPayrollEmployees().catch(function(){ return []; });
-        const options=payrollEmployeeSelectOptions('');
         const s=(summary&&summary.summary)||{};
-        const missing=((summary&&summary.missing_employees)||[]).slice(0,8);
-        const missingList=missing.map(function(x){ return '<li><div class="list-text"><span class="list-title">'+escapeHtml(x.nama||x.employee_id||'-')+'</span><span class="list-desc">'+escapeHtml((x.employee_id||'-')+' • '+(x.divisi||'-'))+'</span></div></li>'; }).join('') || '<li><div class="list-text"><span class="list-desc">Semua karyawan aktif sudah punya slip.</span></div></li>';
+        const missing=((summary&&summary.missing_employees)||[]).slice(0,12);
+        const missingList=missing.map(function(x){ return '<div class="bday-person-chip"><div class="bday-person-name">'+escapeHtml(x.nama||x.employee_id||'-')+'</div><div class="bday-person-sub">'+escapeHtml((x.employee_id||'-')+' • '+(x.divisi||'-'))+'</div></div>'; }).join('') || '<div class="report-empty">Semua karyawan aktif sudah punya slip.</div>';
         const tableRows=((rows||[]).map(function(r){
           return '<tr><td>'+escapeHtml(r.doc_id)+'</td><td>'+escapeHtml((r.employee_id||'-')+' • '+(r.email||'-'))+'</td><td>'+escapeHtml(r.bulan||'-')+'</td><td>'+escapeHtml(r.tahun||'-')+'</td><td>'+escapeHtml(moneyId(r.total_pendapatan||0))+'</td><td>'+escapeHtml(moneyId(r.total_potongan||0))+'</td><td>'+escapeHtml(moneyId(r.take_home_pay||0))+'</td><td>'+escapeHtml(formatDateTimeDisplay(r.uploaded_at)||'-')+'</td><td><div class="actions" style="margin-top:0;"><a class="btn btn-secondary" href="'+escapeHtml(r.file_url||'#')+'" target="_blank">Buka</a><button class="btn btn-primary" onclick="exportPayrollPdf(\''+escapeHtml(r.doc_id||'')+'\')">PDF</button></div></td></tr>';
         }).join('')||'<tr><td colspan="9">Tidak ada data</td></tr>');
-        setContent(payrollRenderer('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Payroll Command Center</h3><div class="actions"><button class="btn btn-primary" onclick="submitPayrollDoc()"><i class="ph ph-upload-simple"></i> Simpan Payroll</button><button class="btn btn-secondary" onclick="loadMasterDataHub()">Back</button></div></div><div class="cards-row" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom:16px;"><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Active Employees</div><div class="stat-large">'+escapeHtml(s.active_employees||0)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Covered</div><div class="stat-large">'+escapeHtml(s.covered_employees||0)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Missing</div><div class="stat-large" style="color:var(--warning);">'+escapeHtml(s.missing_employees||0)+'</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Completion</div><div class="stat-large">'+escapeHtml(s.completion_rate||0)+'%</div></div><div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Total THP</div><div class="stat-large">'+escapeHtml(moneyId(s.total_take_home_pay||0))+'</div></div></div><div class="grid-2"><div class="form-group"><label>Filter Bulan</label><input id="pay_filter_bulan" value="'+escapeHtml(fBulan)+'"></div><div class="form-group"><label>Filter Tahun</label><input id="pay_filter_tahun" value="'+escapeHtml(fTahun)+'"></div><div class="form-group"><label>Filter Keyword</label><input id="pay_filter_keyword" value="'+escapeHtml(fKeyword)+'" placeholder="doc id / employee / email / file"></div><div class="form-group"><label> </label><button class="btn btn-secondary" onclick="loadPayrollDocs()">Apply Filter</button></div></div><div class="grid-2"><div><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Upload Payroll Slip</h3></div><div class="grid-2"><div class="form-group"><label>Employee</label><select id="pay_emp_id" onchange="syncPayrollEmployeeEmail()"><option value="">-- Pilih Karyawan --</option>'+options+'</select></div><div class="form-group"><label>Email</label><input id="pay_email" readonly></div><div class="form-group"><label>Bulan</label><input id="pay_bulan" value="'+escapeHtml(fBulan)+'"></div><div class="form-group"><label>Tahun</label><input id="pay_tahun" value="'+escapeHtml(fTahun)+'"></div><div class="form-group"><label>Nama File</label><input id="pay_nama_file" placeholder="Slip Gaji '+escapeHtml(fBulan)+' '+escapeHtml(fTahun)+'"></div><div class="form-group"><label>File URL (Opsional)</label><input id="pay_file_url" placeholder="Kosongkan, sistem simpan otomatis ke Google Drive"></div><div class="form-group"><label>Basic Salary</label><input id="pay_gaji_pokok" type="number" min="0" value="0"></div><div class="form-group"><label>Allowance</label><input id="pay_tunjangan" type="number" min="0" value="0"></div><div class="form-group"><label>Transport Allowance</label><input id="pay_transport_allowance" type="number" min="0" value="0"></div><div class="form-group"><label>Meal Allowance</label><input id="pay_meal_allowance" type="number" min="0" value="0"></div><div class="form-group"><label>Overtime Pay</label><input id="pay_lembur" type="number" min="0" value="0"></div><div class="form-group"><label>Bonus / Incentive</label><input id="pay_bonus" type="number" min="0" value="0"></div><div class="form-group"><label>Attendance Allowance</label><input id="pay_attendance_allowance" type="number" min="0" value="0"></div><div class="form-group"><label>THR</label><input id="pay_thr" type="number" min="0" value="0"></div><div class="form-group"><label>Tax (PPh21)</label><input id="pay_pot_pajak" type="number" min="0" value="0"></div><div class="form-group"><label>BPJS Kesehatan</label><input id="pay_bpjs_kes" type="number" min="0" value="0"></div><div class="form-group"><label>BPJS Ketenagakerjaan</label><input id="pay_bpjs_ket" type="number" min="0" value="0"></div><div class="form-group"><label>Penalty / Deduction</label><input id="pay_penalty_deduction" type="number" min="0" value="0"></div><div class="form-group"><label>Late Deduction</label><input id="pay_late_deduction" type="number" min="0" value="0"></div><div class="form-group"><label>Absence Deduction</label><input id="pay_absence_deduction" type="number" min="0" value="0"></div><div class="form-group"><label>Other Deduction</label><input id="pay_pot_lain" type="number" min="0" value="0"></div></div><div class="form-group"><label>Keterangan</label><textarea id="pay_keterangan" placeholder="Opsional"></textarea></div></div><div><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Karyawan Belum Ada Slip</h3></div><ul class="clean-list">'+missingList+'</ul></div></div><div class="table-wrap"><table><thead><tr><th>Doc ID</th><th>Employee</th><th>Bulan</th><th>Tahun</th><th>Pendapatan</th><th>Potongan</th><th>Take Home Pay</th><th>Uploaded</th><th>Aksi</th></tr></thead><tbody>'+tableRows+'</tbody></table></div></div>'));
+        const defaultPeriodHint='Catatan: gaji tanggal 1 diproses untuk bulan sebelumnya.';
+        setContent(payrollRenderer(
+          '<div class="report-center">'
+          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Payroll Command Center</h3><div class="actions"><button class="btn btn-primary" onclick="submitPayrollCsvImport()"><i class="ph ph-upload-simple"></i> Import CSV & Generate Payslip</button><button class="btn btn-secondary" onclick="loadMasterDataHub()">Back</button></div></div><div class="stat-label">'+defaultPeriodHint+'</div></div>'
+          + '<div class="report-kpi-grid"><div class="card report-tile report-tone-kpi"><div class="stat-label">Active Employees</div><div class="stat-large">'+escapeHtml(s.active_employees||0)+'</div></div><div class="card report-tile report-tone-kpi"><div class="stat-label">Covered</div><div class="stat-large">'+escapeHtml(s.covered_employees||0)+'</div></div><div class="card report-tile report-tone-kpi"><div class="stat-label">Missing</div><div class="stat-large" style="color:var(--warning);">'+escapeHtml(s.missing_employees||0)+'</div></div><div class="card report-tile report-tone-kpi"><div class="stat-label">Completion</div><div class="stat-large">'+escapeHtml(s.completion_rate||0)+'%</div></div><div class="card report-tile report-tone-kpi"><div class="stat-label">Total THP</div><div class="stat-large">'+escapeHtml(moneyId(s.total_take_home_pay||0))+'</div></div></div>'
+          + '<div class="grid-2" style="gap:14px;align-items:start;">'
+          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Import CSV Payroll</h3></div><div class="grid-2"><div class="form-group"><label>Bulan Payroll</label><input id="pay_bulan" value="'+escapeHtml(fBulan)+'"></div><div class="form-group"><label>Tahun Payroll</label><input id="pay_tahun" value="'+escapeHtml(fTahun)+'"></div></div><div class="form-group"><label>Upload CSV</label><input id="pay_csv_file" type="file" accept=\".csv,text/csv\"></div><div class="form-group"><label>Preview CSV (opsional, auto terisi)</label><textarea id="pay_csv_text" placeholder=\"Paste CSV di sini jika tidak upload file\"></textarea></div><div class="actions"><button class="btn btn-primary" onclick="submitPayrollCsvImport()">Proses Import</button><button class="btn btn-secondary" onclick="loadPayrollDocs()">Refresh</button></div></div>'
+          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Karyawan Belum Ada Slip</h3></div><div class="bday-person-grid">'+missingList+'</div></div>'
+          + '</div>'
+          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Data Payroll Tersimpan</h3></div><div class="grid-3"><div class="form-group"><label>Filter Bulan</label><input id="pay_filter_bulan" value="'+escapeHtml(fBulan)+'"></div><div class="form-group"><label>Filter Tahun</label><input id="pay_filter_tahun" value="'+escapeHtml(fTahun)+'"></div><div class="form-group"><label>Filter Keyword</label><input id="pay_filter_keyword" value="'+escapeHtml(fKeyword)+'" placeholder="doc id / employee / email / file"></div></div><div class="actions" style="margin-bottom:10px;"><button class="btn btn-secondary" onclick="loadPayrollDocs()">Apply Filter</button></div><div class="table-wrap"><table><thead><tr><th>Doc ID</th><th>Employee</th><th>Bulan</th><th>Tahun</th><th>Pendapatan</th><th>Potongan</th><th>Take Home Pay</th><th>Uploaded</th><th>Aksi</th></tr></thead><tbody>'+tableRows+'</tbody></table></div></div>'
+          + '</div>'
+        ));
+        const fi=document.getElementById('pay_csv_file');
+        if(fi && !fi.dataset.bound){
+          fi.dataset.bound='1';
+          fi.addEventListener('change', async function(ev){
+            try{
+              const f=(ev.target.files||[])[0];
+              if(!f) return;
+              const text=await f.text();
+              const ta=document.getElementById('pay_csv_text');
+              if(ta) ta.value=text;
+            }catch(_){}
+          });
+        }
       }catch(err){ setContent(renderError(err.message)); }
     }
     async function submitPayrollDoc(){
+      return submitPayrollCsvImport();
+    }
+    async function submitPayrollCsvImport(){
       try{
-        const employeeId=String((document.getElementById('pay_emp_id')||{}).value||'').trim();
-        const email=String((document.getElementById('pay_email')||{}).value||'').trim();
         const bulan=String((document.getElementById('pay_bulan')||{}).value||'').trim();
         const tahun=String((document.getElementById('pay_tahun')||{}).value||'').trim();
-        const namaFile=String((document.getElementById('pay_nama_file')||{}).value||'').trim();
-        const fileUrl=String((document.getElementById('pay_file_url')||{}).value||'').trim();
-        const keterangan=String((document.getElementById('pay_keterangan')||{}).value||'').trim();
-        if(!employeeId||!bulan||!tahun) throw new Error('Employee, bulan, dan tahun wajib diisi.');
-        await api('/api/admin/payroll-docs','POST',{
-          employee_id:employeeId,email:email,bulan:bulan,tahun:tahun,nama_file:(namaFile||autoPayrollFileName(employeeId)),file_url:fileUrl,keterangan:keterangan,
-          gaji_pokok:getPayNum('pay_gaji_pokok'),
-          tunjangan:getPayNum('pay_tunjangan'),
-          transport_allowance:getPayNum('pay_transport_allowance'),
-          meal_allowance:getPayNum('pay_meal_allowance'),
-          lembur:getPayNum('pay_lembur'),
-          bonus:getPayNum('pay_bonus'),
-          attendance_allowance:getPayNum('pay_attendance_allowance'),
-          thr:getPayNum('pay_thr'),
-          potongan_pajak:getPayNum('pay_pot_pajak'),
-          bpjs_kesehatan:getPayNum('pay_bpjs_kes'),
-          bpjs_ketenagakerjaan:getPayNum('pay_bpjs_ket'),
-          penalty_deduction:getPayNum('pay_penalty_deduction'),
-          late_deduction:getPayNum('pay_late_deduction'),
-          absence_deduction:getPayNum('pay_absence_deduction'),
-          potongan_lain:getPayNum('pay_pot_lain'),
-          apply_bpjs_kesehatan: !!((document.getElementById('pay_apply_bpjs_kes')||{}).checked),
-          apply_bpjs_ketenagakerjaan: !!((document.getElementById('pay_apply_bpjs_ketenaga')||{}).checked),
-          apply_tax: !!((document.getElementById('pay_apply_tax')||{}).checked),
-          UMP_JAM: getPayNum('pay_ump_jam'),
-          MAX_KS: getPayNum('pay_max_ks')||12000000,
-          MAX_JP: getPayNum('pay_max_jp')||10300000,
-          tax_rate: Number((document.getElementById('pay_tax_rate')||{}).value||0)
-        });
+        const csvText=String((document.getElementById('pay_csv_text')||{}).value||'').trim();
+        if(!csvText) throw new Error('CSV belum diisi. Upload file atau paste isi CSV.');
+        const r=await api('/api/admin/payroll/import-csv','POST',{ bulan:bulan,tahun:tahun,csv_text:csvText });
+        const x=(r&&r.result)||{};
+        alert('Import selesai.\nBaris: '+Number(x.total_rows||0)+'\nInsert: '+Number(x.inserted||0)+'\nUpdate: '+Number(x.updated||0)+'\nGagal: '+Number(x.failed||0));
         await loadPayrollDocs();
       }catch(err){ setContent(renderError(err.message)); }
     }
