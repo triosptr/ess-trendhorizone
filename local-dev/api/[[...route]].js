@@ -1087,70 +1087,135 @@ function pdfBufferFromContent(content) {
 }
 function payrollPdfBuffer(payrollDoc, employeeName) {
   const d = payrollDoc || {};
-  const money = function(v) { return 'Rp ' + Number(toMoney(v)).toLocaleString('id-ID'); };
+  const money = function(v) { 
+    if (Number(v) < 0) return '(Rp ' + Number(Math.abs(v)).toLocaleString('id-ID') + ')';
+    return 'Rp ' + Number(v).toLocaleString('id-ID'); 
+  };
   const earn = ((d.breakdown && d.breakdown.earnings) || []).filter(function(x) { return Number(x.value || 0) !== 0; });
   const ded = ((d.breakdown && d.breakdown.deductions) || []).filter(function(x) { return Number(x.value || 0) !== 0; });
-  const leftX = 36;
-  const rightX = 312;
-  let y = 805;
+  
   const cmds = [];
   const text = function(x, yy, size, val, bold) {
     const font = bold ? '/F2' : '/F1';
     cmds.push('BT ' + font + ' ' + String(size) + ' Tf ' + String(x) + ' ' + String(yy) + ' Td (' + pdfEscapeText(val) + ') Tj ET');
   };
+  const textRight = function(xRight, yy, size, val, bold) {
+    const estimatedWidth = String(val).length * (size * 0.55);
+    text(xRight - estimatedWidth, yy, size, val, bold);
+  };
   const color = function(r, g, b) { cmds.push(String(r) + ' ' + String(g) + ' ' + String(b) + ' rg'); cmds.push(String(r) + ' ' + String(g) + ' ' + String(b) + ' RG'); };
   const truncate = function(v, n) { const s = String(v || ''); return s.length > n ? (s.slice(0, Math.max(0, n - 1)) + '...') : s; };
   const line = function(x1, y1, x2, y2) { cmds.push(String(x1) + ' ' + String(y1) + ' m ' + String(x2) + ' ' + String(y2) + ' l S'); };
   const box = function(x1, y1, w, h) { cmds.push(String(x1) + ' ' + String(y1) + ' ' + String(w) + ' ' + String(h) + ' re S'); };
-  // Brand mark (simple vector) + wordmark
+  
+  // Header
   color(0.16, 0.31, 0.95);
-  box(452, 768, 36, 36);
-  line(454, 770, 486, 802);
+  box(452, 788, 36, 36);
+  line(454, 790, 486, 822);
   color(0, 0, 0);
-  text(494, 791, 11, 'trend', true);
-  text(494, 777, 11, 'horizone', true);
-  text(leftX, y, 18, 'TREND HORIZON', true);
-  text(leftX, y - 20, 12, 'SLIP GAJI KARYAWAN', true);
-  text(430, y - 4, 9, 'Generated: ' + String(nowIso()).slice(0, 19).replace('T', ' '), false);
-  line(30, y - 30, 565, y - 30);
-  y -= 52;
-  text(leftX, y, 10, 'Periode Gaji', true); text(leftX + 95, y, 10, ': ' + String(d.bulan || '-') + ' ' + String(d.tahun || '-'), false);
-  text(leftX, y - 16, 10, 'Employee ID', true); text(leftX + 95, y - 16, 10, ': ' + String(d.employee_id || '-'), false);
-  text(leftX, y - 32, 10, 'Nama Karyawan', true); text(leftX + 95, y - 32, 10, ': ' + String(employeeName || '-'), false);
-  text(rightX, y, 10, 'Total Pendapatan', true); text(rightX + 105, y, 10, ': ' + money(d.total_earning || 0), false);
-  text(rightX, y - 16, 10, 'Total Potongan', true); text(rightX + 105, y - 16, 10, ': ' + money(d.total_deduction || 0), false);
-  text(rightX, y - 32, 11, 'TAKE HOME PAY', true); text(rightX + 105, y - 32, 11, ': ' + money(d.net_salary || 0), true);
-  y -= 52;
-  line(30, y, 565, y);
-  y -= 18;
-  text(leftX, y, 11, 'PENDAPATAN', true);
-  text(rightX, y, 11, 'POTONGAN', true);
-  y -= 10;
-  box(30, y - 430, 255, 430);
-  box(300, y - 430, 265, 430);
-  line(205, y - 430, 205, y);
-  line(535, y - 430, 535, y);
-  text(40, y - 14, 9, 'Deskripsi', true);
-  text(246, y - 14, 9, 'Amount', true);
-  text(312, y - 14, 9, 'Deskripsi', true);
-  text(540, y - 14, 9, 'Amount', true);
-  let ly = y - 18;
-  let ry = y - 18;
-  const rowGap = 13;
-  if (!earn.length) { text(leftX, ly, 9, '- Tidak ada komponen pendapatan', false); ly -= rowGap; }
-  earn.slice(0, 24).forEach(function(x) {
-    text(leftX, ly, 8.5, truncate(String(x.name || '-'), 30), false);
-    text(210, ly, 8.5, money(x.value || 0), false);
-    ly -= rowGap;
-  });
-  if (!ded.length) { text(rightX, ry, 9, '- Tidak ada komponen potongan', false); ry -= rowGap; }
-  ded.slice(0, 24).forEach(function(x) {
-    text(rightX, ry, 8.5, truncate(String(x.name || '-'), 31), false);
-    text(540, ry, 8.5, money(x.value || 0), false);
-    ry -= rowGap;
-  });
-  text(36, 70, 9, 'Dokumen ini dibuat otomatis oleh sistem ESS Trend Horizon.', false);
-  text(36, 56, 9, 'Jika ada perbedaan data, hubungi tim HR & Payroll.', false);
+  text(494, 811, 14, 'trend', true);
+  text(494, 795, 14, 'horizone', false);
+  
+  text(30, 810, 16, 'TREND HORIZON', true);
+  text(30, 790, 11, 'SLIP GAJI KARYAWAN', true);
+  
+  text(420, 830, 8, 'Generated: ' + String(nowIso()).slice(0, 19).replace('T', ' '), false);
+  
+  // Employee Info
+  const infoY = 750;
+  const lh = 14;
+  text(30, infoY, 9, 'Payroll Period', true); text(110, infoY, 9, ': ' + String(d.bulan || '-') + ' ' + String(d.tahun || '-'), false);
+  text(30, infoY - lh, 9, 'Employee No', true); text(110, infoY - lh, 9, ': ' + String(d.employee_id || '-'), false);
+  text(30, infoY - lh*2, 9, 'Name', true); text(110, infoY - lh*2, 9, ': ' + String(employeeName || '-'), false);
+  text(30, infoY - lh*3, 9, 'Tax Status', true); text(110, infoY - lh*3, 9, ': -', false);
+  text(30, infoY - lh*4, 9, 'NPWP', true); text(110, infoY - lh*4, 9, ': -', false);
+
+  text(320, infoY, 9, 'Department', true); text(400, infoY, 9, ': -', false);
+  text(320, infoY - lh, 9, 'Position', true); text(400, infoY - lh, 9, ': -', false);
+  text(320, infoY - lh*2, 9, 'Grade', true); text(400, infoY - lh*2, 9, ': -', false);
+  text(320, infoY - lh*3, 9, 'Work Location', true); text(400, infoY - lh*3, 9, ': -', false);
+
+  // Table Setup
+  const startY = 670;
+  const col1 = 30;
+  const col2 = 210;
+  const col3 = 297.5;
+  const col4 = 480;
+  const col5 = 565;
+  
+  // Header Row
+  box(col1, startY - 20, col5 - col1, 20);
+  line(col2, startY - 20, col2, startY);
+  line(col3, startY - 20, col3, startY);
+  line(col4, startY - 20, col4, startY);
+  
+  text(95, startY - 14, 9, 'Description', true);
+  text(240, startY - 14, 9, 'Amount', true);
+  text(365, startY - 14, 9, 'Description', true);
+  text(510, startY - 14, 9, 'Amount', true);
+  
+  // Table Body
+  const maxRows = Math.max(earn.length, ded.length, 8);
+  const rowHeight = 16;
+  const bodyHeight = maxRows * rowHeight;
+  const bottomY = startY - 20 - bodyHeight;
+  
+  box(col1, bottomY, col5 - col1, bodyHeight);
+  line(col2, bottomY, col2, startY - 20);
+  line(col3, bottomY, col3, startY - 20);
+  line(col4, bottomY, col4, startY - 20);
+  
+  for (let i = 1; i < maxRows; i++) {
+    const lineY = startY - 20 - (i * rowHeight);
+    line(col1, lineY, col5, lineY);
+  }
+  
+  for (let i = 0; i < maxRows; i++) {
+    const e = earn[i];
+    const dObj = ded[i];
+    const textY = startY - 20 - (i * rowHeight) - 11;
+    
+    if (e) {
+      text(col1 + 4, textY, 8.5, truncate(e.name, 34), false);
+      textRight(col3 - 4, textY, 8.5, money(e.value), false);
+    }
+    if (dObj) {
+      text(col3 + 4, textY, 8.5, truncate(dObj.name, 34), false);
+      textRight(col5 - 4, textY, 8.5, money(dObj.value), false);
+    }
+  }
+  
+  // Totals Row
+  const totalsY = bottomY - 20;
+  box(col1, totalsY, col5 - col1, 20);
+  line(col2, totalsY, col2, bottomY);
+  line(col3, totalsY, col3, bottomY);
+  line(col4, totalsY, col4, bottomY);
+  
+  text(col1 + 4, totalsY + 6, 9, 'Total Income', true);
+  textRight(col3 - 4, totalsY + 6, 9, money(d.total_earning || 0), true);
+  text(col3 + 4, totalsY + 6, 9, 'Total Deduction', true);
+  textRight(col5 - 4, totalsY + 6, 9, money(d.total_deduction || 0), true);
+  
+  // Take Home Pay Row
+  const thpY = totalsY - 20;
+  box(col3, thpY, col5 - col3, 20);
+  line(col4, thpY, col4, totalsY);
+  
+  text(col3 + 4, thpY + 6, 10, 'Take Home Pay', true);
+  textRight(col5 - 4, thpY + 6, 10, money(d.net_salary || 0), true);
+  
+  // Bank Info
+  box(col1, thpY, 267.5, 20);
+  line(col1 + 60, thpY, col1 + 60, totalsY);
+  line(col1 + 170, thpY, col1 + 170, totalsY);
+  text(col1 + 4, thpY + 6, 9, 'Transfer', false);
+  text(col1 + 64, thpY + 6, 9, '-', false);
+  textRight(col3 - 4, thpY + 6, 9, money(d.net_salary || 0), false);
+  
+  // Footer
+  text(col1, thpY - 20, 8, 'This is system generated message and requires no signature', false);
+  
   return pdfBufferFromContent(cmds.join('\n'));
 }
 async function getEmployeeDisplayName(user) {
