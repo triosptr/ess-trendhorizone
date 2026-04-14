@@ -3235,11 +3235,10 @@ module.exports = async function handler(req, res) {
       };
       const healthScore = Math.max(0, 100 - Math.min(70, Math.round(checkinRateGap)) - Math.min(30, sla.pending_critical * 3));
       const recommendations = [];
-      if (checkinRateGap >= Number(map.OPS_CHECKIN_GAP_CRITICAL || 25)) recommendations.push({ priority: 'critical', text: 'Kirim alert email check-in ke seluruh karyawan yang belum check-in hari ini.' });
-      else if (checkinRateGap >= Number(map.OPS_CHECKIN_GAP_HIGH || 10)) recommendations.push({ priority: 'high', text: 'Trigger reminder check-in untuk karyawan yang belum check-in.' });
-      if (sla.pending_critical > 0) recommendations.push({ priority: 'critical', text: 'Prioritaskan approval leave pada antrean critical SLA.' });
-      if (sla.pending_high > 0) recommendations.push({ priority: 'high', text: 'Review antrean leave high SLA sebelum melewati critical.' });
-      if (!recommendations.length) recommendations.push({ priority: 'low', text: 'Operasional stabil. Lanjutkan monitoring rutin.' });
+      if (sla.pending_critical > 0) recommendations.push({ priority: 'critical', text: 'Eksekusi workflow Control Tower sekarang dan publish Leave SLA Digest.', action_route: 'leave' });
+      if (sla.pending_high > 0) recommendations.push({ priority: 'high', text: 'Lakukan triase antrean High SLA agar tidak naik ke Critical.', action_route: 'leave' });
+      if (healthScore < 70) recommendations.push({ priority: 'high', text: 'Jalankan Incident Timeline untuk investigasi penyebab penurunan health score.', action_route: 'ops' });
+      if (healthScore >= 70 && sla.pending_critical === 0 && sla.pending_high === 0) recommendations.push({ priority: 'low', text: 'Operasional stabil. Jalankan workflow terjadwal untuk menjaga konsistensi.', action_route: 'tower' });
       return json(res, 200, {
         ok: true,
         date: today,
