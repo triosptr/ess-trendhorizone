@@ -1136,6 +1136,10 @@ function payrollPdfBuffer(payrollDoc, employeeName) {
     const estimatedWidth = String(val).length * (size * 0.55);
     text(xRight - estimatedWidth, yy, size, val, bold);
   };
+  const textCenter = function(xCenter, yy, size, val, bold) {
+    const estimatedWidth = String(val).length * (size * 0.55);
+    text(xCenter - estimatedWidth/2, yy, size, val, bold);
+  };
   const textMultiline = function(x, yy, size, val, bold, maxWidth, lh) {
     const words = String(val).split(' ');
     let lineStr = '';
@@ -1157,59 +1161,68 @@ function payrollPdfBuffer(payrollDoc, employeeName) {
   const color = function(r, g, b) { cmds.push(String(r) + ' ' + String(g) + ' ' + String(b) + ' rg'); cmds.push(String(r) + ' ' + String(g) + ' ' + String(b) + ' RG'); };
   const line = function(x1, y1, x2, y2) { cmds.push(String(x1) + ' ' + String(y1) + ' m ' + String(x2) + ' ' + String(y2) + ' l S'); };
   const box = function(x1, y1, w, h) { cmds.push(String(x1) + ' ' + String(y1) + ' ' + String(w) + ' ' + String(h) + ' re S'); };
+  const fillBox = function(x1, y1, w, h) { cmds.push(String(x1) + ' ' + String(y1) + ' ' + String(w) + ' ' + String(h) + ' re f'); };
   
   // Margins
   const marginX = 40;
   const pageW = 595;
   const rightEdge = pageW - marginX;
+  const midX = marginX + (rightEdge - marginX) / 2;
   
-  // Draw Logo (150x55 points) -> right aligned
-  cmds.push('q\n150 0 0 55 ' + (rightEdge - 150) + ' 750 cm\n/Logo Do\nQ');
+  // Draw Logo (reduced size: 100x37 points) -> right aligned
+  cmds.push('q\n100 0 0 37 ' + (rightEdge - 100) + ' 760 cm\n/Logo Do\nQ');
   
+  // Header
+  color(0.1, 0.15, 0.3); // Dark slate blue
+  text(marginX, 785, 18, 'TREND HORIZON', true);
+  color(0.4, 0.4, 0.4);
+  text(marginX, 770, 11, 'EMPLOYEE PAYSLIP', true);
+  
+  // Intro Text
+  color(0.3, 0.3, 0.3);
+  text(marginX, 740, 9, 'This payslip provides a detailed summary of your earnings and deductions for the period stated below.', false);
+  
+  // Employee Info
   color(0, 0, 0);
-  text(marginX, 790, 16, 'TREND HORIZON', true);
-  text(marginX, 770, 11, 'SLIP GAJI KARYAWAN', true);
-  
-  text(rightEdge - 160, 810, 8, 'Generated: ' + String(nowIso()).slice(0, 19).replace('T', ' '), false);
-  
-  // Employee Info (with more top spacing)
-  const infoY = 720;
+  const infoY = 710;
   const lh = 14;
   text(marginX, infoY, 9, 'Payroll Period', true); text(120, infoY, 9, ': ' + String(d.bulan || '-') + ' ' + String(d.tahun || '-'), false);
   text(marginX, infoY - lh, 9, 'Employee No', true); text(120, infoY - lh, 9, ': ' + String(d.employee_id || '-'), false);
-  text(marginX, infoY - lh*2, 9, 'Name', true); text(120, infoY - lh*2, 9, ': ' + String(employeeName || '-'), false);
+  text(marginX, infoY - lh*2, 9, 'Employee Name', true); text(120, infoY - lh*2, 9, ': ' + String(employeeName || '-'), false);
   text(marginX, infoY - lh*3, 9, 'Tax Status', true); text(120, infoY - lh*3, 9, ': -', false);
   text(marginX, infoY - lh*4, 9, 'NPWP', true); text(120, infoY - lh*4, 9, ': -', false);
 
-  const rightColInfoX = 330;
-  text(rightColInfoX, infoY, 9, 'Department', true); text(410, infoY, 9, ': -', false);
-  text(rightColInfoX, infoY - lh, 9, 'Position', true); text(410, infoY - lh, 9, ': -', false);
-  text(rightColInfoX, infoY - lh*2, 9, 'Grade', true); text(410, infoY - lh*2, 9, ': -', false);
-  text(rightColInfoX, infoY - lh*3, 9, 'Work Location', true); text(410, infoY - lh*3, 9, ': -', false);
+  const rightColInfoX = midX + 10;
+  text(rightColInfoX, infoY, 9, 'Department', true); text(rightColInfoX + 80, infoY, 9, ': -', false);
+  text(rightColInfoX, infoY - lh, 9, 'Position', true); text(rightColInfoX + 80, infoY - lh, 9, ': -', false);
+  text(rightColInfoX, infoY - lh*2, 9, 'Grade', true); text(rightColInfoX + 80, infoY - lh*2, 9, ': -', false);
+  text(rightColInfoX, infoY - lh*3, 9, 'Work Location', true); text(rightColInfoX + 80, infoY - lh*3, 9, ': -', false);
 
-  // Table Setup (with gap from info)
-  const startY = 630;
+  // Table Setup
+  const startY = 620;
   const col1 = marginX;
-  const col3 = marginX + (rightEdge - marginX) / 2; // Middle divider
+  const col3 = midX;
   const col5 = rightEdge;
   
-  const amountW = 80; // width reserved for amount column
+  const amountW = 85; 
   const col2 = col3 - amountW;
   const col4 = col5 - amountW;
   
-  const padX = 6; // padding inside cells
+  const padX = 8;
   
-  // Header Row
-  box(col1, startY - 20, col5 - col1, 20);
+  // Header Row (shaded)
+  color(0.95, 0.95, 0.96); // Light gray shading
+  fillBox(col1, startY - 24, col5 - col1, 24);
+  color(0, 0, 0); // border color
+  box(col1, startY - 24, col5 - col1, 24);
   
-  // center text in header cells
-  text(col1 + (col2 - col1)/2 - 25, startY - 14, 9, 'Description', true);
-  text(col2 + (col3 - col2)/2 - 15, startY - 14, 9, 'Amount', true);
-  text(col3 + (col4 - col3)/2 - 25, startY - 14, 9, 'Description', true);
-  text(col4 + (col5 - col4)/2 - 15, startY - 14, 9, 'Amount', true);
+  text(col1 + padX, startY - 16, 9, 'EARNINGS', true);
+  textRight(col3 - padX, startY - 16, 9, 'Amount', true);
+  text(col3 + padX, startY - 16, 9, 'DEDUCTIONS', true);
+  textRight(col5 - padX, startY - 16, 9, 'Amount', true);
   
-  let currentY = startY - 20;
-  const maxRows = Math.max(earn.length, ded.length, 8);
+  let currentY = startY - 24;
+  const maxRows = Math.max(earn.length, ded.length, 6);
   
   for (let i = 0; i < maxRows; i++) {
     const e = earn[i];
@@ -1219,63 +1232,61 @@ function payrollPdfBuffer(payrollDoc, employeeName) {
     let nextYRight = currentY;
     
     if (e) {
-      nextYLeft = textMultiline(col1 + padX, currentY - 13, 8.5, e.name, false, col2 - col1 - padX*2, 10);
-      textRight(col3 - padX, currentY - 13, 8.5, money(e.value), false);
+      nextYLeft = textMultiline(col1 + padX, currentY - 14, 8.5, e.name, false, col2 - col1 - padX*2, 11);
+      textRight(col3 - padX, currentY - 14, 8.5, money(e.value), false);
     }
     if (dObj) {
-      nextYRight = textMultiline(col3 + padX, currentY - 13, 8.5, dObj.name, false, col4 - col3 - padX*2, 10);
-      textRight(col5 - padX, currentY - 13, 8.5, money(dObj.value), false);
+      nextYRight = textMultiline(col3 + padX, currentY - 14, 8.5, dObj.name, false, col4 - col3 - padX*2, 11);
+      textRight(col5 - padX, currentY - 14, 8.5, money(dObj.value), false);
     }
     
-    let rowBottom = Math.min(nextYLeft, nextYRight) - 7;
-    if (currentY - rowBottom < 20) { // min height per row with padding
-       rowBottom = currentY - 20;
+    let rowBottom = Math.min(nextYLeft, nextYRight) - 8;
+    if (currentY - rowBottom < 22) { 
+       rowBottom = currentY - 22;
     }
     
+    color(0.8, 0.8, 0.8); // lighter border for internal rows
     line(col1, rowBottom, col5, rowBottom);
+    color(0, 0, 0);
+    
     currentY = rowBottom;
   }
   
   const bottomY = currentY;
   
-  // Draw vertical lines for table body
-  line(col1, bottomY, col1, startY - 20);
-  line(col2, bottomY, col2, startY - 20);
-  line(col3, bottomY, col3, startY - 20);
-  line(col4, bottomY, col4, startY - 20);
-  line(col5, bottomY, col5, startY - 20);
+  // Draw vertical lines
+  box(col1, bottomY, col5 - col1, startY - 24 - bottomY);
+  line(col3, bottomY, col3, startY - 24);
   
   // Totals Row
-  const totalsY = bottomY - 24; // height 24 for totals
-  box(col1, totalsY, col5 - col1, 24);
-  line(col2, totalsY, col2, bottomY);
+  const totalsY = bottomY - 26; 
+  box(col1, totalsY, col5 - col1, 26);
   line(col3, totalsY, col3, bottomY);
-  line(col4, totalsY, col4, bottomY);
   
-  text(col1 + padX, totalsY + 8, 9, 'Total Income', true);
-  textRight(col3 - padX, totalsY + 8, 9, money(d.total_earning || 0), true);
-  text(col3 + padX, totalsY + 8, 9, 'Total Deduction', true);
-  textRight(col5 - padX, totalsY + 8, 9, money(d.total_deduction || 0), true);
+  text(col1 + padX, totalsY + 9, 9, 'Total Earnings', true);
+  textRight(col3 - padX, totalsY + 9, 9, money(d.total_earning || 0), true);
+  text(col3 + padX, totalsY + 9, 9, 'Total Deductions', true);
+  textRight(col5 - padX, totalsY + 9, 9, money(d.total_deduction || 0), true);
   
-  // Transfer Info (Left side, matching Take Home Pay row height)
-  const thpY = totalsY - 24;
-  box(col1, thpY, col3 - col1, 24);
-  line(col1 + 60, thpY, col1 + 60, totalsY);
-  line(col2, thpY, col2, totalsY); // line before amount
+  // Take Home Pay Row (Prominent)
+  const thpY = totalsY - 32;
+  color(0.96, 0.97, 1.0); // Very light blue tint
+  fillBox(col1, thpY, col5 - col1, 32);
+  color(0, 0, 0);
+  box(col1, thpY, col5 - col1, 32);
   
-  text(col1 + padX, thpY + 8, 9, 'Transfer', false);
-  text(col1 + 60 + padX, thpY + 8, 9, '-', false);
-  textRight(col3 - padX, thpY + 8, 9, money(d.net_salary || 0), false);
+  text(col1 + padX, thpY + 12, 11, 'TAKE HOME PAY', true);
+  textRight(col5 - padX, thpY + 12, 12, money(d.net_salary || 0), true);
   
-  // Take Home Pay Row (Right side)
-  box(col3, thpY, col5 - col3, 24);
-  line(col4, thpY, col4, totalsY);
+  // Footer - Authorization
+  const authY = thpY - 50;
+  color(0.3, 0.3, 0.3);
+  textCenter(pageW/2, authY, 8.5, 'This document is system-generated by the HR & Payroll Department of PT Tren Gen Horizon', false);
+  textCenter(pageW/2, authY - 12, 8.5, 'and does not require a physical signature.', false);
+  textCenter(pageW/2, authY - 28, 8.5, 'Authorized by the Head of Payroll Department.', true);
   
-  text(col3 + padX, thpY + 8, 10, 'Take Home Pay', true);
-  textRight(col5 - padX, thpY + 8, 10, money(d.net_salary || 0), true);
-  
-  // Footer
-  text(col1, thpY - 30, 8, 'This is system generated message and requires no signature', false);
+  // Confidentiality Notice
+  textCenter(pageW/2, 40, 8, 'This payslip is strictly confidential and should not be shared.', false); // Italic simulated by small font
   
   return pdfBufferFromContent(cmds.join('\n'), LOGO_B64);
 }
