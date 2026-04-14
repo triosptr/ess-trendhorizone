@@ -3218,6 +3218,30 @@ module.exports = async function handler(req, res) {
           usia: age > 0 ? age : null
         };
       });
+      const monthNames = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+      const monthMap = {};
+      activeRows.forEach(function(e) {
+        const d = String(e.tanggal_lahir || '');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+        const m = Number(d.slice(5, 7) || 0);
+        const day = Number(d.slice(8, 10) || 0);
+        if (m < 1 || m > 12 || day < 1 || day > 31) return;
+        const k = String(m);
+        if (!monthMap[k]) monthMap[k] = { month: m, month_name: monthNames[m - 1], total: 0, items: [] };
+        monthMap[k].total += 1;
+        monthMap[k].items.push({
+          employee_id: String(e.employee_id || ''),
+          nama: String(e.nama || ''),
+          divisi: String(e.divisi || ''),
+          jabatan: String(e.jabatan || ''),
+          tanggal_lahir: d,
+          day: day
+        });
+      });
+      const birthdaysCalendar = Object.values(monthMap).map(function(x) {
+        x.items.sort(function(a1, b1) { return Number(a1.day || 0) - Number(b1.day || 0); });
+        return x;
+      }).sort(function(a1, b1) { return Number(a1.month || 0) - Number(b1.month || 0); });
       const birthdaysThisMonthCount = activeRows.filter(function(e) {
         const d = String(e.tanggal_lahir || '');
         if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
@@ -3261,6 +3285,7 @@ module.exports = async function handler(req, res) {
           missing_birthdate: missingBirthdateCount
         },
         birthdays_today: birthdaysToday,
+        birthdays_calendar: birthdaysCalendar,
         file_locations: fileLocations,
         leave_balance_rows: leaveBalanceRows,
         recommendations: recommendations

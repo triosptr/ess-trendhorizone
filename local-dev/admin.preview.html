@@ -743,11 +743,19 @@
         const s=await api('/api/admin/control-tower/summary');
         const m=(s&&s.metrics)||{};
         const birthdays=((s&&s.birthdays_today)||[]);
+        const birthdayCalendar=((s&&s.birthdays_calendar)||[]);
         const files=((s&&s.file_locations)||[]);
         const leaveRows=((s&&s.leave_balance_rows)||[]);
         const recs=((s&&s.recommendations)||[]);
         const bdayCards=birthdays.map(function(x){
           return '<div class="card report-tile report-tone-people"><div class="stat-label">'+escapeHtml(x.employee_id||'-')+'</div><div style="font-weight:700;color:var(--text-main);">'+escapeHtml(x.nama||'-')+'</div><div class="muted">'+escapeHtml(x.divisi||'-')+' • '+escapeHtml(x.jabatan||'-')+'</div><div class="muted">Tgl Lahir: '+escapeHtml(x.tanggal_lahir||'-')+(x.usia?(' • Usia '+x.usia):'')+'</div></div>';
+        }).join('');
+        const bdayMonthCards=birthdayCalendar.map(function(mo){
+          const people=(mo.items||[]).map(function(p){
+            const dd=String(p.day||'').padStart(2,'0');
+            return '<div class="card report-tile report-tone-people"><div class="team-header"><div style="font-weight:700;color:var(--text-main);">'+escapeHtml(p.nama||'-')+'</div><div class="stat-label">'+dd+'</div></div><div class="muted">'+escapeHtml(p.employee_id||'-')+' • '+escapeHtml(p.divisi||'-')+'</div></div>';
+          }).join('');
+          return '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">'+escapeHtml(mo.month_name||'-')+'</h3><div class="stat-label">'+escapeHtml(mo.total||0)+' orang</div></div><div class="report-list-grid">'+people+'</div></div>';
         }).join('');
         const fileCards=files.map(function(f){
           const url=String(f.drive_url||'').trim();
@@ -771,7 +779,8 @@
           + '<div class="card report-tile report-tone-people"><div class="stat-label">Ulang Tahun Bulan Ini</div><div class="stat-large">'+escapeHtml(m.birthdays_this_month||0)+'</div></div>'
           + '<div class="card report-tile report-tone-leave"><div class="stat-label">Data Tgl Lahir Belum Lengkap</div><div class="stat-large" style="color:var(--warning);">'+escapeHtml(m.missing_birthdate||0)+'</div></div>'
           + '</div>'
-          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Daftar Ulang Tahun Hari Ini</h3><div class="stat-label">'+escapeHtml(birthdays.length||0)+' orang</div></div>'+(bdayCards?('<div class="report-list-grid">'+bdayCards+'</div>'):'<div class="report-empty">Tidak ada ulang tahun hari ini.</div>')+'</div>'
+          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Ulang Tahun Hari Ini</h3><div class="stat-label">'+escapeHtml(birthdays.length||0)+' orang</div></div>'+(bdayCards?('<div class="report-list-grid">'+bdayCards+'</div>'):'<div class="report-empty">Tidak ada ulang tahun hari ini.</div>')+'</div>'
+          + (bdayMonthCards?('<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Kalender Ulang Tahun Karyawan</h3><div class="stat-label">Hanya bulan yang memiliki data</div></div>'+bdayMonthCards+'</div>'):'')
           + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Lokasi File Upload Karyawan</h3></div>'+(fileCards?('<div class="report-list-grid">'+fileCards+'</div>'):'<div class="report-empty">Lokasi file belum tersedia.</div>')+'</div>'
           + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Monitor Sisa Cuti Karyawan</h3><div class="stat-label">Urut dari sisa terendah</div></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Divisi</th><th>Jatah</th><th>Sisa</th></tr></thead><tbody>'+leaveTbody+'</tbody></table></div></div>'
           + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Rekomendasi Control Tower</h3></div><div class="report-list-grid">'+recCards+'</div></div>'
