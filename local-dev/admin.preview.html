@@ -760,13 +760,30 @@
           + '<div class="card report-tile report-tone-leave"><div class="stat-label">Pending Critical SLA</div><div class="stat-large" style="color:var(--danger);">'+escapeHtml(m.pending_critical_sla||0)+'</div></div>'
           + '</div>'
           + '<div class="grid-2" style="gap:14px;align-items:start;">'
-          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Execution Controls</h3></div><div class="form-group"><label><input id="ct_ops_digest" type="checkbox" checked> Publish Ops Digest</label></div><div class="form-group"><label><input id="ct_leave_digest" type="checkbox" checked> Publish Leave SLA Digest</label></div><div class="actions"><button class="btn btn-primary" onclick="runControlTowerExecution()"><i class="ph ph-rocket-launch"></i> Execute Workflow</button><button class="btn btn-secondary" onclick="loadOperationsIntelligenceCenter()">Open Operations</button></div><div class="stat-label" style="margin-top:10px;">Thresholds: Checkin Critical '+escapeHtml(t.checkin_gap_critical||25)+'% • Leave SLA '+escapeHtml(t.leave_sla_warn_hours||24)+'h/'+escapeHtml(t.leave_sla_critical_hours||72)+'h</div></div>'
+          + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Kontrol Harian HR</h3></div>'
+          + '<div class="form-group"><label>Mode Proses</label><select id="ct_mode" onchange="applyControlTowerMode(this.value)"><option value="normal">Normal (Rekomendasi)</option><option value="sibuk">Sibuk (Prioritas Cuti)</option><option value="manual">Manual</option></select><div class="file-hint">Normal: kirim ringkasan operasional. Sibuk: kirim ringkasan operasional + antrean cuti.</div></div>'
+          + '<div class="form-group"><label><input id="ct_ops_digest" type="checkbox" checked> Kirim Ringkasan Operasional ke Admin</label></div>'
+          + '<div class="form-group"><label><input id="ct_leave_digest" type="checkbox"> Kirim Ringkasan Antrean Cuti ke Admin</label></div>'
+          + '<div class="actions"><button class="btn btn-primary" onclick="runControlTowerExecution()"><i class="ph ph-rocket-launch"></i> Jalankan Kontrol Harian</button><button class="btn btn-secondary" onclick="loadOperationsIntelligenceCenter()">Buka Menu Operation</button></div>'
+          + '<div class="stat-label" style="margin-top:10px;">Patokan sistem: Check-in kritis '+escapeHtml(t.checkin_gap_critical||25)+'% • Antrean cuti '+escapeHtml(t.leave_sla_warn_hours||24)+'j/'+escapeHtml(t.leave_sla_critical_hours||72)+'j</div></div>'
           + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Top Overdue Queue</h3><div class="stat-label">'+escapeHtml(((s&&s.top_overdue)||[]).length||0)+' item</div></div>'+(overCards?('<div class="report-list-grid">'+overCards+'</div>'):'<div class="report-empty">Tidak ada data overdue.</div>')+'</div>'
           + '</div>'
           + '<div class="card report-panel"><div class="team-header"><h3 style="font-size:16px;font-weight:700;">Rekomendasi Control Tower</h3></div><div class="report-list-grid">'+recCards+'</div></div>'
           + '</div>';
         setContent(html);
+        applyControlTowerMode('normal');
       }catch(err){ setContent(renderError(err.message)); }
+    }
+    function applyControlTowerMode(mode){
+      const m=String(mode||'normal').toLowerCase();
+      const ops=document.getElementById('ct_ops_digest');
+      const leave=document.getElementById('ct_leave_digest');
+      const sel=document.getElementById('ct_mode');
+      if(sel && sel.value!==m) sel.value=m;
+      if(!ops || !leave) return;
+      if(m==='sibuk'){ ops.checked=true; leave.checked=true; return; }
+      if(m==='normal'){ ops.checked=true; leave.checked=false; return; }
+      // manual: biarkan pilihan user
     }
     async function runControlTowerExecution(){
       try{
@@ -774,7 +791,7 @@
         const publishLeave=!!((document.getElementById('ct_leave_digest')||{}).checked);
         const r=await api('/api/admin/control-tower/execute','POST',{ publish_ops_digest:publishOps, publish_leave_digest:publishLeave, send_checkin_alert:false });
         const x=(r&&r.result)||{};
-        alert('Control Tower selesai. Pending='+String(x.pending_leaves||0)+' | OpsDigest='+(x.ops_digest_published?'yes':'no')+' | LeaveDigest='+(x.leave_digest_published?'yes':'no'));
+        alert('Kontrol Harian selesai.\nPending cuti: '+String(x.pending_leaves||0)+'\nRingkasan operasional: '+(x.ops_digest_published?'terkirim':'tidak dikirim')+'\nRingkasan antrean cuti: '+(x.leave_digest_published?'terkirim':'tidak dikirim'));
         loadWorkforceControlTower();
       }catch(err){ setContent(renderError(err.message)); }
     }
