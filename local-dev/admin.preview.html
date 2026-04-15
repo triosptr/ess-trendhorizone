@@ -2479,14 +2479,16 @@
         await api('/api/me/profile','PATCH',payload);
         
         // Refresh avatar header
-        const av = document.getElementById('header_avatar');
-        if (av && payload.photo) {
-           av.style.backgroundImage = 'url(data:' + payload.photo.mimeType + ';base64,' + payload.photo.base64Data + ')';
-           av.style.backgroundSize = 'cover';
-           av.style.color = 'transparent';
-        }
-        
-        alert('Profil berhasil disimpan!');
+      const av = document.getElementById('header_avatar');
+      if (av && payload.photo) {
+         av.style.backgroundImage = 'url(data:' + payload.photo.mimeType + ';base64,' + payload.photo.base64Data + ')';
+         av.style.backgroundSize = 'cover';
+         av.style.backgroundPosition = 'center';
+         av.style.color = 'transparent';
+         av.textContent = '';
+      }
+      
+      alert('Profil berhasil disimpan!');
         await loadMyProfile();
       }catch(e){ setContent(renderError(e.message)); }
     }

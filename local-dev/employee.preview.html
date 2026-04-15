@@ -1062,7 +1062,16 @@
         if(f&&f[0]) payload.photo={ base64Data: await fileToBase64(f[0]), mimeType: f[0].type||'image/jpeg' };
         await api('/api/me/profile','PATCH',payload);
         localStorage.removeItem('ess_force_profile_setup');
-        await bootGreeting();
+        // Refresh avatar header
+        const av = document.getElementById('header_avatar');
+        if (av && payload.photo) {
+           av.style.backgroundImage = 'url(data:' + payload.photo.mimeType + ';base64,' + payload.photo.base64Data + ')';
+           av.style.backgroundSize = 'cover';
+           av.style.backgroundPosition = 'center';
+           av.style.color = 'transparent';
+           av.textContent = '';
+        }
+        
         await loadMyProfile();
       }catch(e){ setContentLayout(renderError(e.message), null); }
     }
