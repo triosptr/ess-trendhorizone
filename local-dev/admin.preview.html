@@ -482,6 +482,7 @@
       localStorage.setItem('ess_user_role',user.role||'admin');
       localStorage.setItem('ess_employee_id',user.employee_id||'');
       localStorage.setItem('ess_admin_employee_id',user.employee_id||'');
+      if(j.first_login_required) localStorage.setItem('ess_force_profile_setup','1'); else localStorage.removeItem('ess_force_profile_setup');
       document.getElementById('header_name').textContent=user.nama||'Admin';
       document.getElementById('header_role').textContent=user.role||'admin';
       const av=document.getElementById('header_avatar');
@@ -2697,13 +2698,15 @@
           no_hp:String((document.getElementById('pf_no_hp')||{}).value||'').trim(),
           alamat:String((document.getElementById('pf_alamat')||{}).value||'').trim(),
           tanggal_lahir:String((document.getElementById('pf_tanggal_lahir')||{}).value||'').trim(),
-          new_password:String((document.getElementById('pf_new_password')||{}).value||'').trim()
+          new_password:String((document.getElementById('pf_new_password')||{}).value||'').trim(),
+          first_login_completed:true
         };
         const f=(document.getElementById('pf_photo')||{}).files;
         if(f&&f[0]) payload.photo={ base64Data: await fileToBase64(f[0]), mimeType: 'image/jpeg' };
         await runWithButtonLoading('btn_save_profile_admin','Menyimpan...','<i class="ph ph-floppy-disk"></i> Simpan Profil', async function(){
           await api('/api/me/profile','PATCH',payload);
         });
+        localStorage.removeItem('ess_force_profile_setup');
         
         // Refresh avatar header
       const av = document.getElementById('header_avatar');
@@ -2720,7 +2723,7 @@
       }catch(e){ setContent(renderError(e.message)); }
     }
 
-    async function initAdmin(){ if(!(await ensureSessionLogin())) return; observePayrollForm(); loadSummary(); }
+    async function initAdmin(){ if(!(await ensureSessionLogin())) return; observePayrollForm(); if(localStorage.getItem('ess_force_profile_setup')==='1') return loadMyProfile(); loadSummary(); }
     initAdmin();
   </script>
 </body>
