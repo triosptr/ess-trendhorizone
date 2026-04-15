@@ -1995,8 +1995,8 @@ module.exports = async function handler(req, res) {
         const ext = mime.indexOf('png') >= 0 ? 'png' : mime.indexOf('webp') >= 0 ? 'webp' : 'jpg';
         const fileName = toSafeFileToken('profile_' + nm + '_' + Date.now(), 'profile') + '.' + ext;
         const url = await uploadBufferToDrive(fileName, mime, buf, profilePhotoDriveFolderId());
-        if (!url) return json(res, 500, { ok: false, message: 'Gagal upload photo profile ke folder Drive perusahaan. Pastikan folder dibagikan ke akun service dan kredensial Drive aktif.' });
-        extra.photo_url = url;
+        // Fallback ke penyimpanan base64 langsung di config jika upload Drive gagal atau belum disetting
+        extra.photo_url = url || ('data:' + mime + ';base64,' + String(b.photo.base64Data || ''));
       }
       if (b.new_password !== undefined) {
         const newPassword = String(b.new_password || '');
