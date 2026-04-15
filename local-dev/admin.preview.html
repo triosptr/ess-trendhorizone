@@ -1216,7 +1216,6 @@
               <button class="btn btn-secondary" onclick="resendEmployeeActivation('${id}')">Resend Email</button>
               <button class="btn btn-secondary" onclick="showActivationEmailAudit('${id}')">Email Audit</button>
               <button class="btn ${actionClass}" onclick="toggleEmployeeActive('${id}')">${actionLabel}</button>
-              <button class="btn btn-danger" onclick="deleteEmployee('${id}')">Delete</button>
             </div>
           </td>
         </tr>`;
@@ -1243,7 +1242,6 @@
                     <button class="btn btn-secondary" onclick="exportEmployeesCsv()"><i class="ph ph-file-csv"></i> Export</button>
                     <button class="btn btn-secondary" onclick="toggleEmployeeSelectVisible(${allVisibleSelected?'false':'true'})">${allVisibleSelected?'Unselect Visible':'Select Visible'}</button>
                     <button class="btn btn-secondary" onclick="resendSelectedActivationEmails()">Resend Selected (${selectedCount})</button>
-                    <button class="btn btn-danger" onclick="deleteSelectedEmployees()">Delete Selected (${selectedCount})</button>
                 </div>
             </div>
             <div class="grid-2">
@@ -1281,39 +1279,6 @@
         });
         await loadAllEmployees();
         selectedEmployeeId=row.employee_id;
-      }catch(err){ setContent(renderError(err.message)); }
-    }
-    async function deleteEmployee(id){
-      try{
-        const row=employeeFindById(id);
-        if(!row) throw new Error('Employee tidak ditemukan.');
-        const label=String(row.nama||row.employee_id||'');
-        if(!confirm('Hapus employee '+label+'? Data terkait attendance/leave/payroll akan ikut dibersihkan.')) return;
-        await runWithButtonLoading(null,'Menghapus...','Delete', async function(){
-          await api('/api/admin/employees','DELETE',{employee_id:row.employee_id});
-        });
-        alert('Employee berhasil dihapus: '+String(row.employee_id||''));
-        selectedEmployeeId='';
-        selectedEmployeeDetail=null;
-        await loadAllEmployees();
-      }catch(err){ setContent(renderError(err.message)); }
-    }
-    async function deleteSelectedEmployees(){
-      try{
-        const ids=Object.keys(selectedEmployeeIds||{});
-        if(!ids.length) throw new Error('Pilih employee yang ingin dihapus.');
-        if(!confirm('Hapus '+ids.length+' employee terpilih? Data terkait attendance/leave/payroll juga akan dibersihkan.')) return;
-        const res=await runWithButtonLoading(null,'Menghapus...','Delete Selected', async function(){
-          return await api('/api/admin/employees/batch-delete','POST',{employee_ids:ids});
-        });
-        const ok=Number((res||{}).deleted_count||0);
-        const fail=Number((res||{}).failed_count||0);
-        const errList=((res||{}).failed||[]).slice(0,10).map(function(x){ return String(x.employee_id||'-')+': '+String(x.message||'Gagal'); }).join('\n');
-        alert('Batch delete selesai. Berhasil: '+ok+' | Gagal: '+fail+(errList?('\n\nDetail gagal:\n'+errList):''));
-        selectedEmployeeId='';
-        selectedEmployeeDetail=null;
-        selectedEmployeeIds={};
-        await loadAllEmployees();
       }catch(err){ setContent(renderError(err.message)); }
     }
     async function resendSelectedActivationEmails(){
