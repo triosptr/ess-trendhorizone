@@ -1069,27 +1069,67 @@
     async function loadMyProfile(){ 
         try { setLoading(); const p=await api('/api/me/profile'); 
         const html = `
-            <div class="card">
-                <div class="team-header"><h3 style="font-size:20px;font-weight:700;">My Profile</h3><div class="actions"><button class="btn btn-primary" onclick="saveMyProfile()">Simpan Profile</button></div></div>
-                <div class="grid-2">
-                    <div>
-                        <div class="form-group"><label>Nama</label><input id="pf_nama" value="${escapeHtml(p.nama||'')}"></div>
-                        <div class="form-group"><label>Email</label><input value="${escapeHtml(p.email||'')}" readonly></div>
-                        <div class="form-group"><label>No HP</label><input id="pf_no_hp" value="${escapeHtml(p.no_hp||'')}"></div>
-                        <div class="form-group"><label>Alamat</label><textarea id="pf_alamat">${escapeHtml(p.alamat||'')}</textarea></div>
-                        <div class="form-group"><label>Tanggal Lahir</label><input id="pf_tanggal_lahir" type="date" value="${escapeHtml(p.tanggal_lahir||'')}"></div>
-                        <div class="form-group"><label>Password Baru (opsional)</label><input id="pf_new_password" type="password" placeholder="Minimal 8 karakter"></div>
-                    </div>
-                    <div>
-                        <div class="card" style="box-shadow:none;background:var(--bg);">
-                            <div class="avatar" style="width:96px;height:96px;font-size:38px;margin-bottom:10px;${p.photo_url?'background-image:url('+escapeHtml(p.photo_url)+');background-size:cover;background-position:center;color:transparent;':''}">${(p.nama||'U').charAt(0).toUpperCase()}</div>
-                            <div class="form-group"><label>Photo Profile</label><input id="pf_photo" type="file" accept="image/*"></div>
-                            <div class="list-desc">Photo profile tampil di kanan atas dashboard.</div>
+            <div class="card" style="max-width:800px;margin:0 auto;">
+                <div class="team-header" style="border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:24px;">
+                  <h3 style="font-size:24px;font-weight:700;">Pengaturan Profil</h3>
+                  <div class="actions">
+                    <button class="btn btn-primary" onclick="saveMyProfile()"><i class="ph ph-floppy-disk"></i> Simpan Profil</button>
+                  </div>
+                </div>
+                <div class="grid-2" style="gap:32px;align-items:start;">
+                    <!-- Bagian Avatar & Identitas -->
+                    <div style="display:flex;flex-direction:column;gap:16px;">
+                        <div class="card" style="box-shadow:0 2px 8px rgba(0,0,0,0.05);background:#f8fafc;border:1px solid #e2e8f0;display:flex;flex-direction:column;align-items:center;text-align:center;padding:32px 24px;">
+                            <div class="avatar" style="width:120px;height:120px;font-size:48px;margin-bottom:16px;box-shadow:0 4px 12px rgba(0,0,0,0.1);${p.photo_url?'background-image:url('+escapeHtml(p.photo_url)+');background-size:cover;background-position:center;color:transparent;':''}">${(p.nama||'U').charAt(0).toUpperCase()}</div>
+                            <h4 style="font-size:18px;font-weight:600;margin:0 0 4px;">${escapeHtml(p.nama||'-')}</h4>
+                            <div style="font-size:14px;color:var(--text-sec);margin-bottom:16px;">${escapeHtml(p.jabatan||'Karyawan')} • ${escapeHtml(p.divisi||'Tanpa Divisi')}</div>
+                            
+                            <div class="form-group" style="width:100%;text-align:left;margin-bottom:0;">
+                                <label style="font-size:13px;">Ubah Foto Profil</label>
+                                <input id="pf_photo" type="file" accept="image/*" style="font-size:13px;padding:8px;">
+                                <div class="file-hint" style="text-align:center;margin-top:6px;">Format: JPG, PNG (Maks 2MB)</div>
+                            </div>
                         </div>
-                        <div class="card" style="box-shadow:none;background:var(--bg);margin-top:12px;">
-                            <div class="list-desc">Employee ID: ${escapeHtml(p.employee_id||'-')}</div>
-                            <div class="list-desc">Role: ${escapeHtml(p.role||'employee')}</div>
-                            <div class="list-desc">Status: ${escapeHtml(p.status_karyawan||'-')}</div>
+                        
+                        <div class="card" style="box-shadow:0 2px 8px rgba(0,0,0,0.05);background:#f8fafc;border:1px solid #e2e8f0;">
+                            <h4 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--text-sec);text-transform:uppercase;letter-spacing:0.5px;">Informasi Akun</h4>
+                            <div style="display:flex;flex-direction:column;gap:8px;">
+                                <div style="display:flex;justify-content:space-between;border-bottom:1px solid #e2e8f0;padding-bottom:8px;">
+                                    <span style="color:var(--text-sec);font-size:13px;">Employee ID</span>
+                                    <span style="font-weight:600;font-size:13px;">${escapeHtml(p.employee_id||'-')}</span>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;border-bottom:1px solid #e2e8f0;padding-bottom:8px;">
+                                    <span style="color:var(--text-sec);font-size:13px;">Role Sistem</span>
+                                    <span style="font-weight:600;font-size:13px;">${escapeHtml(p.role||'employee')}</span>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;">
+                                    <span style="color:var(--text-sec);font-size:13px;">Status</span>
+                                    <span style="font-weight:600;font-size:13px;">${escapeHtml(p.status_karyawan||'-')}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Bagian Form Data Pribadi & Keamanan -->
+                    <div style="display:flex;flex-direction:column;gap:24px;">
+                        <div>
+                            <h4 style="font-size:16px;font-weight:600;margin-bottom:16px;color:var(--text-main);display:flex;align-items:center;gap:8px;"><i class="ph ph-identification-card" style="color:var(--primary);"></i> Data Pribadi</h4>
+                            <div class="form-group"><label>Nama Lengkap</label><input id="pf_nama" value="${escapeHtml(p.nama||'')}"></div>
+                            <div class="form-group"><label>Email Pekerjaan</label><input value="${escapeHtml(p.email||'')}" readonly style="background:#f1f5f9;color:var(--text-sec);cursor:not-allowed;"></div>
+                            <div class="grid-2">
+                                <div class="form-group"><label>No Handphone</label><input id="pf_no_hp" value="${escapeHtml(p.no_hp||'')}"></div>
+                                <div class="form-group"><label>Tanggal Lahir</label><input id="pf_tanggal_lahir" type="date" value="${escapeHtml(p.tanggal_lahir||'')}"></div>
+                            </div>
+                            <div class="form-group"><label>Alamat Domisili</label><textarea id="pf_alamat" rows="3">${escapeHtml(p.alamat||'')}</textarea></div>
+                        </div>
+                        
+                        <div style="padding-top:16px;border-top:1px solid var(--border);">
+                            <h4 style="font-size:16px;font-weight:600;margin-bottom:16px;color:var(--text-main);display:flex;align-items:center;gap:8px;"><i class="ph ph-lock-key" style="color:var(--primary);"></i> Keamanan Akun</h4>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label>Password Baru</label>
+                                <input id="pf_new_password" type="password" placeholder="Kosongkan jika tidak ingin mengubah password">
+                                <div class="file-hint">Minimal 8 karakter. Gunakan kombinasi huruf dan angka untuk keamanan.</div>
+                            </div>
                         </div>
                     </div>
                 </div>
