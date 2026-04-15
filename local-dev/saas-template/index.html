@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS HR Dashboard</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Styles -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="layout">
+        <!-- 1. SIDEBAR -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <img src="https://trendhorizone.id/wp-content/uploads/2024/07/output-onlinepngtools.png" alt="Logo">
+                </div>
+                <div class="logo-text">ESS Portal</div>
+                <button class="mobile-close" id="mobileClose"><i class="ph ph-x"></i></button>
+            </div>
+
+            <nav class="sidebar-menu">
+                <a href="#" class="menu-item active">
+                    <i class="ph ph-squares-four"></i>
+                    <span>Home</span>
+                </a>
+                <a href="#" class="menu-item">
+                    <i class="ph ph-users"></i>
+                    <span>Team</span>
+                </a>
+                <a href="#" class="menu-item">
+                    <i class="ph ph-calendar-blank"></i>
+                    <span>Leave</span>
+                </a>
+                <a href="#" class="menu-item">
+                    <i class="ph ph-wallet"></i>
+                    <span>Salary</span>
+                </a>
+                <a href="#" class="menu-item">
+                    <i class="ph ph-clock"></i>
+                    <span>Attendance</span>
+                </a>
+                <a href="#" class="menu-item">
+                    <i class="ph ph-receipt"></i>
+                    <span>Expense Claims</span>
+                </a>
+                <a href="#" class="menu-item">
+                    <i class="ph ph-folder-open"></i>
+                    <span>Document Center</span>
+                </a>
+                <a href="#" class="menu-item">
+                    <i class="ph ph-lifebuoy"></i>
+                    <span>Helpdesk</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- MAIN WRAPPER -->
+        <div class="main-wrapper">
+            <!-- HEADER -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-toggle" id="mobileToggle"><i class="ph ph-list"></i></button>
+                    <div class="search-bar">
+                        <i class="ph ph-magnifying-glass"></i>
+                        <input type="text" placeholder="Search anything...">
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="date-display">
+                        <i class="ph ph-calendar"></i>
+                        <span>Thursday, 09 Apr</span>
+                    </div>
+                    <button class="icon-btn notif-btn">
+                        <i class="ph ph-bell"></i>
+                        <span class="badge">2</span>
+                    </button>
+                    <div class="user-profile">
+                        <img src="https://ui-avatars.com/api/?name=Jimmy+Anderson&background=4F46E5&color=fff" alt="User" class="avatar">
+                        <div class="user-info">
+                            <span class="user-name">Jimmy Anderson</span>
+                            <span class="user-role">Designer</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- CONTENT GRID -->
+            <div class="content-grid">
+                
+                <!-- 2. MAIN CONTENT (CENTER) -->
+                <main class="middle-col">
+                    
+                    <!-- B. GREETING -->
+                    <div class="greeting">
+                        <h1>Hello, Jimmy</h1>
+                        <p>Welcome back! Here's your summary for today.</p>
+                    </div>
+
+                    <div class="cards-row">
+                        <!-- C. PAYSLIP CARD -->
+                        <div class="card payslip-card">
+                            <div class="payslip-content">
+                                <div class="donut-chart-dummy">
+                                    <svg viewBox="0 0 36 36" class="circular-chart">
+                                        <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                        <path class="circle" stroke-dasharray="75, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                        <text x="18" y="20.35" class="percentage">75%</text>
+                                    </svg>
+                                </div>
+                                <div class="payslip-info">
+                                    <div class="salary-header">
+                                        <span class="salary-label">Estimated Salary</span>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="salaryToggle" checked>
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="salary-amount" id="salaryAmount">$4,250.00</div>
+                                    <div class="salary-meta">
+                                        <span><i class="ph ph-calendar-check"></i> April 2026</span>
+                                        <span><i class="ph ph-check-circle"></i> 22 Paid days</span>
+                                    </div>
+                                    <a href="#" class="download-link"><i class="ph ph-download-simple"></i> Download Payslip</a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- D. ACTION CARD -->
+                        <div class="card action-card">
+                            <div class="action-text">
+                                <h3>Have a task in mind?</h3>
+                                <p>Create a new request or ask help from the assistant.</p>
+                                <button class="btn btn-white">Create Request</button>
+                            </div>
+                            <div class="action-illustration">
+                                <i class="ph-fill ph-robot"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="cards-row bottom-row">
+                        <!-- E. TODO / ACTIVITY CARD -->
+                        <div class="card todo-card">
+                            <div class="tab-nav">
+                                <button class="tab-btn active" data-target="tab-reviews">Reviews</button>
+                                <button class="tab-btn" data-target="tab-tasks">Tasks</button>
+                            </div>
+                            <div class="tab-content active" id="tab-reviews">
+                                <ul class="clean-list">
+                                    <li>
+                                        <img src="https://ui-avatars.com/api/?name=Sarah+Lee&background=F3F4F6&color=4F46E5" class="avatar-sm">
+                                        <div class="list-text">
+                                            <span class="list-title">Sarah Lee</span>
+                                            <span class="list-desc">Leave request for 12-14 Apr</span>
+                                        </div>
+                                        <button class="btn-icon"><i class="ph ph-caret-right"></i></button>
+                                    </li>
+                                    <li>
+                                        <img src="https://ui-avatars.com/api/?name=Mike+Ross&background=F3F4F6&color=4F46E5" class="avatar-sm">
+                                        <div class="list-text">
+                                            <span class="list-title">Mike Ross</span>
+                                            <span class="list-desc">Expense claim #EXP-992</span>
+                                        </div>
+                                        <button class="btn-icon"><i class="ph ph-caret-right"></i></button>
+                                    </li>
+                                    <li>
+                                        <img src="https://ui-avatars.com/api/?name=Anna+Kim&background=F3F4F6&color=4F46E5" class="avatar-sm">
+                                        <div class="list-text">
+                                            <span class="list-title">Anna Kim</span>
+                                            <span class="list-desc">Overtime approval required</span>
+                                        </div>
+                                        <button class="btn-icon"><i class="ph ph-caret-right"></i></button>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div class="tab-content" id="tab-tasks">
+                                <ul class="clean-list">
+                                    <li>
+                                        <div class="icon-box"><i class="ph ph-file-text"></i></div>
+                                        <div class="list-text">
+                                            <span class="list-title">Update Q2 Report</span>
+                                            <span class="list-desc">Due today</span>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="icon-box"><i class="ph ph-presentation-chart"></i></div>
+                                        <div class="list-text">
+                                            <span class="list-title">Team Meeting Prep</span>
+                                            <span class="list-desc">Tomorrow, 10:00 AM</span>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- F. TEAM CARD -->
+                        <div class="card team-card">
+                            <div class="team-header">
+                                <div class="team-stat">
+                                    <div class="stat-large">40%</div>
+                                    <div class="stat-label">Team Capacity</div>
+                                </div>
+                                <button class="btn-icon"><i class="ph ph-dots-three"></i></button>
+                            </div>
+                            <ul class="clean-list team-list">
+                                <li>
+                                    <img src="https://ui-avatars.com/api/?name=David+C&background=F3F4F6&color=111827" class="avatar-sm">
+                                    <div class="list-text">
+                                        <span class="list-title">David Chen</span>
+                                    </div>
+                                    <span class="status-badge on-time">On Time</span>
+                                </li>
+                                <li>
+                                    <img src="https://ui-avatars.com/api/?name=Emma+W&background=F3F4F6&color=111827" class="avatar-sm">
+                                    <div class="list-text">
+                                        <span class="list-title">Emma Watson</span>
+                                    </div>
+                                    <span class="status-badge on-leave">On Leave</span>
+                                </li>
+                                <li>
+                                    <img src="https://ui-avatars.com/api/?name=John+D&background=F3F4F6&color=111827" class="avatar-sm">
+                                    <div class="list-text">
+                                        <span class="list-title">John Doe</span>
+                                    </div>
+                                    <span class="status-badge on-time">On Time</span>
+                                </li>
+                            </ul>
+                            <div class="pagination-dots">
+                                <span class="dot active"></span>
+                                <span class="dot"></span>
+                                <span class="dot"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                </main>
+
+                <!-- 3. RIGHT PANEL (ATTENDANCE UI) -->
+                <aside class="right-col">
+                    <div class="attendance-widget">
+                        <div class="widget-header">
+                            <div>
+                                <h2>Attendance Tracker</h2>
+                                <p>Today's shift: 09:00 - 18:00</p>
+                            </div>
+                            <button class="btn-icon-light"><i class="ph ph-gear"></i></button>
+                        </div>
+                        
+                        <div class="timer-display">
+                            <div class="timer-value" id="digitalTimer">08:23:34</div>
+                            <div class="timer-label">Active Working Hours</div>
+                        </div>
+
+                        <div class="tracker-info">
+                            <div class="info-box">
+                                <i class="ph ph-sign-in"></i>
+                                <div class="info-text">
+                                    <span>Check In</span>
+                                    <strong>08:55 AM</strong>
+                                </div>
+                            </div>
+                            <div class="info-box">
+                                <i class="ph ph-hourglass-high"></i>
+                                <div class="info-text">
+                                    <span>Remaining</span>
+                                    <strong>00:36:26</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="break-box">
+                            <div class="break-text">
+                                <i class="ph ph-coffee"></i>
+                                <span>Take a break</span>
+                            </div>
+                            <button class="btn btn-outline-light">Start</button>
+                        </div>
+
+                        <button class="btn btn-signout">Sign Out</button>
+
+                        <div class="widget-footer">
+                            <a href="#" class="view-link">View Swipe Details <i class="ph ph-arrow-right"></i></a>
+                        </div>
+                    </div>
+                </aside>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

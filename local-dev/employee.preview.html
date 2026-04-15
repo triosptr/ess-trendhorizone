@@ -4,6 +4,15 @@
   <base target="_top">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#4F46E5">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Trend ESS v5">
+  <link rel="manifest" href="/api/assets/manifest.webmanifest?v=5">
+  <link rel="icon" type="image/png" sizes="192x192" href="/api/assets/favicon-192.png?v=5">
+  <link rel="icon" type="image/png" sizes="512x512" href="/api/assets/favicon-512.png?v=5">
+  <link rel="apple-touch-icon" sizes="180x180" href="/api/assets/apple-touch-icon.png?v=5">
+  <link rel="apple-touch-icon-precomposed" sizes="180x180" href="/api/assets/apple-touch-icon-precomposed.png?v=5">
   <title>ESS Karyawan</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -168,6 +177,9 @@
     th { background: var(--bg); font-weight: 600; color: var(--text-sec); text-transform: uppercase; letter-spacing: 0.05em; font-size: 12px; }
     .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; align-items: center; }
     .btn { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 99px; padding: 10px 18px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; transition: .2s ease; max-width: 100%; }
+    .btn.is-loading { opacity: .75; pointer-events: none; }
+    .spin { display:inline-block; width:14px; height:14px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation: spin .8s linear infinite; vertical-align:middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
     .btn-primary { background: var(--primary); color: #fff; }
     .btn-primary:hover { background: var(--secondary); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(79,70,229,.2); }
     .btn-secondary { background: var(--primary-light); color: var(--primary); }
@@ -178,10 +190,14 @@
     .error { background: var(--danger-bg); color: var(--danger); border: 1px solid #fecaca; border-radius: var(--radius-sm); padding: 12px 14px; font-size: 14px; font-weight: 600; }
     .modal-backdrop { position: fixed; inset: 0; background: rgba(17,24,39,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; backdrop-filter: blur(4px); }
     .modal-card { width: min(860px, 96vw); max-height: 92vh; overflow: auto; background: #fff; border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-lg); }
+    .mobile-bottom-nav { display:none; position:fixed; left:0; right:0; bottom:0; height:68px; background:#fff; border-top:1px solid var(--border); z-index:1200; padding:6px 8px calc(6px + env(safe-area-inset-bottom)); overflow-x:auto; gap:4px; align-items:stretch; -webkit-overflow-scrolling:touch; }
+    .mobile-nav-btn { border:none; background:transparent; color:var(--text-sec); min-width:74px; padding:6px 8px; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; font-size:11px; font-weight:600; cursor:pointer; }
+    .mobile-nav-btn i { font-size:18px; }
+    .mobile-nav-btn.active { color:var(--primary); background:var(--primary-light); }
 
     @media (max-width: 1200px) { .content-grid { grid-template-columns: 1fr; } .right-col { position: static; order: -1; } .attendance-widget { min-height: 0; } }
-    @media (max-width: 992px) { .sidebar { position: fixed; transform: translateX(-100%); height: 100vh; box-shadow: var(--shadow-lg); } .sidebar.open { transform: translateX(0); } .search-bar { display: none; } .cards-row { grid-template-columns: 1fr; } .table-wrap { margin-top: 12px; } table { min-width: 620px; } }
-    @media (max-width: 768px) { .content-grid { grid-template-columns: 1fr; padding: 16px; gap:16px; } .right-col { order: -1; margin-bottom:10px; } .header-right .date-display { display: none; } .tracker-info { grid-template-columns: 1fr; } .actions .btn { width: 100%; justify-content: center; } table { min-width: 560px; } th,td { padding: 12px; font-size: 13px; } }
+    @media (max-width: 992px) { .sidebar { position: fixed; transform: translateX(-100%); height: 100vh; box-shadow: var(--shadow-lg); } .sidebar.open { transform: translateX(0); } .search-bar { display: none; } .cards-row { grid-template-columns: 1fr; } .table-wrap { margin-top: 12px; } table { min-width: 620px; } .mobile-bottom-nav { display:flex; } .main-wrapper { padding-bottom: calc(68px + env(safe-area-inset-bottom)); } .content-grid { height: calc(100dvh - 80px - 68px - env(safe-area-inset-bottom)); } .header { padding: 10px 12px; } .header-right { gap: 8px; } .user-info { display:none; } }
+    @media (max-width: 768px) { .content-grid { grid-template-columns: 1fr; padding: 12px; gap:12px; } .right-col { order: -1; margin-bottom:10px; } .header-right .date-display { display: none; } .tracker-info { grid-template-columns: 1fr; } .actions .btn { width: 100%; justify-content: center; } table { min-width: 560px; } th,td { padding: 12px; font-size: 13px; } .greeting h1 { font-size: 22px; } .salary-amount { font-size: 24px; } .timer-value { font-size: 34px; } }
   </style>
 </head>
 <body>
@@ -193,14 +209,14 @@
         <button class="mobile-close" onclick="document.getElementById('sidebar').classList.remove('open')" style="display:none;"><i class="ph ph-x"></i></button>
       </div>
       <nav class="sidebar-menu">
-        <button class="menu-item active" onclick="navTo('home', this); loadEmployeeHome()"><i class="ph ph-squares-four"></i><span>Home</span></button>
-        <button class="menu-item" onclick="navTo('leave', this); loadLeaveForm()"><i class="ph ph-calendar-blank"></i><span>Leave</span></button>
-        <button class="menu-item" onclick="navTo('history', this); loadMyAttendanceHistory()"><i class="ph ph-clock"></i><span>Attendance History</span></button>
-        <button class="menu-item" onclick="navTo('payroll', this); loadMyPayrollDocs()"><i class="ph ph-wallet"></i><span>Salary</span></button>
-        <button class="menu-item" onclick="navTo('schedule', this); loadMyMonthlySchedule()"><i class="ph ph-calendar-check"></i><span>Schedule</span></button>
-        <button class="menu-item" onclick="navTo('notif', this); loadNotificationCenter()"><i class="ph ph-bell"></i><span>Notifications</span></button>
-        <button class="menu-item" onclick="navTo('profile', this); loadMyProfile()"><i class="ph ph-user"></i><span>Profile</span></button>
-        <button class="menu-item" onclick="navTo('incident', this); loadMyIncidentTimeline()"><i class="ph ph-siren"></i><span>Timeline</span></button>
+        <button class="menu-item active" data-nav-id="home" onclick="navTo('home'); loadEmployeeHome()"><i class="ph ph-squares-four"></i><span>Home</span></button>
+        <button class="menu-item" data-nav-id="leave" onclick="navTo('leave'); loadLeaveForm()"><i class="ph ph-calendar-blank"></i><span>Leave</span></button>
+        <button class="menu-item" data-nav-id="history" onclick="navTo('history'); loadMyAttendanceHistory()"><i class="ph ph-clock"></i><span>Attendance History</span></button>
+        <button class="menu-item" data-nav-id="payroll" onclick="navTo('payroll'); loadMyPayrollDocs()"><i class="ph ph-wallet"></i><span>Salary</span></button>
+        <button class="menu-item" data-nav-id="schedule" onclick="navTo('schedule'); loadMyMonthlySchedule()"><i class="ph ph-calendar-check"></i><span>Schedule</span></button>
+        <button class="menu-item" data-nav-id="notif" onclick="navTo('notif'); loadNotificationCenter()"><i class="ph ph-bell"></i><span>Notifications</span></button>
+        <button class="menu-item" data-nav-id="profile" onclick="navTo('profile'); loadMyProfile()"><i class="ph ph-user"></i><span>Profile</span></button>
+        <button class="menu-item" data-nav-id="incident" onclick="navTo('incident'); loadMyIncidentTimeline()"><i class="ph ph-siren"></i><span>Timeline</span></button>
       </nav>
     </aside>
 
@@ -213,9 +229,9 @@
         </div>
         <div class="header-right">
           <div class="date-display"><i class="ph ph-calendar"></i><span id="header_date">Today</span></div>
-          <button class="icon-btn" onclick="loadNotificationCenter()"><i class="ph ph-bell"></i><span class="badge" id="notif_badge" style="display:none;">0</span></button>
+          <button class="icon-btn" onclick="navTo('notif'); loadNotificationCenter()"><i class="ph ph-bell"></i><span class="badge" id="notif_badge" style="display:none;">0</span></button>
           <button class="icon-btn" onclick="logoutSession()"><i class="ph ph-sign-out"></i></button>
-          <div class="user-profile" onclick="loadMyProfile()">
+          <div class="user-profile" onclick="navTo('profile'); loadMyProfile()">
             <div class="avatar" id="header_avatar">U</div>
             <div class="user-info"><span class="user-name" id="header_name">User</span><span class="user-role" id="header_role">Employee</span></div>
           </div>
@@ -227,6 +243,15 @@
       </div>
     </div>
   </div>
+  <nav class="mobile-bottom-nav" id="mobile_bottom_nav">
+    <button class="mobile-nav-btn active" data-nav-id="home" onclick="navTo('home'); loadEmployeeHome()"><i class="ph ph-squares-four"></i><span>Home</span></button>
+    <button class="mobile-nav-btn" data-nav-id="leave" onclick="navTo('leave'); loadLeaveForm()"><i class="ph ph-calendar-blank"></i><span>Leave</span></button>
+    <button class="mobile-nav-btn" data-nav-id="history" onclick="navTo('history'); loadMyAttendanceHistory()"><i class="ph ph-clock"></i><span>History</span></button>
+    <button class="mobile-nav-btn" data-nav-id="payroll" onclick="navTo('payroll'); loadMyPayrollDocs()"><i class="ph ph-wallet"></i><span>Salary</span></button>
+    <button class="mobile-nav-btn" data-nav-id="schedule" onclick="navTo('schedule'); loadMyMonthlySchedule()"><i class="ph ph-calendar-check"></i><span>Schedule</span></button>
+    <button class="mobile-nav-btn" data-nav-id="notif" onclick="navTo('notif'); loadNotificationCenter()"><i class="ph ph-bell"></i><span>Notif</span></button>
+    <button class="mobile-nav-btn" data-nav-id="profile" onclick="navTo('profile'); loadMyProfile()"><i class="ph ph-user"></i><span>Profile</span></button>
+  </nav>
 
   <!-- Camera Modal -->
   <div id="checkin_camera_modal" class="modal-backdrop" style="display:none;">
@@ -255,7 +280,7 @@
       <div class="form-group"><label>Location / Notes</label><input id="co_lokasi" placeholder="e.g. Office / WFH" value=""></div>
       <div class="form-group"><label>Activity Summary</label><textarea id="co_catatan" placeholder="What did you do today?"></textarea></div>
       <div class="actions" style="justify-content:flex-end;">
-        <button class="btn btn-primary" onclick="submitCheckOutSimple()"><i class="ph ph-sign-out"></i> Confirm Check Out</button>
+        <button id="btn_confirm_checkout" class="btn btn-primary" onclick="submitCheckOutSimple()"><i class="ph ph-sign-out"></i> Confirm Check Out</button>
       </div>
     </div>
   </div>
@@ -269,7 +294,12 @@
     let employeeHomeLoading=false;
     let employeeLastHomeLoadedAt=0;
     let employeeHomeCache=null;
-    function navTo(id, el){ employeeCurrentSection=String(id||'home'); document.querySelectorAll('.menu-item').forEach(e=>e.classList.remove('active')); el.classList.add('active'); if(window.innerWidth<=992) document.getElementById('sidebar').classList.remove('open'); }
+    function navTo(id){
+      employeeCurrentSection=String(id||'home');
+      document.querySelectorAll('.menu-item,.mobile-nav-btn').forEach(function(e){ e.classList.remove('active'); });
+      document.querySelectorAll('[data-nav-id="'+employeeCurrentSection+'"]').forEach(function(e){ e.classList.add('active'); });
+      if(window.innerWidth<=992) document.getElementById('sidebar').classList.remove('open');
+    }
     if(window.innerWidth<=992) { document.getElementById('mobileToggle').style.display='block'; document.querySelector('.mobile-close').style.display='block'; }
     document.getElementById('header_date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long', day:'2-digit', month:'short'});
 
@@ -342,7 +372,32 @@
         }
     }
     
-    function setLoading(t){ setContentLayout(`<div class="card"><h3>${escapeHtml(t||'Loading...')}</h3><p class="muted">Please wait a moment.</p></div>`, ''); }
+    function setLoading(t){ setContentLayout(`<div class="card"><h3 style="display:flex;align-items:center;gap:8px;"><span class="spin"></span>${escapeHtml(t||'Loading...')}</h3><p class="muted">Please wait a moment.</p></div>`, ''); }
+    function resolveActionButton(btnOrId){
+      if(btnOrId && btnOrId.tagName) return btnOrId;
+      if(typeof btnOrId==='string' && btnOrId) return document.getElementById(btnOrId);
+      const ev=window.event;
+      const el=(ev&&ev.currentTarget)||(ev&&ev.target)||null;
+      return el&&el.closest?el.closest('button'):null;
+    }
+    async function runWithButtonLoading(btnOrId, loadingLabel, idleHtml, task){
+      const btn=resolveActionButton(btnOrId);
+      const prevHtml=btn?btn.innerHTML:'';
+      if(btn){
+        btn.disabled=true;
+        btn.classList.add('is-loading');
+        btn.innerHTML='<span class="spin"></span> '+escapeHtml(String(loadingLabel||'Processing...'));
+      }
+      try{
+        return await task();
+      }finally{
+        if(btn){
+          btn.disabled=false;
+          btn.classList.remove('is-loading');
+          btn.innerHTML=idleHtml || prevHtml;
+        }
+      }
+    }
     function renderError(m){ return `<div class="card"><div class="error">${escapeHtml(m||'Error occurred.')}</div></div>`; }
     function formatDateTimeDisplay(value){ if(!value) return ''; const d=new Date(value); if(isNaN(d.getTime())) return String(value); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0'); }
     function formatDateDisplay(value){ if(!value) return ''; const d=new Date(value); if(isNaN(d.getTime())) return String(value); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
@@ -564,16 +619,16 @@
     function runEmployeeQuickAction(key){
       const k=String(key||'');
       if(k==='checkin_now') return openCheckInCameraFlow();
-      if(k==='checkout_or_break') return navTo('home', document.querySelectorAll('.menu-item')[0]);
-      if(k==='open_leave_status') return navTo('leave', document.querySelectorAll('.menu-item')[1]), loadLeaveForm();
-      return navTo('history', document.querySelectorAll('.menu-item')[2]), loadMyAttendanceHistory();
+      if(k==='checkout_or_break') return navTo('home');
+      if(k==='open_leave_status') return navTo('leave'), loadLeaveForm();
+      return navTo('history'), loadMyAttendanceHistory();
     }
     function runEmployeeTimelineAction(route){
       const r=String(route||'').toLowerCase();
-      if(r==='leave') return navTo('leave', document.querySelectorAll('.menu-item')[1]), loadLeaveForm();
-      if(r==='notif') return navTo('notif', document.querySelectorAll('.menu-item')[5]), loadNotificationCenter();
-      if(r==='history') return navTo('history', document.querySelectorAll('.menu-item')[2]), loadMyAttendanceHistory();
-      return navTo('home', document.querySelectorAll('.menu-item')[0]), loadEmployeeHome();
+      if(r==='leave') return navTo('leave'), loadLeaveForm();
+      if(r==='notif') return navTo('notif'), loadNotificationCenter();
+      if(r==='history') return navTo('history'), loadMyAttendanceHistory();
+      return navTo('home'), loadEmployeeHome();
     }
 
     async function loadEmployeeHome(){ 
@@ -666,7 +721,7 @@
                             <div class="salary-meta">
                                 <span><i class="ph ph-target"></i> Target: ${escapeHtml(data.shift_target_today||'8h')}</span>
                             </div>
-                            <a href="#" class="download-link" onclick="navTo('schedule', document.querySelectorAll('.menu-item')[4]); loadMyMonthlySchedule()"><i class="ph ph-calendar-check"></i> View Schedule</a>
+                            <a href="#" class="download-link" onclick="navTo('schedule'); loadMyMonthlySchedule()"><i class="ph ph-calendar-check"></i> View Schedule</a>
                         </div>
                     </div>
                 </div>
@@ -676,7 +731,7 @@
                     <div class="action-text">
                         <h3>Need time off?</h3>
                         <p>Available Leave: ${escapeHtml(data.sisa_cuti||0)} days</p>
-                        <button class="btn-white" onclick="navTo('leave', document.querySelectorAll('.menu-item')[1]); loadLeaveForm()">Apply Leave</button>
+                        <button class="btn-white" onclick="navTo('leave'); loadLeaveForm()">Apply Leave</button>
                     </div>
                     <div class="action-illustration">
                         <i class="ph-fill ph-calendar-star"></i>
@@ -697,7 +752,7 @@
                             <li><div class="list-text"><span class="list-title">THP Terbaru</span><span class="list-desc">${escapeHtml(moneyId((payrollSummary.summary||{}).latest_take_home_pay||0))}</span></div></li>
                             <li><div class="list-text"><span class="list-title">Slip Terbaru</span><span class="list-desc">${escapeHtml((((payrollSummary.latest_doc||{}).bulan)||'-')+' '+(((payrollSummary.latest_doc||{}).tahun)||''))}</span></div><a class="btn btn-secondary" href="${escapeHtml(((payrollSummary.latest_doc||{}).file_url)||'#')}" target="_blank">Open</a></li>
                         </ul>
-                        <div class="actions"><button class="btn btn-secondary" onclick="navTo('salary', document.querySelectorAll('.menu-item')[3]); loadMyPayrollDocs()">Open Salary Slips</button></div>
+                        <div class="actions"><button class="btn btn-secondary" onclick="navTo('payroll'); loadMyPayrollDocs()">Open Salary Slips</button></div>
                     </div>
                     <div class="card team-card">
                         <div class="team-header">
@@ -770,7 +825,7 @@
                 ${(insights.quick_actions||[]).slice(0,3).map(function(a){ return '<button class="btn btn-secondary" onclick="runEmployeeQuickAction(\''+escapeHtml(a.action_key||'')+'\')">'+escapeHtml(a.label||'Open')+'</button>'; }).join('')}
               </div>
               <div class="card" style="box-shadow:none;background:var(--bg);margin-top:14px;">
-                <div class="team-header"><h3 style="font-size:16px;font-weight:700;">Recent Incident Timeline</h3><button class="btn btn-secondary" onclick="navTo('incident', document.querySelectorAll('.menu-item')[7]); loadMyIncidentTimeline()">Open Full</button></div>
+                <div class="team-header"><h3 style="font-size:16px;font-weight:700;">Recent Incident Timeline</h3><button class="btn btn-secondary" onclick="navTo('incident'); loadMyIncidentTimeline()">Open Full</button></div>
                 <ul class="clean-list">
                   ${((incidentTimeline.timeline||[]).slice(0,4).map(function(x){ return '<li><div class="list-text"><span class="list-title">'+escapeHtml(x.title||'-')+'</span><span class="list-desc">'+escapeHtml(x.detail||'-')+'</span></div><button class="btn btn-secondary" onclick="runEmployeeTimelineAction(\''+escapeHtml(x.action_route||'home')+'\')">Open</button></li>'; }).join('')) || '<li><div class="list-text"><span class="list-desc">No incidents.</span></div></li>'}
                 </ul>
@@ -785,7 +840,7 @@
                         <h2>Attendance Tracker</h2>
                         <p>${escapeHtml(today.tanggal||'Today')}</p>
                     </div>
-                    <button class="btn-icon-light" onclick="navTo('history', document.querySelectorAll('.menu-item')[2]); loadMyAttendanceHistory()"><i class="ph ph-clock-counter-clockwise"></i></button>
+                    <button class="btn-icon-light" onclick="navTo('history'); loadMyAttendanceHistory()"><i class="ph ph-clock-counter-clockwise"></i></button>
                 </div>
                 <div class="actions" style="margin-top:0;margin-bottom:12px;">
                     ${canCheckIn ? '<button class="btn-signout" style="background:var(--primary);margin:0;" onclick="openCheckInCameraFlow()">Check In Now</button>' : ''}
@@ -894,7 +949,9 @@
     async function finalCheckInSubmit(){
       try{
         if(!checkInCapturedPhoto) throw new Error('Capture photo first.');
-        await api('/api/me/attendance/check-in','POST',{ work_mode:'office', shift_karyawan:employeeTodayShiftCode||'PAGI', lokasi:'', catatan:'', status:'Hadir', photo:checkInCapturedPhoto });
+        await runWithButtonLoading('btn_final_checkin','Submitting...','<i class="ph ph-check-circle"></i> Submit', async function(){
+          await api('/api/me/attendance/check-in','POST',{ work_mode:'office', shift_karyawan:employeeTodayShiftCode||'PAGI', lokasi:'', catatan:'', status:'Hadir', photo:checkInCapturedPhoto });
+        });
         closeCheckInModal();
         await loadEmployeeHome();
       }catch(err){ alert(err.message); }
@@ -908,14 +965,26 @@
 
     async function submitCheckOutSimple(){
       try{
-        await api('/api/me/attendance/check-out','POST',{ lokasi:document.getElementById('co_lokasi').value, catatan:document.getElementById('co_catatan').value, status:'Hadir' });
+        await runWithButtonLoading('btn_confirm_checkout','Submitting...','<i class="ph ph-sign-out"></i> Confirm Check Out', async function(){
+          await api('/api/me/attendance/check-out','POST',{ lokasi:document.getElementById('co_lokasi').value, catatan:document.getElementById('co_catatan').value, status:'Hadir' });
+        });
         document.getElementById('checkout_modal').style.display='none';
         await loadEmployeeHome();
       }catch(err){ alert(err.message); }
     }
 
-    async function startBreak(){ try{ await api('/api/me/attendance/break/start','POST',{}); await loadEmployeeHome(); }catch(err){ alert(err.message); } }
-    async function endBreak(){ try{ await api('/api/me/attendance/break/end','POST',{}); await loadEmployeeHome(); }catch(err){ alert(err.message); } }
+    async function startBreak(){
+      try{
+        await runWithButtonLoading(null,'Starting...','Start Break', async function(){ await api('/api/me/attendance/break/start','POST',{}); });
+        await loadEmployeeHome();
+      }catch(err){ alert(err.message); }
+    }
+    async function endBreak(){
+      try{
+        await runWithButtonLoading(null,'Ending...','End Break', async function(){ await api('/api/me/attendance/break/end','POST',{}); });
+        await loadEmployeeHome();
+      }catch(err){ alert(err.message); }
+    }
 
     // --- OTHER PAGES (Generic Views) ---
     function statusBadge(s) { const st=String(s).toLowerCase(); if(st==='approved'||st==='hadir') return `<span class="status-badge on-time">${escapeHtml(s)}</span>`; if(st==='pending') return `<span class="status-badge on-leave">${escapeHtml(s)}</span>`; return `<span class="status-badge" style="background:var(--border);">${escapeHtml(s)}</span>`; }
@@ -975,7 +1044,7 @@
                       <div id="leave_attachment_required" class="file-hint">Opsional</div>
                       <div id="leave_attachment_info" class="file-hint">Belum ada file dipilih</div>
                     </div>
-                    <button class="btn btn-primary" onclick="submitLeave()"><i class="ph ph-paper-plane-right"></i> Submit Request</button>
+                    <button id="btn_submit_leave" class="btn btn-primary" onclick="submitLeave()"><i class="ph ph-paper-plane-right"></i> Submit Request</button>
                 </div>
                 <div class="card">
                     <h3 style="font-size:20px;font-weight:700;margin-bottom:24px;">Recent Requests</h3>
@@ -993,7 +1062,9 @@
           if(!jenis||!mulai||!selesai) throw new Error('Jenis cuti dan rentang tanggal wajib diisi.');
           if(mulai>selesai) throw new Error('Tanggal mulai tidak boleh lebih besar dari tanggal selesai.');
           if(selectedLeaveTypeRequiresAttachment() && !leaveAttachmentPayload) throw new Error('Cuti sakit wajib upload surat sakit.');
-          await api('/api/me/leaves','POST',{jenis_cuti:jenis, tanggal_mulai:mulai, tanggal_selesai:selesai, alasan:alasan, attachment:leaveAttachmentPayload||undefined});
+          await runWithButtonLoading('btn_submit_leave','Submitting...','<i class="ph ph-paper-plane-right"></i> Submit Request', async function(){
+            await api('/api/me/leaves','POST',{jenis_cuti:jenis, tanggal_mulai:mulai, tanggal_selesai:selesai, alasan:alasan, attachment:leaveAttachmentPayload||undefined});
+          });
           alert('Leave submitted!');
           loadLeaveForm();
         } catch(e){ alert(e.message); }
@@ -1015,12 +1086,13 @@
     }
 
     async function loadNotificationCenter(){ 
+        employeeCurrentSection='notif';
         try { setLoading(); const rows=await api('/api/me/notifications'); 
         const html = `
             <div class="card">
                 <div class="team-header">
                     <h3 style="font-size:20px;font-weight:700;">Notifications</h3>
-                    <button class="btn btn-secondary" onclick="api('/api/me/notifications/mark-seen','POST',{type:'all'}).then(()=>loadNotificationCenter())"><i class="ph ph-check-double"></i> Mark all read</button>
+                    <button class="btn btn-secondary" onclick="markAllNotifications()"><i class="ph ph-check-double"></i> Mark all read</button>
                 </div>
                 <ul class="clean-list" style="gap:24px;">${rows.length?rows.map(r=>{ const unread=String(r.is_unread).toLowerCase()==='true'||r.is_unread===true; return `<li style="align-items:flex-start;"><div class="icon-box" style="background:${unread?'var(--primary-light)':'var(--bg)'};"><i class="ph ph-bell"></i></div><div class="list-text"><span class="list-title" style="font-size:16px;">${escapeHtml(r.title)} ${unread?'<span class="badge" style="position:relative;display:inline-block;top:0;right:0;margin-left:8px;padding:2px 6px;width:auto;height:auto;">New</span>':''}</span><span class="list-desc" style="margin-bottom:8px;">${escapeHtml(formatDateTimeDisplay(r.date_value))}</span><p style="font-size:14px;color:var(--text-sec);">${escapeHtml(r.message)}</p></div></li>`; }).join(''):'<li>No notifications</li>'}</ul>
             </div>`;
@@ -1060,7 +1132,9 @@
         };
         const f=(document.getElementById('pf_photo')||{}).files;
         if(f&&f[0]) payload.photo={ base64Data: await fileToBase64(f[0]), mimeType: f[0].type||'image/jpeg' };
-        await api('/api/me/profile','PATCH',payload);
+        await runWithButtonLoading(null,'Menyimpan...','<i class="ph ph-floppy-disk"></i> Simpan Profil', async function(){
+          await api('/api/me/profile','PATCH',payload);
+        });
         localStorage.removeItem('ess_force_profile_setup');
         // Refresh avatar header
         const av = document.getElementById('header_avatar');
@@ -1076,6 +1150,7 @@
       }catch(e){ setContentLayout(renderError(e.message), null); }
     }
     async function loadMyProfile(){ 
+        employeeCurrentSection='profile';
         try { setLoading(); const p=await api('/api/me/profile'); 
         const html = `
             <div class="card" style="max-width:800px;margin:0 auto;">
@@ -1144,6 +1219,14 @@
                 </div>
             </div>`;
         setContentLayout(html, null); } catch(e){ setContentLayout(renderError(e.message), null); }
+    }
+    async function markAllNotifications(){
+      try{
+        await runWithButtonLoading(null,'Memproses...','<i class="ph ph-check-double"></i> Mark all read', async function(){
+          await api('/api/me/notifications/mark-seen','POST',{type:'all'});
+        });
+        await loadNotificationCenter();
+      }catch(err){ setContentLayout(renderError(err.message), null); }
     }
 
     async function init(){ try { if(!(await ensureSessionLogin())) return; ensureEmployeeResponsiveSchedule(); ensureShiftWatcher(); await refreshShiftWatchSeed(); await bootGreeting(); if(localStorage.getItem('ess_force_profile_setup')==='1') return loadMyProfile(); await loadEmployeeHome(); } catch(e){ document.getElementById('main_content_grid').innerHTML = renderError(e.message); } }

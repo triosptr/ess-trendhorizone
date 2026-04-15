@@ -4,6 +4,15 @@
   <base target="_top">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#4F46E5">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Trend ESS Admin v5">
+  <link rel="manifest" href="/api/assets/manifest.webmanifest?v=5">
+  <link rel="icon" type="image/png" sizes="192x192" href="/api/assets/favicon-192.png?v=5">
+  <link rel="icon" type="image/png" sizes="512x512" href="/api/assets/favicon-512.png?v=5">
+  <link rel="apple-touch-icon" sizes="180x180" href="/api/assets/apple-touch-icon.png?v=5">
+  <link rel="apple-touch-icon-precomposed" sizes="180x180" href="/api/assets/apple-touch-icon-precomposed.png?v=5">
   <title>ESS Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -81,7 +90,10 @@
     th, td { border-bottom: 1px solid var(--border); padding: 14px 16px; text-align: left; font-size: 14px; vertical-align: middle; }
     th { background: var(--bg); font-weight: 600; color: var(--text-sec); text-transform: uppercase; letter-spacing: 0.05em; font-size: 12px; }
     .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; align-items: center; }
-    .btn { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 99px; padding: 10px 18px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; transition: .2s ease; max-width:100%; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 99px; padding: 10px 18px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; transition: .2s ease; max-width: 100%; }
+    .btn.is-loading { opacity:.75; pointer-events:none; }
+    .spin { display:inline-block; width:14px; height:14px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation: spin .8s linear infinite; vertical-align:middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
     .btn-primary { background: var(--primary); color: #fff; }
     .btn-primary:hover { background: var(--secondary); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(79,70,229,.2); }
     .btn-secondary { background: var(--primary-light); color: var(--primary); }
@@ -178,9 +190,13 @@
     .admin-aw-progress { height:10px; border-radius:999px; background:#e5e7eb; overflow:hidden; }
     .admin-aw-progress > span { display:block; height:100%; width:0%; background:linear-gradient(90deg,var(--primary),var(--secondary)); transition:width .5s ease; }
     @keyframes adminPulse { 0%{ transform:scale(1); opacity:.95; } 50%{ transform:scale(1.5); opacity:.45; } 100%{ transform:scale(1); opacity:.95; } }
+    .mobile-bottom-nav { display:none; position:fixed; left:0; right:0; bottom:0; height:68px; background:#fff; border-top:1px solid var(--border); z-index:1200; padding:6px 8px calc(6px + env(safe-area-inset-bottom)); overflow-x:auto; gap:4px; align-items:stretch; -webkit-overflow-scrolling:touch; }
+    .mobile-nav-btn { border:none; background:transparent; color:var(--text-sec); min-width:76px; padding:6px 8px; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; font-size:11px; font-weight:600; cursor:pointer; }
+    .mobile-nav-btn i { font-size:18px; }
+    .mobile-nav-btn.active { color:var(--primary); background:var(--primary-light); }
     
-    @media (max-width: 992px) { .sidebar { position: fixed; transform: translateX(-100%); height: 100vh; box-shadow: var(--shadow-lg); } .sidebar.open { transform: translateX(0); } .search-bar { display: none; } .table-wrap { margin-top: 12px; } table { min-width: 620px; } }
-    @media (max-width: 768px) { .content-grid { padding: 16px; gap:16px; } .header-right .date-display { display: none; } .actions .btn { width:100%; justify-content:center; } table { min-width: 560px; } th,td { padding:12px; font-size:13px; } }
+    @media (max-width: 992px) { .sidebar { position: fixed; transform: translateX(-100%); height: 100vh; box-shadow: var(--shadow-lg); } .sidebar.open { transform: translateX(0); } .search-bar { display: none; } .table-wrap { margin-top: 12px; } table { min-width: 620px; } .mobile-bottom-nav { display:flex; } .main-wrapper { padding-bottom: calc(68px + env(safe-area-inset-bottom)); } .content-grid { height: calc(100dvh - 80px - 68px - env(safe-area-inset-bottom)); } .header { padding: 10px 12px; } .header-right { gap: 8px; } .user-info { display:none; } }
+    @media (max-width: 768px) { .content-grid { padding: 12px; gap:12px; } .header-right .date-display { display: none; } .actions .btn { width:100%; justify-content:center; } table { min-width: 560px; } th,td { padding:12px; font-size:13px; } .greeting h1 { font-size: 22px; } .admin-aw-title { font-size: 22px; } .admin-aw-header h3 { font-size: 22px; } }
   </style>
 </head>
 <body>
@@ -192,16 +208,16 @@
         <button class="mobile-close" onclick="document.getElementById('sidebar').classList.remove('open')" style="display:none;"><i class="ph ph-x"></i></button>
       </div>
       <nav class="sidebar-menu">
-        <button class="menu-item active" onclick="navTo('home', this); loadSummary()"><i class="ph ph-squares-four"></i><span>Dashboard</span></button>
-        <button class="menu-item" onclick="navTo('emp', this); loadAllEmployees()"><i class="ph ph-users"></i><span>Employees</span></button>
-        <button class="menu-item" onclick="navTo('leave', this); loadLeaveManagement()"><i class="ph ph-calendar-blank"></i><span>Leave Approvals</span></button>
-        <button class="menu-item" onclick="navTo('sched', this); loadMonthlyScheduleAdmin()"><i class="ph ph-calendar-check"></i><span>Monthly Schedule</span></button>
-        <button class="menu-item" onclick="navTo('att', this); loadTodayAttendance()"><i class="ph ph-clock"></i><span>Attendance Log</span></button>
-        <button class="menu-item" onclick="navTo('rep', this); loadReportsCenter()"><i class="ph ph-chart-bar"></i><span>Reports</span></button>
-        <button class="menu-item" onclick="navTo('ops', this); loadOperationsIntelligenceCenter()"><i class="ph ph-brain"></i><span>Operations</span></button>
-        <button class="menu-item" onclick="navTo('tower', this); loadWorkforceControlTower()"><i class="ph ph-command"></i><span>Control Tower</span></button>
-        <button class="menu-item" onclick="navTo('incident', this); loadIncidentTimeline()"><i class="ph ph-siren"></i><span>Incident Timeline</span></button>
-        <button class="menu-item" onclick="navTo('master', this); loadMasterDataHub()"><i class="ph ph-database"></i><span>Master Data</span></button>
+        <button class="menu-item active" data-nav-id="home" onclick="navTo('home'); loadSummary()"><i class="ph ph-squares-four"></i><span>Dashboard</span></button>
+        <button class="menu-item" data-nav-id="emp" onclick="navTo('emp'); loadAllEmployees()"><i class="ph ph-users"></i><span>Employees</span></button>
+        <button class="menu-item" data-nav-id="leave" onclick="navTo('leave'); loadLeaveManagement()"><i class="ph ph-calendar-blank"></i><span>Leave Approvals</span></button>
+        <button class="menu-item" data-nav-id="sched" onclick="navTo('sched'); loadMonthlyScheduleAdmin()"><i class="ph ph-calendar-check"></i><span>Monthly Schedule</span></button>
+        <button class="menu-item" data-nav-id="att" onclick="navTo('att'); loadTodayAttendance()"><i class="ph ph-clock"></i><span>Attendance Log</span></button>
+        <button class="menu-item" data-nav-id="rep" onclick="navTo('rep'); loadReportsCenter()"><i class="ph ph-chart-bar"></i><span>Reports</span></button>
+        <button class="menu-item" data-nav-id="ops" onclick="navTo('ops'); loadOperationsIntelligenceCenter()"><i class="ph ph-brain"></i><span>Operations</span></button>
+        <button class="menu-item" data-nav-id="tower" onclick="navTo('tower'); loadWorkforceControlTower()"><i class="ph ph-command"></i><span>Control Tower</span></button>
+        <button class="menu-item" data-nav-id="incident" onclick="navTo('incident'); loadIncidentTimeline()"><i class="ph ph-siren"></i><span>Incident Timeline</span></button>
+        <button class="menu-item" data-nav-id="master" onclick="navTo('master'); loadMasterDataHub()"><i class="ph ph-database"></i><span>Master Data</span></button>
       </nav>
     </aside>
 
@@ -216,7 +232,7 @@
           <div class="date-display"><i class="ph ph-calendar"></i><span id="header_date">Today</span></div>
           <button class="icon-btn" onclick="loadAdminNotifications()"><i class="ph ph-bell"></i><span class="badge" id="notif_badge" style="display:none;">0</span></button>
           <button class="icon-btn" onclick="logoutSession()"><i class="ph ph-sign-out"></i></button>
-          <div class="user-profile" onclick="loadMyProfile()" style="cursor:pointer;">
+          <div class="user-profile" onclick="navTo('profile'); loadMyProfile()" style="cursor:pointer;">
             <div class="avatar" id="header_avatar">A</div>
             <div class="user-info"><span class="user-name" id="header_name">Admin</span><span class="user-role" id="header_role">Superadmin</span></div>
           </div>
@@ -228,9 +244,24 @@
       </div>
     </div>
   </div>
+  <nav class="mobile-bottom-nav" id="mobile_bottom_nav_admin">
+    <button class="mobile-nav-btn active" data-nav-id="home" onclick="navTo('home'); loadSummary()"><i class="ph ph-squares-four"></i><span>Home</span></button>
+    <button class="mobile-nav-btn" data-nav-id="emp" onclick="navTo('emp'); loadAllEmployees()"><i class="ph ph-users"></i><span>Emp</span></button>
+    <button class="mobile-nav-btn" data-nav-id="leave" onclick="navTo('leave'); loadLeaveManagement()"><i class="ph ph-calendar-blank"></i><span>Leave</span></button>
+    <button class="mobile-nav-btn" data-nav-id="att" onclick="navTo('att'); loadTodayAttendance()"><i class="ph ph-clock"></i><span>Att</span></button>
+    <button class="mobile-nav-btn" data-nav-id="ops" onclick="navTo('ops'); loadOperationsIntelligenceCenter()"><i class="ph ph-brain"></i><span>Ops</span></button>
+    <button class="mobile-nav-btn" data-nav-id="tower" onclick="navTo('tower'); loadWorkforceControlTower()"><i class="ph ph-command"></i><span>Tower</span></button>
+    <button class="mobile-nav-btn" data-nav-id="master" onclick="navTo('master'); loadMasterDataHub()"><i class="ph ph-database"></i><span>Master</span></button>
+    <button class="mobile-nav-btn" data-nav-id="profile" onclick="navTo('profile'); loadMyProfile()"><i class="ph ph-user"></i><span>Profile</span></button>
+  </nav>
 
   <script>
-    function navTo(id, el){ document.querySelectorAll('.menu-item').forEach(e=>e.classList.remove('active')); el.classList.add('active'); if(window.innerWidth<=992) document.getElementById('sidebar').classList.remove('open'); }
+    function navTo(id){
+      const navId=String(id||'home');
+      document.querySelectorAll('.menu-item,.mobile-nav-btn').forEach(function(e){ e.classList.remove('active'); });
+      document.querySelectorAll('[data-nav-id="'+navId+'"]').forEach(function(e){ e.classList.add('active'); });
+      if(window.innerWidth<=992) document.getElementById('sidebar').classList.remove('open');
+    }
     if(window.innerWidth<=992) { document.getElementById('mobileToggle').style.display='block'; document.querySelector('.mobile-close').style.display='block'; }
     document.getElementById('header_date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long', day:'2-digit', month:'short'});
 
@@ -245,7 +276,32 @@
         document.getElementById('main_content_grid').innerHTML = `<main class="middle-col">${html}</main>`;
     }
     
-    function setLoading(t){ setContent(`<div class="card"><h3>${escapeHtml(t||'Loading...')}</h3><p class="muted">Please wait a moment.</p></div>`); }
+    function setLoading(t){ setContent(`<div class="card"><h3 style="display:flex;align-items:center;gap:8px;"><span class="spin"></span>${escapeHtml(t||'Loading...')}</h3><p class="muted">Please wait a moment.</p></div>`); }
+    function resolveActionButton(btnOrId){
+      if(btnOrId && btnOrId.tagName) return btnOrId;
+      if(typeof btnOrId==='string' && btnOrId) return document.getElementById(btnOrId);
+      const ev=window.event;
+      const el=(ev&&ev.currentTarget)||(ev&&ev.target)||null;
+      return el&&el.closest?el.closest('button'):null;
+    }
+    async function runWithButtonLoading(btnOrId, loadingLabel, idleHtml, task){
+      const btn=resolveActionButton(btnOrId);
+      const prevHtml=btn?btn.innerHTML:'';
+      if(btn){
+        btn.disabled=true;
+        btn.classList.add('is-loading');
+        btn.innerHTML='<span class="spin"></span> '+escapeHtml(String(loadingLabel||'Processing...'));
+      }
+      try{
+        return await task();
+      }finally{
+        if(btn){
+          btn.disabled=false;
+          btn.classList.remove('is-loading');
+          btn.innerHTML=idleHtml || prevHtml;
+        }
+      }
+    }
     function renderError(m){ return `<div class="card"><div class="error">${escapeHtml(m||'Error occurred.')}</div></div>`; }
     function normalizeStatusBadge(status){ const s=String(safe(status)).trim().toLowerCase(); if(s==='approved'||s==='active'||s==='true'||s==='hadir') return `<span class="status-badge on-time">${escapeHtml(status)}</span>`; if(s==='rejected'||s==='inactive'||s==='false') return `<span class="status-badge danger">${escapeHtml(status)}</span>`; if(s==='pending'||s==='terlambat') return `<span class="status-badge on-leave">${escapeHtml(status)}</span>`; return `<span class="status-badge neutral">${escapeHtml(status||'-')}</span>`; }
     function moneyId(n){ return 'Rp ' + Number(n||0).toLocaleString('id-ID'); }
@@ -640,25 +696,33 @@
     }
     async function adminDoCheckIn(){
       try{
-        await api('/api/me/attendance/check-in','POST',{ work_mode:'office', shift_karyawan:'PAGI', lokasi:'', catatan:'Admin check in', status:'Hadir' });
+        await runWithButtonLoading(null,'Checking in...','Check In Now', async function(){
+          await api('/api/me/attendance/check-in','POST',{ work_mode:'office', shift_karyawan:'PAGI', lokasi:'', catatan:'Admin check in', status:'Hadir' });
+        });
         await loadSummary();
       }catch(err){ setContent(renderError(err.message)); }
     }
     async function adminDoCheckOut(){
       try{
-        await api('/api/me/attendance/check-out','POST',{ lokasi:'', catatan:'Admin check out', status:'Hadir' });
+        await runWithButtonLoading(null,'Checking out...','Check Out', async function(){
+          await api('/api/me/attendance/check-out','POST',{ lokasi:'', catatan:'Admin check out', status:'Hadir' });
+        });
         await loadSummary();
       }catch(err){ setContent(renderError(err.message)); }
     }
     async function adminStartBreak(){
       try{
-        await api('/api/me/attendance/break/start','POST',{});
+        await runWithButtonLoading(null,'Starting break...','Start Break', async function(){
+          await api('/api/me/attendance/break/start','POST',{});
+        });
         await loadSummary();
       }catch(err){ setContent(renderError(err.message)); }
     }
     async function adminEndBreak(){
       try{
-        await api('/api/me/attendance/break/end','POST',{});
+        await runWithButtonLoading(null,'Ending break...','End Break', async function(){
+          await api('/api/me/attendance/break/end','POST',{});
+        });
         await loadSummary();
       }catch(err){ setContent(renderError(err.message)); }
     }
@@ -718,7 +782,9 @@
       try{
         const ok=confirm('Kirim alert email ke semua karyawan yang belum check-in hari ini?');
         if(!ok) return;
-        const r=await api('/api/admin/operations-intelligence/checkin-alert','POST',{});
+        const r=await runWithButtonLoading(null,'Mengirim...','Send Alert ke Semua', async function(){
+          return await api('/api/admin/operations-intelligence/checkin-alert','POST',{});
+        });
         alert('Alert check-in selesai. Target: '+Number((r&&r.target_count)||0)+', Terkirim: '+Number((r&&r.sent_count)||0)+', Gagal: '+Number((r&&r.failed_count)||0));
         await loadOperationsIntelligenceCenter();
       }catch(err){ setContent(renderError(err.message)); }
@@ -727,7 +793,9 @@
       try{
         const id=String(employeeId||'').trim();
         if(!id) throw new Error('employee_id tidak valid.');
-        const r=await api('/api/admin/operations-intelligence/checkin-alert','POST',{ employee_ids:[id] });
+        const r=await runWithButtonLoading(null,'Mengirim...','Send Alert', async function(){
+          return await api('/api/admin/operations-intelligence/checkin-alert','POST',{ employee_ids:[id] });
+        });
         alert('Alert '+id+' -> terkirim '+Number((r&&r.sent_count)||0)+', gagal '+Number((r&&r.failed_count)||0));
         await loadOperationsIntelligenceCenter();
       }catch(err){ setContent(renderError(err.message)); }
@@ -735,13 +803,15 @@
 
     async function saveOperationsRules(){
       try{
-        await api('/api/admin/operations-intelligence/rules','PATCH',{
-          checkin_gap_high:Number((document.getElementById('ops_rule_checkin_high')||{}).value||10),
-          checkin_gap_critical:Number((document.getElementById('ops_rule_checkin_critical')||{}).value||25),
-          pending_leaves_medium:Number((document.getElementById('ops_rule_pending_medium')||{}).value||5),
-          pending_leaves_critical:Number((document.getElementById('ops_rule_pending_critical')||{}).value||15),
-          late_rate_high:Number((document.getElementById('ops_rule_late_high')||{}).value||20),
-          division_risk_medium:Number((document.getElementById('ops_rule_div_risk')||{}).value||20)
+        await runWithButtonLoading(null,'Menyimpan rules...','Save Rules', async function(){
+          await api('/api/admin/operations-intelligence/rules','PATCH',{
+            checkin_gap_high:Number((document.getElementById('ops_rule_checkin_high')||{}).value||10),
+            checkin_gap_critical:Number((document.getElementById('ops_rule_checkin_critical')||{}).value||25),
+            pending_leaves_medium:Number((document.getElementById('ops_rule_pending_medium')||{}).value||5),
+            pending_leaves_critical:Number((document.getElementById('ops_rule_pending_critical')||{}).value||15),
+            late_rate_high:Number((document.getElementById('ops_rule_late_high')||{}).value||20),
+            division_risk_medium:Number((document.getElementById('ops_rule_div_risk')||{}).value||20)
+          });
         });
         loadOperationsIntelligenceCenter();
       }catch(err){ setContent(renderError(err.message)); }
@@ -754,7 +824,9 @@
     }
     async function publishEscalationDigest(title,detail){
       try{
-        await api('/api/admin/operations-intelligence/escalation-digest/publish','POST',{ title:String(title||''), detail:String(detail||'') });
+        await runWithButtonLoading(null,'Publishing...','Publish Digest', async function(){
+          await api('/api/admin/operations-intelligence/escalation-digest/publish','POST',{ title:String(title||''), detail:String(detail||'') });
+        });
         loadOperationsIntelligenceCenter();
       }catch(err){ setContent(renderError(err.message)); }
     }
@@ -820,7 +892,9 @@
       try{
         const msg=prompt('Pesan tambahan (opsional) untuk broadcast ulang tahun:', 'Salam hangat dari tim HR.');
         if(msg===null) return;
-        const r=await api('/api/admin/control-tower/birthday-broadcast','POST',{ message:String(msg||'') });
+        const r=await runWithButtonLoading(null,'Mengirim broadcast...','Kirim Broadcast Ulang Tahun', async function(){
+          return await api('/api/admin/control-tower/birthday-broadcast','POST',{ message:String(msg||'') });
+        });
         alert('Broadcast ulang tahun selesai.\nUlang tahun hari ini: '+Number((r&&r.birthdays_today)||0)+'\nPenerima: '+Number((r&&r.recipients)||0)+'\nTerkirim: '+Number((r&&r.sent)||0)+'\nGagal: '+Number((r&&r.failed)||0));
         loadWorkforceControlTower();
       }catch(err){ setContent(renderError(err.message)); }
@@ -1088,7 +1162,15 @@
       (hrKpiData.late_heatmap||[]).forEach(function(r){ lines.push('"'+String(r.divisi||'').replace(/"/g,'""')+'","'+String(r.date||'').replace(/"/g,'""')+'",'+String(r.attendance_records||0)+','+String(r.late_records||0)+','+String(r.ontime_records||0)+','+String(r.late_rate||0)); });
       const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='kpi_hr_report.csv'; a.click(); URL.revokeObjectURL(url);
     }
-    async function exportTodayStatusPdf(){ try{ const tanggal=(new Date().toISOString().slice(0,10)); const d=await api('/api/admin/reports/status/export-pdf','POST',{tanggal:tanggal}); if(d&&d.file_url) window.open(d.file_url,'_blank'); }catch(err){ setContent(renderError(err.message)); } }
+    async function exportTodayStatusPdf(){
+      try{
+        const tanggal=(new Date().toISOString().slice(0,10));
+        const d=await runWithButtonLoading(null,'Mengekspor...','Export PDF', async function(){
+          return await api('/api/admin/reports/status/export-pdf','POST',{tanggal:tanggal});
+        });
+        if(d&&d.file_url) window.open(d.file_url,'_blank');
+      }catch(err){ setContent(renderError(err.message)); }
+    }
 
     // EMPLOYEES
     let employeeRowsCache = [];
@@ -1188,14 +1270,27 @@
       const lines=[header.join(',')].concat(rows.map(function(r){ return header.map(function(k){ const val=String(r[k]===undefined||r[k]===null?'':r[k]).replace(/"/g,'""'); return '"'+val+'"'; }).join(','); }));
       const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='employees_export.csv'; a.click(); URL.revokeObjectURL(url);
     }
-    async function toggleEmployeeActive(id){ try{ const row=employeeFindById(id); if(!row) throw new Error('Not found'); const next=String(row.is_active).toLowerCase()!=='true'; await api('/api/admin/employees','PATCH',{employee_id:row.employee_id,is_active:next}); await loadAllEmployees(); selectedEmployeeId=row.employee_id; }catch(err){ setContent(renderError(err.message)); } }
+    async function toggleEmployeeActive(id){
+      try{
+        const row=employeeFindById(id);
+        if(!row) throw new Error('Not found');
+        const next=String(row.is_active).toLowerCase()!=='true';
+        await runWithButtonLoading(null,'Menyimpan...','Disable', async function(){
+          await api('/api/admin/employees','PATCH',{employee_id:row.employee_id,is_active:next});
+        });
+        await loadAllEmployees();
+        selectedEmployeeId=row.employee_id;
+      }catch(err){ setContent(renderError(err.message)); }
+    }
     async function deleteEmployee(id){
       try{
         const row=employeeFindById(id);
         if(!row) throw new Error('Employee tidak ditemukan.');
         const label=String(row.nama||row.employee_id||'');
         if(!confirm('Hapus employee '+label+'? Data terkait attendance/leave/payroll akan ikut dibersihkan.')) return;
-        await api('/api/admin/employees','DELETE',{employee_id:row.employee_id});
+        await runWithButtonLoading(null,'Menghapus...','Delete', async function(){
+          await api('/api/admin/employees','DELETE',{employee_id:row.employee_id});
+        });
         alert('Employee berhasil dihapus: '+String(row.employee_id||''));
         selectedEmployeeId='';
         selectedEmployeeDetail=null;
@@ -1207,7 +1302,9 @@
         const ids=Object.keys(selectedEmployeeIds||{});
         if(!ids.length) throw new Error('Pilih employee yang ingin dihapus.');
         if(!confirm('Hapus '+ids.length+' employee terpilih? Data terkait attendance/leave/payroll juga akan dibersihkan.')) return;
-        const res=await api('/api/admin/employees/batch-delete','POST',{employee_ids:ids});
+        const res=await runWithButtonLoading(null,'Menghapus...','Delete Selected', async function(){
+          return await api('/api/admin/employees/batch-delete','POST',{employee_ids:ids});
+        });
         const ok=Number((res||{}).deleted_count||0);
         const fail=Number((res||{}).failed_count||0);
         const errList=((res||{}).failed||[]).slice(0,10).map(function(x){ return String(x.employee_id||'-')+': '+String(x.message||'Gagal'); }).join('\n');
@@ -1223,7 +1320,9 @@
         const ids=Object.keys(selectedEmployeeIds||{});
         if(!ids.length) throw new Error('Pilih employee untuk resend email.');
         if(!confirm('Kirim ulang activation email ke '+ids.length+' employee terpilih? Password tidak diubah.')) return;
-        const r=await api('/api/admin/auth/activation/batch-resend','POST',{employee_ids:ids});
+        const r=await runWithButtonLoading(null,'Mengirim...','Resend Selected', async function(){
+          return await api('/api/admin/auth/activation/batch-resend','POST',{employee_ids:ids});
+        });
         const sent=Number((r&&r.sent_count)||0);
         const failed=Number((r&&r.failed_count)||0);
         const failText=((r&&r.failed)||[]).slice(0,10).map(function(x){ return String(x.employee_id||'-')+': '+String(x.message||'Gagal'); }).join('\n');
@@ -1232,7 +1331,9 @@
     }
     async function syncMasterFromEmployees(){
       try{
-        const r=await api('/api/admin/master/sync-from-employees','POST',{});
+        const r=await runWithButtonLoading(null,'Sinkronisasi...','Sync Div/Jabatan', async function(){
+          return await api('/api/admin/master/sync-from-employees','POST',{});
+        });
         const rs=(r&&r.result)||{};
         alert('Sinkronisasi selesai. Divisi baru: '+Number(rs.created_divisions||0)+', Jabatan baru: '+Number(rs.created_positions||0));
         await loadEmployeeMasterData();
@@ -1300,14 +1401,39 @@
         syncEmployeePositionOptions('emp_divisi','emp_jabatan');
       }catch(err){ setContent(renderError(err.message)); }
     }
-    async function submitAddEmployee(){ try{ const res=await api('/api/admin/employees','POST',{employee_id:(document.getElementById('emp_id')||{}).value||'',email:(document.getElementById('emp_email')||{}).value||'',nama:(document.getElementById('emp_nama')||{}).value||'',nik:(document.getElementById('emp_nik')||{}).value||'',role:(document.getElementById('emp_role')||{}).value||'employee',status_karyawan:(document.getElementById('emp_status')||{}).value||'Tetap',tanggal_masuk:(document.getElementById('emp_tanggal_masuk')||{}).value||'',is_active:true,divisi:(document.getElementById('emp_divisi')||{}).value||'',jabatan:(document.getElementById('emp_jabatan')||{}).value||'',jatah_cuti:12,sisa_cuti:12}); const pw=String((res||{}).activation_password||''); const sent=!!((res||{}).activation_delivery||{}).sent; if(pw) alert('Password aktivasi awal: '+pw+'\\nEmail: '+String(((res||{}).data||[])[0]&&((res||{}).data||[])[0].email||'')+'\\nStatus kirim email: '+(sent?'TERKIRIM':'BELUM TERKIRIM')); await loadAllEmployees(); }catch(err){ setContent(renderError(err.message)); } }
+    async function submitAddEmployee(){
+      try{
+        const res=await runWithButtonLoading(null,'Menyimpan...','Save', async function(){
+          return await api('/api/admin/employees','POST',{
+            employee_id:(document.getElementById('emp_id')||{}).value||'',
+            email:(document.getElementById('emp_email')||{}).value||'',
+            nama:(document.getElementById('emp_nama')||{}).value||'',
+            nik:(document.getElementById('emp_nik')||{}).value||'',
+            role:(document.getElementById('emp_role')||{}).value||'employee',
+            status_karyawan:(document.getElementById('emp_status')||{}).value||'Tetap',
+            tanggal_masuk:(document.getElementById('emp_tanggal_masuk')||{}).value||'',
+            is_active:true,
+            divisi:(document.getElementById('emp_divisi')||{}).value||'',
+            jabatan:(document.getElementById('emp_jabatan')||{}).value||'',
+            jatah_cuti:12,
+            sisa_cuti:12
+          });
+        });
+        const pw=String((res||{}).activation_password||'');
+        const sent=!!((res||{}).activation_delivery||{}).sent;
+        if(pw) alert('Password aktivasi awal: '+pw+'\\nEmail: '+String(((res||{}).data||[])[0]&&((res||{}).data||[])[0].email||'')+'\\nStatus kirim email: '+(sent?'TERKIRIM':'BELUM TERKIRIM'));
+        await loadAllEmployees();
+      }catch(err){ setContent(renderError(err.message)); }
+    }
     async function submitAddEmployeeCsv(){
       try{
         const f=((document.getElementById('emp_csv_file')||{}).files||[])[0];
         if(!f) throw new Error('Pilih file CSV terlebih dahulu.');
         const txt=await f.text();
         if(!String(txt||'').trim()) throw new Error('CSV kosong.');
-        const res=await api('/api/admin/employees/import-csv','POST',{csv_text:txt,max_rows:1000});
+        const res=await runWithButtonLoading(null,'Mengimpor...','Upload CSV', async function(){
+          return await api('/api/admin/employees/import-csv','POST',{csv_text:txt,max_rows:1000});
+        });
         const ok=Number((res||{}).created_count||0);
         const fail=Number((res||{}).failed_count||0);
         const errList=((res||{}).failed||[]).slice(0,10).map(function(x){ return '#'+String(x.row_number||'-')+' '+String(x.message||'Error'); }).join('\n');
@@ -1333,7 +1459,9 @@
         if(!confirm('Set / reset password untuk '+String(row.nama||row.employee_id)+'? Password akan dikirim ke email karyawan.')) return;
         const custom=prompt('Isi password baru (min 8 karakter). Kosongkan untuk generate otomatis:','');
         if(custom!==null && String(custom).trim()!=='' && String(custom).trim().length<8) throw new Error('Password minimal 8 karakter.');
-        const r=await api('/api/admin/auth/activation/reset','POST',{employee_id:row.employee_id,new_password:(custom===null?'':String(custom).trim())});
+        const r=await runWithButtonLoading(null,'Mereset...','Password', async function(){
+          return await api('/api/admin/auth/activation/reset','POST',{employee_id:row.employee_id,new_password:(custom===null?'':String(custom).trim())});
+        });
         const pw=String((r||{}).activation_password||'');
         const del=((r||{}).activation_delivery)||{};
         const sent=!!del.sent;
@@ -1347,7 +1475,9 @@
       try{
         const row=employeeFindById(id); if(!row) throw new Error('Employee tidak ditemukan.');
         if(!confirm('Kirim ulang email aktivasi terakhir untuk '+String(row.nama||row.employee_id)+'? Password tidak diubah.')) return;
-        const r=await api('/api/admin/auth/activation/resend','POST',{employee_id:row.employee_id});
+        const r=await runWithButtonLoading(null,'Mengirim...','Resend Email', async function(){
+          return await api('/api/admin/auth/activation/resend','POST',{employee_id:row.employee_id});
+        });
         const del=((r||{}).activation_delivery)||{};
         const sent=!!del.sent;
         const detail=String(del.message||del.error||'');
@@ -1483,7 +1613,29 @@
         syncEmployeePositionOptions('edit_emp_divisi','edit_emp_jabatan',String(row.jabatan||''));
       }catch(err){ setContent(renderError(err.message)); }
     }
-    async function submitUpdateEmployee(){ try{ const id=(document.getElementById('edit_emp_id')||{}).value||''; await api('/api/admin/employees','PATCH',{employee_id:id,email:(document.getElementById('edit_emp_email')||{}).value||'',nama:(document.getElementById('edit_emp_nama')||{}).value||'',nik:(document.getElementById('edit_emp_nik')||{}).value||'',role:(document.getElementById('edit_emp_role')||{}).value||'employee',status_karyawan:(document.getElementById('edit_emp_status')||{}).value||'Tetap',tanggal_masuk:(document.getElementById('edit_emp_tanggal_masuk')||{}).value||'',is_active:String((document.getElementById('edit_emp_active')||{}).value||'true')==='true',divisi:(document.getElementById('edit_emp_divisi')||{}).value||'',jabatan:(document.getElementById('edit_emp_jabatan')||{}).value||'',jatah_cuti:Number((document.getElementById('edit_emp_jatah')||{}).value||0),sisa_cuti:Number((document.getElementById('edit_emp_sisa')||{}).value||0)}); await loadAllEmployees(); selectedEmployeeId=id; }catch(err){ setContent(renderError(err.message)); } }
+    async function submitUpdateEmployee(){
+      try{
+        const id=(document.getElementById('edit_emp_id')||{}).value||'';
+        await runWithButtonLoading(null,'Menyimpan...','Update', async function(){
+          await api('/api/admin/employees','PATCH',{
+            employee_id:id,
+            email:(document.getElementById('edit_emp_email')||{}).value||'',
+            nama:(document.getElementById('edit_emp_nama')||{}).value||'',
+            nik:(document.getElementById('edit_emp_nik')||{}).value||'',
+            role:(document.getElementById('edit_emp_role')||{}).value||'employee',
+            status_karyawan:(document.getElementById('edit_emp_status')||{}).value||'Tetap',
+            tanggal_masuk:(document.getElementById('edit_emp_tanggal_masuk')||{}).value||'',
+            is_active:String((document.getElementById('edit_emp_active')||{}).value||'true')==='true',
+            divisi:(document.getElementById('edit_emp_divisi')||{}).value||'',
+            jabatan:(document.getElementById('edit_emp_jabatan')||{}).value||'',
+            jatah_cuti:Number((document.getElementById('edit_emp_jatah')||{}).value||0),
+            sisa_cuti:Number((document.getElementById('edit_emp_sisa')||{}).value||0)
+          });
+        });
+        await loadAllEmployees();
+        selectedEmployeeId=id;
+      }catch(err){ setContent(renderError(err.message)); }
+    }
 
     // LEAVES
     let leaveMonthFilter = '';
@@ -1546,7 +1698,9 @@
         if(!ids.length) throw new Error('Pilih minimal 1 pengajuan cuti.');
         const note=prompt(action==='approve'?'Catatan batch approve:':'Catatan batch reject:', action==='approve'?'Approved in batch':'Rejected in batch');
         if(note===null) return;
-        await api('/api/admin/leaves/batch-action','POST',{ action:action, leave_ids:ids, catatan_approver:String(note||'') });
+        await runWithButtonLoading(null,'Memproses...',action==='approve'?'Approve Selected':'Reject Selected', async function(){
+          await api('/api/admin/leaves/batch-action','POST',{ action:action, leave_ids:ids, catatan_approver:String(note||'') });
+        });
         clearLeaveSelection();
         await loadLeaveManagement(leaveStatusFilter);
       }catch(err){ setContent(renderError(err.message)); }
@@ -1559,7 +1713,9 @@
         const alasan=String((document.getElementById('admin_leave_reason')||{}).value||'').trim();
         if(!jenis||!start||!end) throw new Error('Jenis cuti, tanggal mulai, dan tanggal selesai wajib diisi.');
         if(adminLeaveTypeRequiresAttachment() && !adminLeaveAttachmentPayload) throw new Error('Jenis cuti ini wajib lampiran (surat sakit).');
-        await api('/api/admin/leaves/apply','POST',{ jenis_cuti:jenis, tanggal_mulai:start, tanggal_selesai:end, alasan:alasan, attachment:adminLeaveAttachmentPayload||undefined });
+        await runWithButtonLoading(null,'Mengirim...','Kirim Pengajuan', async function(){
+          await api('/api/admin/leaves/apply','POST',{ jenis_cuti:jenis, tanggal_mulai:start, tanggal_selesai:end, alasan:alasan, attachment:adminLeaveAttachmentPayload||undefined });
+        });
         adminLeaveAttachmentPayload=null;
         alert('Pengajuan cuti admin berhasil dikirim.');
         await loadLeaveManagement(leaveStatusFilter);
@@ -1642,8 +1798,24 @@
         updateAdminLeaveAttachmentHint();
       }catch(err){ setContent(renderError(err.message)); }
     }
-    async function approveLeave(id){ try{ const note=prompt('Catatan approver (opsional):','Approved by admin'); await api('/api/admin/leaves/approve','POST',{leave_id:id,catatan_approver:String(note===null?'Approved by admin':note||'Approved by admin')}); await loadLeaveManagement(); }catch(err){ setContent(renderError(err.message)); } }
-    async function rejectLeave(id){ try{ const note=prompt('Alasan reject:','Rejected by admin'); await api('/api/admin/leaves/reject','POST',{leave_id:id,catatan_approver:String(note===null?'Rejected by admin':note||'Rejected by admin')}); await loadLeaveManagement(); }catch(err){ setContent(renderError(err.message)); } }
+    async function approveLeave(id){
+      try{
+        const note=prompt('Catatan approver (opsional):','Approved by admin');
+        await runWithButtonLoading(null,'Approving...','Approve', async function(){
+          await api('/api/admin/leaves/approve','POST',{leave_id:id,catatan_approver:String(note===null?'Approved by admin':note||'Approved by admin')});
+        });
+        await loadLeaveManagement();
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    async function rejectLeave(id){
+      try{
+        const note=prompt('Alasan reject:','Rejected by admin');
+        await runWithButtonLoading(null,'Rejecting...','Reject', async function(){
+          await api('/api/admin/leaves/reject','POST',{leave_id:id,catatan_approver:String(note===null?'Rejected by admin':note||'Rejected by admin')});
+        });
+        await loadLeaveManagement();
+      }catch(err){ setContent(renderError(err.message)); }
+    }
 
     // SCHEDULE (Simple Flow: pilih bulan -> pilih shift/off -> pilih karyawan -> save)
     let scheduleMonthValue=''; let scheduleEmployees=[]; let scheduleTemplates={};
@@ -1859,8 +2031,31 @@
         '</div>';
       setContent(html);
     }
-    async function saveMonthlyScheduleAdmin(){ try{ const month=String((document.getElementById('sched_month')||{}).value||scheduleMonthValue||new Date().toISOString().slice(0,7)); const notes=String((document.getElementById('sched_notes')||{}).value||''); const validIds=new Set((scheduleEmployees||[]).map(function(e){ return String(e.employee_id||''); }).filter(Boolean)); const sanitized={}; Object.keys(scheduleTemplates||{}).forEach(function(id){ const k=String(id||''); if(validIds.has(k)) sanitized[k]=scheduleTemplates[k]; }); scheduleTemplates=sanitized; await api('/api/admin/schedules/monthly','POST',{month:month,notes:notes,templates:scheduleTemplates}); scheduleMonthValue=month; await loadMonthlyScheduleAdmin(); }catch(err){ setContent(renderError(err.message)); } }
-    async function publishMonthlyScheduleAdmin(){ try{ const month=String((document.getElementById('sched_month')||{}).value||scheduleMonthValue||new Date().toISOString().slice(0,7)); await api('/api/admin/schedules/monthly/publish','POST',{month:month}); scheduleMonthValue=month; await loadMonthlyScheduleAdmin(); }catch(err){ setContent(renderError(err.message)); } }
+    async function saveMonthlyScheduleAdmin(){
+      try{
+        const month=String((document.getElementById('sched_month')||{}).value||scheduleMonthValue||new Date().toISOString().slice(0,7));
+        const notes=String((document.getElementById('sched_notes')||{}).value||'');
+        const validIds=new Set((scheduleEmployees||[]).map(function(e){ return String(e.employee_id||''); }).filter(Boolean));
+        const sanitized={};
+        Object.keys(scheduleTemplates||{}).forEach(function(id){ const k=String(id||''); if(validIds.has(k)) sanitized[k]=scheduleTemplates[k]; });
+        scheduleTemplates=sanitized;
+        await runWithButtonLoading(null,'Menyimpan...','Simpan Draft', async function(){
+          await api('/api/admin/schedules/monthly','POST',{month:month,notes:notes,templates:scheduleTemplates});
+        });
+        scheduleMonthValue=month;
+        await loadMonthlyScheduleAdmin();
+      }catch(err){ setContent(renderError(err.message)); }
+    }
+    async function publishMonthlyScheduleAdmin(){
+      try{
+        const month=String((document.getElementById('sched_month')||{}).value||scheduleMonthValue||new Date().toISOString().slice(0,7));
+        await runWithButtonLoading(null,'Mempublikasikan...','Publikasikan Jadwal', async function(){
+          await api('/api/admin/schedules/monthly/publish','POST',{month:month});
+        });
+        scheduleMonthValue=month;
+        await loadMonthlyScheduleAdmin();
+      }catch(err){ setContent(renderError(err.message)); }
+    }
 
     // REPORTS
     let reportCenterActiveTab = (function(){ try{ return localStorage.getItem('ess_report_center_tab')||'overview'; }catch(_){ return 'overview'; } })();
@@ -2174,19 +2369,19 @@
 
     // MASTER DATA OPERATIONS
     async function loadDivisions(){ try{ setLoading(); const rows=await api('/api/admin/master/divisions'); setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Divisions</h3><div class="actions"><button class="btn btn-primary" onclick="addDivisionPrompt()"><i class="ph ph-plus"></i> Add New</button><button class="btn btn-secondary" onclick="loadMasterDataHub()">Back</button></div></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Aktif</th><th>Aksi</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.division_id)+'</td><td>'+escapeHtml(r.nama_divisi)+'</td><td>'+normalizeStatusBadge(String(r.is_active))+'</td><td><div class="actions" style="margin-top:0;"><button class="btn btn-secondary" onclick="editDivisionPrompt(\''+escapeHtml(r.division_id)+'\',\''+escapeHtml(r.nama_divisi)+'\')">Edit</button><button class="btn btn-secondary" onclick="toggleDivisionActive(\''+escapeHtml(r.division_id)+'\','+(String(r.is_active).toLowerCase()==='true'?'true':'false')+')">'+(String(r.is_active).toLowerCase()==='true'?'Nonaktifkan':'Aktifkan')+'</button></div></td></tr>';}).join('')||'<tr><td colspan="4">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
-    async function addDivisionPrompt(){ try{ const name=prompt('Nama divisi baru:',''); if(name===null) return; const value=String(name||'').trim(); if(!value) throw new Error('Nama divisi wajib diisi.'); await api('/api/admin/master/divisions','POST',{nama_divisi:value,is_active:true}); await loadDivisions(); }catch(err){ setContent(renderError(err.message)); } }
-    async function editDivisionPrompt(id,currentName){ try{ const name=prompt('Ubah nama divisi:', String(currentName||'')); if(name===null) return; const value=String(name||'').trim(); if(!value) throw new Error('Nama divisi wajib diisi.'); await api('/api/admin/master/divisions','PATCH',{division_id:String(id||''),nama_divisi:value}); await loadDivisions(); }catch(err){ setContent(renderError(err.message)); } }
-    async function toggleDivisionActive(id,currentActive){ try{ await api('/api/admin/master/divisions','PATCH',{division_id:String(id||''),is_active:!currentActive}); await loadDivisions(); }catch(err){ setContent(renderError(err.message)); } }
+    async function addDivisionPrompt(){ try{ const name=prompt('Nama divisi baru:',''); if(name===null) return; const value=String(name||'').trim(); if(!value) throw new Error('Nama divisi wajib diisi.'); await runWithButtonLoading(null,'Menyimpan...','Add New', async function(){ await api('/api/admin/master/divisions','POST',{nama_divisi:value,is_active:true}); }); await loadDivisions(); }catch(err){ setContent(renderError(err.message)); } }
+    async function editDivisionPrompt(id,currentName){ try{ const name=prompt('Ubah nama divisi:', String(currentName||'')); if(name===null) return; const value=String(name||'').trim(); if(!value) throw new Error('Nama divisi wajib diisi.'); await runWithButtonLoading(null,'Menyimpan...','Edit', async function(){ await api('/api/admin/master/divisions','PATCH',{division_id:String(id||''),nama_divisi:value}); }); await loadDivisions(); }catch(err){ setContent(renderError(err.message)); } }
+    async function toggleDivisionActive(id,currentActive){ try{ await runWithButtonLoading(null,'Menyimpan...','Aktifkan', async function(){ await api('/api/admin/master/divisions','PATCH',{division_id:String(id||''),is_active:!currentActive}); }); await loadDivisions(); }catch(err){ setContent(renderError(err.message)); } }
 
     async function loadPositions(){ try{ setLoading(); const [rows,divisions]=await Promise.all([api('/api/admin/master/positions'),api('/api/admin/master/divisions')]); const divMap={}; (divisions||[]).forEach(function(d){ divMap[String(d.division_id||'')]=String(d.nama_divisi||''); }); setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Positions</h3><div class="actions"><button class="btn btn-primary" onclick="addPositionPrompt()"><i class="ph ph-plus"></i> Add New</button><button class="btn btn-secondary" onclick="loadMasterDataHub()">Back</button></div></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Division</th><th>Aktif</th><th>Aksi</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.position_id)+'</td><td>'+escapeHtml(r.nama_jabatan)+'</td><td>'+escapeHtml(divMap[String(r.division_id||'')]||r.division_id||'-')+'</td><td>'+normalizeStatusBadge(String(r.is_active))+'</td><td><div class="actions" style="margin-top:0;"><button class="btn btn-secondary" onclick="editPositionPrompt(\''+escapeHtml(r.position_id)+'\',\''+escapeHtml(r.nama_jabatan)+'\',\''+escapeHtml(r.division_id||'')+'\')">Edit</button><button class="btn btn-secondary" onclick="togglePositionActive(\''+escapeHtml(r.position_id)+'\','+(String(r.is_active).toLowerCase()==='true'?'true':'false')+')">'+(String(r.is_active).toLowerCase()==='true'?'Nonaktifkan':'Aktifkan')+'</button></div></td></tr>';}).join('')||'<tr><td colspan="5">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
-    async function addPositionPrompt(){ try{ const divisions=await api('/api/admin/master/divisions'); const list=(divisions||[]).filter(function(d){ return String(d.is_active).toLowerCase()==='true'; }); if(!list.length) throw new Error('Belum ada divisi aktif.'); const desc=list.map(function(d){ return String(d.division_id)+'='+String(d.nama_divisi); }).join(', '); const name=prompt('Nama jabatan baru:',''); if(name===null) return; const divisionId=prompt('Pilih division_id untuk jabatan ini:\n'+desc, String(list[0].division_id||'')); if(divisionId===null) return; const n=String(name||'').trim(); const d=String(divisionId||'').trim(); if(!n||!d) throw new Error('Nama jabatan dan division_id wajib diisi.'); await api('/api/admin/master/positions','POST',{nama_jabatan:n,division_id:d,is_active:true}); await loadPositions(); }catch(err){ setContent(renderError(err.message)); } }
-    async function editPositionPrompt(id,currentName,currentDivisionId){ try{ const divisions=await api('/api/admin/master/divisions'); const desc=(divisions||[]).map(function(d){ return String(d.division_id)+'='+String(d.nama_divisi); }).join(', '); const name=prompt('Ubah nama jabatan:', String(currentName||'')); if(name===null) return; const divisionId=prompt('Ubah division_id:\n'+desc, String(currentDivisionId||'')); if(divisionId===null) return; const n=String(name||'').trim(); const d=String(divisionId||'').trim(); if(!n||!d) throw new Error('Nama jabatan dan division_id wajib diisi.'); await api('/api/admin/master/positions','PATCH',{position_id:String(id||''),nama_jabatan:n,division_id:d}); await loadPositions(); }catch(err){ setContent(renderError(err.message)); } }
-    async function togglePositionActive(id,currentActive){ try{ await api('/api/admin/master/positions','PATCH',{position_id:String(id||''),is_active:!currentActive}); await loadPositions(); }catch(err){ setContent(renderError(err.message)); } }
+    async function addPositionPrompt(){ try{ const divisions=await api('/api/admin/master/divisions'); const list=(divisions||[]).filter(function(d){ return String(d.is_active).toLowerCase()==='true'; }); if(!list.length) throw new Error('Belum ada divisi aktif.'); const desc=list.map(function(d){ return String(d.division_id)+'='+String(d.nama_divisi); }).join(', '); const name=prompt('Nama jabatan baru:',''); if(name===null) return; const divisionId=prompt('Pilih division_id untuk jabatan ini:\n'+desc, String(list[0].division_id||'')); if(divisionId===null) return; const n=String(name||'').trim(); const d=String(divisionId||'').trim(); if(!n||!d) throw new Error('Nama jabatan dan division_id wajib diisi.'); await runWithButtonLoading(null,'Menyimpan...','Add New', async function(){ await api('/api/admin/master/positions','POST',{nama_jabatan:n,division_id:d,is_active:true}); }); await loadPositions(); }catch(err){ setContent(renderError(err.message)); } }
+    async function editPositionPrompt(id,currentName,currentDivisionId){ try{ const divisions=await api('/api/admin/master/divisions'); const desc=(divisions||[]).map(function(d){ return String(d.division_id)+'='+String(d.nama_divisi); }).join(', '); const name=prompt('Ubah nama jabatan:', String(currentName||'')); if(name===null) return; const divisionId=prompt('Ubah division_id:\n'+desc, String(currentDivisionId||'')); if(divisionId===null) return; const n=String(name||'').trim(); const d=String(divisionId||'').trim(); if(!n||!d) throw new Error('Nama jabatan dan division_id wajib diisi.'); await runWithButtonLoading(null,'Menyimpan...','Edit', async function(){ await api('/api/admin/master/positions','PATCH',{position_id:String(id||''),nama_jabatan:n,division_id:d}); }); await loadPositions(); }catch(err){ setContent(renderError(err.message)); } }
+    async function togglePositionActive(id,currentActive){ try{ await runWithButtonLoading(null,'Menyimpan...','Aktifkan', async function(){ await api('/api/admin/master/positions','PATCH',{position_id:String(id||''),is_active:!currentActive}); }); await loadPositions(); }catch(err){ setContent(renderError(err.message)); } }
 
     async function loadLeaveTypes(){ try{ setLoading(); const rows=await api('/api/admin/master/leave-types'); setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Leave Types</h3><div class="actions"><button class="btn btn-primary" onclick="addLeaveTypePrompt()"><i class="ph ph-plus"></i> Add New</button><button class="btn btn-secondary" onclick="loadMasterDataHub()">Back</button></div></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nama</th><th>Maks Hari</th><th>Wajib Lampiran</th><th>Aktif</th><th>Aksi</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td>'+escapeHtml(r.leave_type_id)+'</td><td>'+escapeHtml(r.nama_jenis_cuti)+'</td><td>'+escapeHtml(r.maks_hari)+'</td><td>'+normalizeStatusBadge(String(r.requires_attachment))+'</td><td>'+normalizeStatusBadge(String(r.is_active))+'</td><td><div class="actions" style="margin-top:0;"><button class="btn btn-secondary" onclick="editLeaveTypePrompt(\''+escapeHtml(r.leave_type_id)+'\',\''+escapeHtml(r.nama_jenis_cuti)+'\','+Number(r.maks_hari||0)+','+(String(r.requires_attachment).toLowerCase()==='true'?'true':'false')+')">Edit</button><button class="btn btn-secondary" onclick="toggleLeaveTypeActive(\''+escapeHtml(r.leave_type_id)+'\','+(String(r.is_active).toLowerCase()==='true'?'true':'false')+')">'+(String(r.is_active).toLowerCase()==='true'?'Nonaktifkan':'Aktifkan')+'</button></div></td></tr>';}).join('')||'<tr><td colspan="6">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
-    async function addLeaveTypePrompt(){ try{ const name=prompt('Nama jenis cuti baru:',''); if(name===null) return; const max=prompt('Maksimal hari cuti:','1'); if(max===null) return; const req=confirm('Apakah cuti ini wajib lampiran?'); const n=String(name||'').trim(); const m=Number(max||0); if(!n||!Number.isFinite(m)||m<0) throw new Error('Nama dan maksimal hari wajib valid.'); await api('/api/admin/master/leave-types','POST',{nama_jenis_cuti:n,maks_hari:m,requires_attachment:req,is_active:true}); await loadLeaveTypes(); }catch(err){ setContent(renderError(err.message)); } }
-    async function editLeaveTypePrompt(id,currentName,currentMax,currentRequires){ try{ const name=prompt('Ubah nama jenis cuti:', String(currentName||'')); if(name===null) return; const max=prompt('Ubah maksimal hari cuti:', String(currentMax||0)); if(max===null) return; const req=confirm('Set wajib lampiran? (OK = wajib, Cancel = tidak)'); const n=String(name||'').trim(); const m=Number(max||0); if(!n||!Number.isFinite(m)||m<0) throw new Error('Nama dan maksimal hari wajib valid.'); await api('/api/admin/master/leave-types','PATCH',{leave_type_id:String(id||''),nama_jenis_cuti:n,maks_hari:m,requires_attachment:req===true?true:false}); await loadLeaveTypes(); }catch(err){ setContent(renderError(err.message)); } }
-    async function toggleLeaveTypeActive(id,currentActive){ try{ await api('/api/admin/master/leave-types','PATCH',{leave_type_id:String(id||''),is_active:!currentActive}); await loadLeaveTypes(); }catch(err){ setContent(renderError(err.message)); } }
+    async function addLeaveTypePrompt(){ try{ const name=prompt('Nama jenis cuti baru:',''); if(name===null) return; const max=prompt('Maksimal hari cuti:','1'); if(max===null) return; const req=confirm('Apakah cuti ini wajib lampiran?'); const n=String(name||'').trim(); const m=Number(max||0); if(!n||!Number.isFinite(m)||m<0) throw new Error('Nama dan maksimal hari wajib valid.'); await runWithButtonLoading(null,'Menyimpan...','Add New', async function(){ await api('/api/admin/master/leave-types','POST',{nama_jenis_cuti:n,maks_hari:m,requires_attachment:req,is_active:true}); }); await loadLeaveTypes(); }catch(err){ setContent(renderError(err.message)); } }
+    async function editLeaveTypePrompt(id,currentName,currentMax,currentRequires){ try{ const name=prompt('Ubah nama jenis cuti:', String(currentName||'')); if(name===null) return; const max=prompt('Ubah maksimal hari cuti:', String(currentMax||0)); if(max===null) return; const req=confirm('Set wajib lampiran? (OK = wajib, Cancel = tidak)'); const n=String(name||'').trim(); const m=Number(max||0); if(!n||!Number.isFinite(m)||m<0) throw new Error('Nama dan maksimal hari wajib valid.'); await runWithButtonLoading(null,'Menyimpan...','Edit', async function(){ await api('/api/admin/master/leave-types','PATCH',{leave_type_id:String(id||''),nama_jenis_cuti:n,maks_hari:m,requires_attachment:req===true?true:false}); }); await loadLeaveTypes(); }catch(err){ setContent(renderError(err.message)); } }
+    async function toggleLeaveTypeActive(id,currentActive){ try{ await runWithButtonLoading(null,'Menyimpan...','Aktifkan', async function(){ await api('/api/admin/master/leave-types','PATCH',{leave_type_id:String(id||''),is_active:!currentActive}); }); await loadLeaveTypes(); }catch(err){ setContent(renderError(err.message)); } }
     let payrollEmployeeOptionsCache=[];
     async function loadPayrollEmployees(){
       const rows=await api('/api/admin/employees?limit=1000');
@@ -2254,13 +2449,7 @@
       const obs=new MutationObserver(function(){ ensurePayrollAdvancedInputs(); });
       obs.observe(root,{childList:true,subtree:true});
     }
-    async function exportPayrollPdf(docId){
-      try{
-        if(!docId) throw new Error('doc_id tidak valid');
-        await api('/api/admin/payroll/export-pdf','POST',{doc_id:String(docId)});
-        await loadPayrollDocs();
-      }catch(err){ setContent(renderError(err.message)); }
-    }
+    
     async function loadPayrollDocs(){
       try{
         setLoading('Memuat Payroll Command Center...');
@@ -2277,7 +2466,7 @@
           const totalPendapatan=Number(r.total_earning||r.total_pendapatan||0);
           const totalPotongan=Number(r.total_deduction||r.total_potongan||0);
           const thp=Number(r.net_salary||r.take_home_pay||0);
-          return '<tr><td style="width:40px;text-align:center;"><input type="checkbox" class="pay_email_chk" value="'+escapeHtml(r.doc_id)+'"></td><td>'+escapeHtml(r.doc_id)+'</td><td>'+escapeHtml((r.employee_id||'-')+' • '+(r.email||'-'))+'</td><td>'+escapeHtml(r.bulan||'-')+'</td><td>'+escapeHtml(r.tahun||'-')+'</td><td>'+escapeHtml(moneyId(totalPendapatan))+'</td><td>'+escapeHtml(moneyId(totalPotongan))+'</td><td>'+escapeHtml(moneyId(thp))+'</td><td>'+escapeHtml(formatDateTimeDisplay(r.uploaded_at)||'-')+'</td><td><div class="actions" style="margin-top:0;"><a class="btn btn-secondary" href="'+escapeHtml(r.file_url||'#')+'" target="_blank">Buka</a><button class="btn btn-primary" id="btn_pdf_'+escapeHtml(r.doc_id)+'" onclick="exportPayrollPdf(\''+escapeHtml(r.doc_id||'')+'\')">PDF</button></div></td></tr>';
+          return '<tr><td style="width:40px;text-align:center;"><input type="checkbox" class="pay_email_chk" value="'+escapeHtml(r.doc_id)+'"></td><td>'+escapeHtml(r.doc_id)+'</td><td>'+escapeHtml((r.employee_id||'-')+' • '+(r.email||'-'))+'</td><td>'+escapeHtml(r.bulan||'-')+'</td><td>'+escapeHtml(r.tahun||'-')+'</td><td>'+escapeHtml(moneyId(totalPendapatan))+'</td><td>'+escapeHtml(moneyId(totalPotongan))+'</td><td>'+escapeHtml(moneyId(thp))+'</td><td>'+escapeHtml(formatDateTimeDisplay(r.uploaded_at)||'-')+'</td><td><div class="actions" style="margin-top:0;"><a class="btn btn-secondary" href="'+escapeHtml(r.file_url||'#')+'" target="_blank">Buka</a><button class="btn btn-primary" id="btn_pdf_'+escapeHtml(r.doc_id)+'" onclick="exportPayrollPdf(\''+escapeHtml(r.doc_id||'')+'\')"><i class="ph ph-file-pdf"></i> PDF</button></div></td></tr>';
         }).join('')||'<tr><td colspan="10">Tidak ada data</td></tr>');
         const defaultPeriodHint='Catatan: gaji tanggal 1 diproses untuk bulan sebelumnya.';
         setContent(payrollRenderer(
@@ -2319,22 +2508,40 @@
           return;
         }
         
-        setLoading('Sedang mengolah data CSV dan men-generate Payslip PDF. Mohon tunggu...');
-        
-        const r=await api('/api/admin/payroll/import-csv','POST',{ bulan:bulan,tahun:tahun,csv_text:csvText });
-        const x=(r&&r.result)||{};
-        const failed=(x.details||[]).filter(function(d){ return String(d.status||'')==='failed'; }).slice(0,5);
-        const failedText=failed.length?('\nContoh gagal:\n- '+failed.map(function(f){ return String(f.employee_id||'-')+': '+String(f.reason||'error'); }).join('\n- ')):'';
-        alert('Import selesai.\nBaris: '+Number(x.total_rows||0)+'\nInsert: '+Number(x.inserted||0)+'\nUpdate: '+Number(x.updated||0)+'\nGagal: '+Number(x.failed||0)+failedText);
+        const statusEl=document.getElementById('pay_import_status');
+        const importBtnIdle='<i class="ph ph-upload-simple"></i> Proses Import';
+        const topBtnIdle='<i class="ph ph-upload-simple"></i> Import CSV & Generate Payslip';
+        if(statusEl) statusEl.innerHTML='<span class="spin"></span> Sedang mengolah data CSV dan generate Payslip PDF...';
+        const topBtn=document.getElementById('pay_import_btn_top');
+        await runWithButtonLoading('pay_import_btn','Mengolah CSV...',importBtnIdle, async function(){
+          if(topBtn){
+            topBtn.disabled=true;
+            topBtn.classList.add('is-loading');
+            topBtn.innerHTML='<span class="spin"></span> Processing...';
+          }
+          try{
+            var r=await api('/api/admin/payroll/import-csv','POST',{ bulan:bulan,tahun:tahun,csv_text:csvText });
+            const x=(r&&r.result)||{};
+            const failed=(x.details||[]).filter(function(d){ return String(d.status||'')==='failed'; }).slice(0,5);
+            const failedText=failed.length?('\nContoh gagal:\n- '+failed.map(function(f){ return String(f.employee_id||'-')+': '+String(f.reason||'error'); }).join('\n- ')):'';
+            alert('Import selesai.\nBaris: '+Number(x.total_rows||0)+'\nInsert: '+Number(x.inserted||0)+'\nUpdate: '+Number(x.updated||0)+'\nGagal: '+Number(x.failed||0)+failedText);
+          }finally{
+            if(topBtn){
+              topBtn.disabled=false;
+              topBtn.classList.remove('is-loading');
+              topBtn.innerHTML=topBtnIdle;
+            }
+          }
+        });
+        if(statusEl) statusEl.textContent='Import selesai, memuat ulang data payroll...';
         await loadPayrollDocs();
       }catch(err){ setContent(renderError(err.message)); }
     }
     async function exportPayrollPdf(docId) {
       try {
-        const btn = document.getElementById('btn_pdf_' + docId);
-        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ph ph-spinner-gap"></i>'; }
-        
-        const r = await api('/api/admin/payroll/export-pdf', 'POST', { doc_id: docId });
+        const r = await runWithButtonLoading('btn_pdf_' + docId, 'Generating...', '<i class="ph ph-file-pdf"></i> PDF', async function(){
+          return await api('/api/admin/payroll/export-pdf', 'POST', { doc_id: docId });
+        });
         if (r.ok) {
           alert('PDF berhasil digenerate.');
           await loadPayrollDocs();
@@ -2343,9 +2550,6 @@
         }
       } catch (err) {
         alert(err.message);
-      } finally {
-        const btn = document.getElementById('btn_pdf_' + docId);
-        if (btn) { btn.disabled = false; btn.innerHTML = 'PDF'; }
       }
     }
     
@@ -2364,13 +2568,11 @@
         const confirmSend = confirm(confirmMsg);
         if (!confirmSend) return;
         
-        const btn = document.getElementById('pay_bulk_email_btn');
-        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ph ph-spinner-gap"></i> Sending...'; }
-        
         const payload = { bulan: bulan, tahun: tahun };
         if (chks.length > 0) payload.doc_ids = chks;
-        
-        const r = await api('/api/admin/payroll/bulk-email', 'POST', payload);
+        const r = await runWithButtonLoading('pay_bulk_email_btn','Sending...','<i class="ph ph-envelope-simple"></i> Bulk Send Emails', async function(){
+          return await api('/api/admin/payroll/bulk-email', 'POST', payload);
+        });
         if (r.ok) {
           alert('Proses bulk send selesai.\nTarget: ' + r.result.target + '\nSent: ' + r.result.sent + '\nFailed: ' + r.result.failed);
         } else {
@@ -2378,21 +2580,18 @@
         }
       } catch (err) {
         alert(err.message);
-      } finally {
-        const btn = document.getElementById('pay_bulk_email_btn');
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph ph-envelope-simple"></i> Bulk Send Emails'; }
       }
     }
 
     async function loadAnnouncements(){ try{ setLoading(); const rows=await api('/api/admin/announcements?limit=200'); setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Announcements</h3><div class="actions"><button class="btn btn-primary" onclick="loadAddAnnouncementForm()"><i class="ph ph-plus"></i> Add New</button><button class="btn btn-secondary" onclick="loadMasterDataHub()">Back</button></div></div><div class="table-wrap"><table><thead><tr><th>Judul</th><th>Target</th><th>Published</th><th>Aktif</th><th>Aksi</th></tr></thead><tbody>'+((rows||[]).map(function(r){return '<tr><td><div style="font-weight:600;color:var(--text-main);">'+escapeHtml(r.judul||'-')+'</div><div style="font-size:12px;color:var(--text-sec);">'+escapeHtml(r.announcement_id||'-')+'</div></td><td>'+escapeHtml(r.target_role||'all')+'</td><td>'+escapeHtml(formatDateTimeDisplay(r.published_at)||'-')+'</td><td>'+normalizeStatusBadge(String(r.is_active))+'</td><td><div class="actions" style="margin-top:0;"><button class="btn btn-secondary" onclick="loadEditAnnouncementForm(\''+escapeHtml(r.announcement_id||'')+'\')">Edit</button><button class="btn btn-secondary" onclick="toggleAnnouncementActive(\''+escapeHtml(r.announcement_id||'')+'\','+(String(r.is_active).toLowerCase()==='true'?'true':'false')+')">'+(String(r.is_active).toLowerCase()==='true'?'Nonaktifkan':'Aktifkan')+'</button></div></td></tr>';}).join('')||'<tr><td colspan="5">Tidak ada data</td></tr>')+'</tbody></table></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
     function loadAddAnnouncementForm(){ setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Tambah Pemberitahuan</h3></div><div class="form-group"><label>Judul</label><input id="ann_judul"></div><div class="form-group"><label>Target Role</label><select id="ann_target"><option value="all">all</option><option value="employee">employee</option><option value="admin">admin</option></select></div><div class="form-group"><label>Isi</label><textarea id="ann_isi"></textarea></div><div class="actions"><button class="btn btn-primary" onclick="submitAddAnnouncement()">Simpan</button><button class="btn btn-secondary" onclick="loadAnnouncements()">Batal</button></div></div>'); }
-    async function submitAddAnnouncement(){ try{ await api('/api/admin/announcements','POST',{judul:(document.getElementById('ann_judul')||{}).value||'',target_role:(document.getElementById('ann_target')||{}).value||'all',isi:(document.getElementById('ann_isi')||{}).value||''}); await loadAnnouncements(); }catch(err){ setContent(renderError(err.message)); } }
+    async function submitAddAnnouncement(){ try{ await runWithButtonLoading(null,'Menyimpan...','Simpan', async function(){ await api('/api/admin/announcements','POST',{judul:(document.getElementById('ann_judul')||{}).value||'',target_role:(document.getElementById('ann_target')||{}).value||'all',isi:(document.getElementById('ann_isi')||{}).value||''}); }); await loadAnnouncements(); }catch(err){ setContent(renderError(err.message)); } }
     async function loadEditAnnouncementForm(id){ try{ setLoading(); const rows=await api('/api/admin/announcements?limit=500'); const row=(rows||[]).find(function(x){ return String(x.announcement_id||'')===String(id||''); }); if(!row) throw new Error('Announcement tidak ditemukan.'); setContent('<div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Edit Pemberitahuan</h3></div><div class="form-group"><label>ID</label><input id="ann_edit_id" value="'+escapeHtml(row.announcement_id||'')+'" readonly></div><div class="form-group"><label>Judul</label><input id="ann_edit_judul" value="'+escapeHtml(row.judul||'')+'"></div><div class="form-group"><label>Target Role</label><select id="ann_edit_target"><option value="all" '+(String(row.target_role||'all')==='all'?'selected':'')+'>all</option><option value="employee" '+(String(row.target_role||'')==='employee'?'selected':'')+'>employee</option><option value="admin" '+(String(row.target_role||'')==='admin'?'selected':'')+'>admin</option></select></div><div class="form-group"><label>Isi</label><textarea id="ann_edit_isi">'+escapeHtml(row.isi||'')+'</textarea></div><div class="form-group"><label>Status Aktif</label><select id="ann_edit_active"><option value="true" '+(String(row.is_active).toLowerCase()==='true'?'selected':'')+'>true</option><option value="false" '+(String(row.is_active).toLowerCase()!=='true'?'selected':'')+'>false</option></select></div><div class="actions"><button class="btn btn-primary" onclick="submitEditAnnouncement()"><i class="ph ph-check"></i> Update</button><button class="btn btn-secondary" onclick="loadAnnouncements()">Batal</button></div></div>'); }catch(err){ setContent(renderError(err.message)); } }
-    async function submitEditAnnouncement(){ try{ await api('/api/admin/announcements','PATCH',{announcement_id:(document.getElementById('ann_edit_id')||{}).value||'',judul:(document.getElementById('ann_edit_judul')||{}).value||'',target_role:(document.getElementById('ann_edit_target')||{}).value||'all',isi:(document.getElementById('ann_edit_isi')||{}).value||'',is_active:String((document.getElementById('ann_edit_active')||{}).value||'true')==='true'}); await loadAnnouncements(); }catch(err){ setContent(renderError(err.message)); } }
-    async function toggleAnnouncementActive(id,currentActive){ try{ await api('/api/admin/announcements','PATCH',{announcement_id:String(id||''),is_active:!currentActive}); await loadAnnouncements(); }catch(err){ setContent(renderError(err.message)); } }
+    async function submitEditAnnouncement(){ try{ await runWithButtonLoading(null,'Menyimpan...','Update', async function(){ await api('/api/admin/announcements','PATCH',{announcement_id:(document.getElementById('ann_edit_id')||{}).value||'',judul:(document.getElementById('ann_edit_judul')||{}).value||'',target_role:(document.getElementById('ann_edit_target')||{}).value||'all',isi:(document.getElementById('ann_edit_isi')||{}).value||'',is_active:String((document.getElementById('ann_edit_active')||{}).value||'true')==='true'}); }); await loadAnnouncements(); }catch(err){ setContent(renderError(err.message)); } }
+    async function toggleAnnouncementActive(id,currentActive){ try{ await runWithButtonLoading(null,'Menyimpan...','Aktifkan', async function(){ await api('/api/admin/announcements','PATCH',{announcement_id:String(id||''),is_active:!currentActive}); }); await loadAnnouncements(); }catch(err){ setContent(renderError(err.message)); } }
 
     async function loadAdminNotifications(){ try{ setLoading(); const summary=await api('/api/admin/notifications/leave/summary'); const rows=await api('/api/admin/notifications/leave'); setContent('<div class="cards-row" style="margin-bottom:24px;"><div class="card"><div class="stat-label">Leave Request Baru</div><div class="stat-large" style="color:var(--warning);">'+escapeHtml(summary.unread_leave_requests||0)+'</div></div><div class="card"><div class="stat-label">Total Unread</div><div class="stat-large">'+escapeHtml(summary.total_unread||0)+'</div></div></div><div class="card"><div class="team-header"><h3 style="font-size:20px;font-weight:700;">Notifikasi Admin</h3><div class="actions"><button class="btn btn-secondary" onclick="markAllAdminNotificationsSeen()"><i class="ph ph-check-double"></i> Mark All Read</button></div></div><ul class="clean-list">'+((rows||[]).map(function(r){return '<li><div class="icon-box" style="background:var(--warning-bg);color:var(--warning);"><i class="ph ph-bell"></i></div><div class="list-text"><span class="list-title">'+escapeHtml(r.title||'Notifikasi')+'</span><span class="list-desc">'+escapeHtml(formatDateTimeDisplay(r.date_value||''))+' - '+escapeHtml(r.message||'')+'</span></div></li>';}).join('')||'<li>Tidak ada notifikasi</li>')+'</ul></div>'); }catch(err){ setContent(renderError(err.message)); } }
-    async function markAllAdminNotificationsSeen(){ try{ await api('/api/admin/notifications/leave/mark-seen','POST',{}); await loadAdminNotifications(); }catch(err){ setContent(renderError(err.message)); } }
+    async function markAllAdminNotificationsSeen(){ try{ await runWithButtonLoading(null,'Memproses...','Mark All Read', async function(){ await api('/api/admin/notifications/leave/mark-seen','POST',{}); }); await loadAdminNotifications(); }catch(err){ setContent(renderError(err.message)); } }
 
     async function fileToBase64(file){ return new Promise(function(resolve,reject){ const fr=new FileReader(); fr.onload=function(){ resolve(String(fr.result||'').split(',')[1]||''); }; fr.onerror=reject; fr.readAsDataURL(file); }); }
     
@@ -2403,7 +2602,7 @@
                 <div class="team-header" style="border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:24px;">
                   <h3 style="font-size:24px;font-weight:700;">Pengaturan Profil</h3>
                   <div class="actions">
-                    <button class="btn btn-primary" onclick="saveMyProfile()"><i class="ph ph-floppy-disk"></i> Simpan Profil</button>
+                    <button id="btn_save_profile_admin" class="btn btn-primary" onclick="saveMyProfile()"><i class="ph ph-floppy-disk"></i> Simpan Profil</button>
                   </div>
                 </div>
                 <div class="grid-2" style="gap:32px;align-items:start;">
@@ -2476,7 +2675,9 @@
         };
         const f=(document.getElementById('pf_photo')||{}).files;
         if(f&&f[0]) payload.photo={ base64Data: await fileToBase64(f[0]), mimeType: f[0].type||'image/jpeg' };
-        await api('/api/me/profile','PATCH',payload);
+        await runWithButtonLoading('btn_save_profile_admin','Menyimpan...','<i class="ph ph-floppy-disk"></i> Simpan Profil', async function(){
+          await api('/api/me/profile','PATCH',payload);
+        });
         
         // Refresh avatar header
       const av = document.getElementById('header_avatar');

@@ -1,6 +1,26 @@
 {
   "rewrites": [
     {
+      "source": "/apple-touch-icon.png",
+      "destination": "/api/index?route=assets/apple-touch-icon.png"
+    },
+    {
+      "source": "/apple-touch-icon-precomposed.png",
+      "destination": "/api/index?route=assets/apple-touch-icon-precomposed.png"
+    },
+    {
+      "source": "/favicon-192.png",
+      "destination": "/api/index?route=assets/favicon-192.png"
+    },
+    {
+      "source": "/favicon-512.png",
+      "destination": "/api/index?route=assets/favicon-512.png"
+    },
+    {
+      "source": "/manifest.webmanifest",
+      "destination": "/api/index?route=assets/manifest.webmanifest"
+    },
+    {
       "source": "/",
       "destination": "/login.html"
     },

@@ -1,9 +1,47 @@
 const crypto = require('crypto');
+const fs = require('fs');
+const pathLib = require('path');
 
 function json(res, status, data) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.end(JSON.stringify(data));
+}
+
+function sendBinary(res, status, buffer, contentType, cacheControl) {
+  res.statusCode = status;
+  res.setHeader('Content-Type', contentType || 'application/octet-stream');
+  res.setHeader('Cache-Control', cacheControl || 'public, max-age=86400');
+  res.end(buffer);
+}
+
+function firstExistingFile(paths) {
+  for (let i = 0; i < paths.length; i++) {
+    try {
+      const p = paths[i];
+      if (p && fs.existsSync(p)) return p;
+    } catch (err) {}
+  }
+  return '';
+}
+
+function readIconBuffer(type) {
+  const baseDir = __dirname;
+  const names = {
+    apple: ['apple-touch-icon.png', 'icons/trend-180.png', 'favicon-192.png'],
+    applePre: ['apple-touch-icon-precomposed.png', 'apple-touch-icon.png', 'icons/trend-180.png'],
+    p192: ['favicon-192.png', 'icons/trend-192.png', 'apple-touch-icon.png'],
+    p512: ['favicon-512.png', 'icons/trend-512.png', 'favicon-192.png']
+  };
+  const targets = names[type] || names.apple;
+  const candidates = [];
+  targets.forEach(function(rel) {
+    candidates.push(pathLib.resolve(baseDir, '..', rel));
+    candidates.push(pathLib.resolve(baseDir, '..', '..', rel));
+  });
+  const chosen = firstExistingFile(candidates);
+  if (!chosen) return null;
+  try { return fs.readFileSync(chosen); } catch (err) { return null; }
 }
 
 async function readBody(req) {
@@ -1806,6 +1844,46 @@ module.exports = async function handler(req, res) {
       const resendKeyReady = !!String(process.env.RESEND_API_KEY || process.env.RESEND_KEY || process.env.EMAIL_RESEND_API_KEY || '').trim();
       const resendFromReady = !!String(process.env.RESEND_FROM || '').trim();
       return json(res, 200, { ok: true, service: 'ess-trendhorizone-api', supabase_ready: !!env(), resend_ready: resendKeyReady && resendFromReady, key_source: process.env.RESEND_API_KEY ? 'RESEND_API_KEY' : (process.env.RESEND_KEY ? 'RESEND_KEY' : (process.env.EMAIL_RESEND_API_KEY ? 'EMAIL_RESEND_API_KEY' : 'none')), timestamp: nowIso() });
+    }
+    if (path === 'assets/apple-touch-icon.png' && method === 'GET') {
+      const b = readIconBuffer('apple');
+      if (b) return sendBinary(res, 200, b, 'image/png', 'public, max-age=604800, immutable');
+      return json(res, 404, { ok: false, message: 'icon_not_found' });
+    }
+    if (path === 'assets/apple-touch-icon-precomposed.png' && method === 'GET') {
+      const b = readIconBuffer('applePre');
+      if (b) return sendBinary(res, 200, b, 'image/png', 'public, max-age=604800, immutable');
+      return json(res, 404, { ok: false, message: 'icon_not_found' });
+    }
+    if (path === 'assets/favicon-192.png' && method === 'GET') {
+      const b = readIconBuffer('p192');
+      if (b) return sendBinary(res, 200, b, 'image/png', 'public, max-age=604800, immutable');
+      return json(res, 404, { ok: false, message: 'icon_not_found' });
+    }
+    if (path === 'assets/favicon-512.png' && method === 'GET') {
+      const b = readIconBuffer('p512');
+      if (b) return sendBinary(res, 200, b, 'image/png', 'public, max-age=604800, immutable');
+      return json(res, 404, { ok: false, message: 'icon_not_found' });
+    }
+    if (path === 'assets/manifest.webmanifest' && method === 'GET') {
+      const payload = {
+        name: 'Trend ESS v5',
+        short_name: 'Trend v5',
+        description: 'Employee Self Service PT Tren Gen Horizon',
+        start_url: '/login?v=5',
+        scope: '/',
+        display: 'standalone',
+        background_color: '#F9FAFB',
+        theme_color: '#4F46E5',
+        icons: [
+          { src: '/api/assets/favicon-192.png?v=5', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+          { src: '/api/assets/favicon-512.png?v=5', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+        ]
+      };
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      return res.end(JSON.stringify(payload));
     }
     const needsSession = path.startsWith('me/') || path.startsWith('admin/');
     if (needsSession) {

@@ -3,11 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#2563eb" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Trend ESS v5" />
+  <link rel="manifest" href="/api/assets/manifest.webmanifest?v=5" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/api/assets/favicon-192.png?v=5" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/api/assets/favicon-512.png?v=5" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/api/assets/apple-touch-icon.png?v=5" />
+  <link rel="apple-touch-icon-precomposed" sizes="180x180" href="/api/assets/apple-touch-icon-precomposed.png?v=5" />
   <title>ESS Login</title>
   <style>
     :root{--text:#0f172a;--muted:#64748b;--primary:#2563eb;--border:#e2e8f0}
     *{box-sizing:border-box}
-    body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--text);min-height:100vh;background:#f8fbff;overflow:hidden}
+    body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--text);min-height:100vh;background:#f8fbff;overflow:auto}
     .bg{position:fixed;inset:0;z-index:0;background:
       conic-gradient(from 210deg at 86% 10%,#dbeafe 0%,#e0f2fe 25%,#ede9fe 50%,#cffafe 75%,#dbeafe 100%),
       linear-gradient(125deg,#f8fbff 0%,#eef6ff 40%,#f5f3ff 70%,#f0fdfa 100%)}
@@ -36,7 +45,15 @@
     button{width:100%;padding:12px;border:none;border-radius:12px;background:linear-gradient(135deg,#2563eb 0%,#4f46e5 100%);color:#fff;font-weight:700;margin-top:16px;cursor:pointer}
     .msg{margin-top:10px;padding:10px 12px;border-radius:10px;font-size:13px;display:none}
     .err{background:#fef2f2;color:#991b1b}.ok{background:#ecfeff;color:#0f766e}
-    @media (max-width:920px){.login{grid-template-columns:1fr}.hero{display:none}}
+    @media (max-width:920px){
+      body{overflow:auto}
+      .wrap{padding:14px;align-items:start}
+      .login{grid-template-columns:1fr;border-radius:20px}
+      .hero{display:none}
+      .panel{padding:14px}
+      .panel-inner{padding:18px;border-radius:16px}
+      h1{font-size:24px}
+    }
   </style>
 </head>
 <body>
