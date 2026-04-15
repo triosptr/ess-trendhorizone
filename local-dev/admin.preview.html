@@ -150,6 +150,8 @@
     .list-title { font-weight: 600; font-size: 14px; color: var(--text-main); }
     .list-desc { font-size: 13px; color: var(--text-sec); }
     .modal-backdrop { position: fixed; inset: 0; background: rgba(17,24,39,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; backdrop-filter: blur(4px); }
+    .sidebar-backdrop { position: fixed; inset: 0; background: rgba(17,24,39,0.5); z-index: 40; opacity: 0; visibility: hidden; transition: all 0.3s ease; backdrop-filter: blur(2px); }
+    .sidebar-backdrop.show { opacity: 1; visibility: visible; }
     .modal-card { width: min(860px, 96vw); max-height: 92vh; overflow: auto; background: #fff; border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-lg); }
     .thumb-mini { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; border: 1px solid var(--border); background: var(--bg); }
     .thumb-mini-fallback { width: 48px; height: 48px; border-radius: 10px; display:flex; align-items:center; justify-content:center; border:1px solid var(--border); background:var(--bg); color:var(--text-sec); font-size:20px; }
@@ -190,7 +192,8 @@
     .admin-aw-progress { height:10px; border-radius:999px; background:#e5e7eb; overflow:hidden; }
     .admin-aw-progress > span { display:block; height:100%; width:0%; background:linear-gradient(90deg,var(--primary),var(--secondary)); transition:width .5s ease; }
     @keyframes adminPulse { 0%{ transform:scale(1); opacity:.95; } 50%{ transform:scale(1.5); opacity:.45; } 100%{ transform:scale(1); opacity:.95; } }
-    .mobile-bottom-nav { display:none; position:fixed; left:0; right:0; bottom:0; height:68px; background:#fff; border-top:1px solid var(--border); z-index:1200; padding:6px 8px calc(6px + env(safe-area-inset-bottom)); overflow-x:auto; gap:4px; align-items:stretch; -webkit-overflow-scrolling:touch; }
+    .mobile-bottom-nav { display:none; position:fixed; left:0; right:0; bottom:0; height:68px; background:#fff; border-top:1px solid var(--border); z-index:1200; padding:6px 8px calc(6px + env(safe-area-inset-bottom)); overflow-x:auto; gap:4px; align-items:stretch; -webkit-overflow-scrolling:touch; scrollbar-width: none; }
+    .mobile-bottom-nav::-webkit-scrollbar { display: none; }
     .mobile-nav-btn { border:none; background:transparent; color:var(--text-sec); min-width:76px; padding:6px 8px; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; font-size:11px; font-weight:600; cursor:pointer; }
     .mobile-nav-btn i { font-size:18px; }
     .mobile-nav-btn.active { color:var(--primary); background:var(--primary-light); }
@@ -200,12 +203,13 @@
   </style>
 </head>
 <body>
+  <div id="sidebar_backdrop" class="sidebar-backdrop" onclick="closeSidebar()"></div>
   <div class="layout">
     <!-- SIDEBAR -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <div class="logo"><img src="https://trendhorizone.id/wp-content/uploads/2024/07/174135616958657596.png" alt="Logo"></div>
-        <button class="mobile-close" onclick="document.getElementById('sidebar').classList.remove('open')" style="display:none;"><i class="ph ph-x"></i></button>
+        <button class="mobile-close" onclick="closeSidebar()" style="display:none;"><i class="ph ph-x"></i></button>
       </div>
       <nav class="sidebar-menu">
         <button class="menu-item active" data-nav-id="home" onclick="navTo('home'); loadSummary()"><i class="ph ph-squares-four"></i><span>Dashboard</span></button>
@@ -225,7 +229,7 @@
     <div class="main-wrapper">
       <header class="header">
         <div class="header-left">
-          <button class="icon-btn" onclick="document.getElementById('sidebar').classList.add('open')" style="display:none;" id="mobileToggle"><i class="ph ph-list"></i></button>
+          <button class="icon-btn" onclick="openSidebar()" style="display:none;" id="mobileToggle"><i class="ph ph-list"></i></button>
           <div class="search-bar"><i class="ph ph-magnifying-glass"></i><input type="text" placeholder="Search anything..."></div>
         </div>
         <div class="header-right">
@@ -256,11 +260,37 @@
   </nav>
 
   <script>
+    function openSidebar() {
+      document.getElementById('sidebar').classList.add('open');
+      const backdrop = document.getElementById('sidebar_backdrop');
+      if (backdrop) backdrop.classList.add('show');
+    }
+    function closeSidebar() {
+      document.getElementById('sidebar').classList.remove('open');
+      const backdrop = document.getElementById('sidebar_backdrop');
+      if (backdrop) backdrop.classList.remove('show');
+    }
+    
+    // Swipe gestures for sidebar
+    let touchStartX = 0;
+    document.addEventListener('touchstart', function(e) {
+      touchStartX = e.changedTouches[0].screenX;
+    }, {passive: true});
+    document.addEventListener('touchend', function(e) {
+      if (window.innerWidth > 992) return;
+      let touchEndX = e.changedTouches[0].screenX;
+      let diff = touchEndX - touchStartX;
+      const sidebar = document.getElementById('sidebar');
+      if (!sidebar) return;
+      if (diff > 50 && touchStartX < 30) openSidebar();
+      if (diff < -50 && sidebar.classList.contains('open')) closeSidebar();
+    }, {passive: true});
+
     function navTo(id){
       const navId=String(id||'home');
       document.querySelectorAll('.menu-item,.mobile-nav-btn').forEach(function(e){ e.classList.remove('active'); });
       document.querySelectorAll('[data-nav-id="'+navId+'"]').forEach(function(e){ e.classList.add('active'); });
-      if(window.innerWidth<=992) document.getElementById('sidebar').classList.remove('open');
+      if(window.innerWidth<=992) closeSidebar();
     }
     if(window.innerWidth<=992) { document.getElementById('mobileToggle').style.display='block'; document.querySelector('.mobile-close').style.display='block'; }
     document.getElementById('header_date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long', day:'2-digit', month:'short'});
