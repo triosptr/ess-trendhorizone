@@ -623,12 +623,12 @@
             <div style="font-size:24px;font-weight:800;letter-spacing:.2px;">Tren Gen Horizon</div>
             <div class="stat-label">Employee Payslip</div>
           </div>
-          <div style="display:flex;align-items:center;gap:12px;">
-            <img src="https://ess-tren-gen-horizon.vercel.app/logo-trend-horizon.jpg" alt="logo" style="width:72px;height:72px;object-fit:contain;border-radius:12px;background:#fff;border:1px solid var(--border);" />
-            <div class="actions"><button class="btn btn-secondary" onclick="loadMyPayrollDocs()">Back</button>${doc&&doc.file_url?`<a href="${escapeHtml(doc.file_url)}" target="_blank" class="btn btn-primary">Download PDF</a>`:''}</div>
+          <div style="display:flex;align-items:center;gap:12px; flex-wrap:wrap;">
+            <img src="https://ess-trendhorizone.space/api/assets/apple-touch-icon.png?v=7" alt="logo" style="width:52px;height:52px;object-fit:contain;border-radius:12px;background:#fff;border:1px solid var(--border);" />
+            <div class="actions" style="margin-top:0;"><button class="btn btn-secondary" onclick="loadMyPayrollDocs()">Back</button>${doc&&doc.file_url?`<a href="${escapeHtml(doc.file_url)}" target="_blank" class="btn btn-primary">Download PDF</a>`:''}</div>
           </div>
         </div>
-        <div class="cards-row" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom:14px;">
+        <div class="cards-row" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); margin-bottom:14px;">
           <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Payroll Period</div><div class="stat-large" style="font-size:20px;">${escapeHtml((doc&&doc.bulan)||'-')} ${escapeHtml((doc&&doc.tahun)||'')}</div></div>
           <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Employee ID</div><div class="stat-large" style="font-size:20px;">${escapeHtml((doc&&doc.employee_id)||'-')}</div></div>
           <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Take Home Pay</div><div class="stat-large" style="font-size:22px;color:var(--primary);">${escapeHtml(moneyId((doc&&doc.net_salary)||0))}</div></div>
@@ -768,7 +768,7 @@
                     </div>
                 </div>
 
-                <div class="cards-row">
+                <div class="cards-row" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
                     <div class="card team-card">
                         <div class="team-header">
                             <div class="team-stat">
@@ -780,7 +780,7 @@
                             <li><div class="list-text"><span class="list-title">Total Slip</span><span class="list-desc">${escapeHtml((payrollSummary.summary||{}).total_docs||0)} dokumen</span></div></li>
                             <li><div class="list-text"><span class="list-title">Slip Tahun Ini</span><span class="list-desc">${escapeHtml((payrollSummary.summary||{}).docs_this_year||0)} dokumen</span></div></li>
                             <li><div class="list-text"><span class="list-title">THP Terbaru</span><span class="list-desc">${escapeHtml(moneyId((payrollSummary.summary||{}).latest_take_home_pay||0))}</span></div></li>
-                            <li><div class="list-text"><span class="list-title">Slip Terbaru</span><span class="list-desc">${escapeHtml((((payrollSummary.latest_doc||{}).bulan)||'-')+' '+(((payrollSummary.latest_doc||{}).tahun)||''))}</span></div><a class="btn btn-secondary" href="${escapeHtml(((payrollSummary.latest_doc||{}).file_url)||'#')}" target="_blank">Open</a></li>
+                            <li style="flex-wrap:wrap; gap:8px;"><div class="list-text"><span class="list-title">Slip Terbaru</span><span class="list-desc">${escapeHtml((((payrollSummary.latest_doc||{}).bulan)||'-')+' '+(((payrollSummary.latest_doc||{}).tahun)||''))}</span></div><a class="btn btn-secondary" style="font-size:12px; padding:6px 12px;" href="${escapeHtml(((payrollSummary.latest_doc||{}).file_url)||'#')}" target="_blank">Open</a></li>
                         </ul>
                         <div class="actions"><button class="btn btn-secondary" onclick="navTo('payroll'); loadMyPayrollDocs()">Open Salary Slips</button></div>
                     </div>
@@ -820,12 +820,12 @@
             </div>
 
             <div class="card">
-              <div class="team-header">
+              <div class="team-header" style="margin-bottom:16px;">
                 <h3 style="font-size:18px;font-weight:700;">Employee Intelligence</h3>
                 ${empSeverityBadge((((insights.alerts||[])[0]||{}).severity||'info'))}
               </div>
               <div class="card" style="box-shadow:none;background:var(--bg);margin-bottom:14px;">
-                <div class="team-header">
+                <div class="team-header" style="flex-wrap:wrap; gap:12px; margin-bottom:8px;">
                   <div>
                     <div class="stat-label">Smart Reminder</div>
                     <div style="font-weight:700;">${escapeHtml((((reminderPlan||{}).reminder||{}).label)||'Reminder')}</div>
@@ -838,25 +838,25 @@
                 </div>
               </div>
               <div class="grid-2">
-                <div>
+                <div class="card" style="box-shadow:none;border:1px solid var(--border);padding:16px;">
                   <div class="stat-label" style="margin-bottom:10px;">Alerts</div>
-                  <ul class="clean-list">
-                    ${(insights.alerts||[]).slice(0,3).map(function(a){ return '<li><div class="list-text"><span class="list-title">'+escapeHtml(a.title||'-')+'</span><span class="list-desc">'+escapeHtml(a.detail||'-')+'</span></div></li>'; }).join('') || '<li><div class="list-text"><span class="list-desc">No alerts.</span></div></li>'}
+                  <ul class="clean-list" style="max-height:180px;overflow-y:auto;padding-right:4px;">
+                    ${(insights.alerts||[]).slice(0,3).map(function(a){ return '<li style="align-items:flex-start;margin-bottom:8px;"><div class="list-text"><span class="list-title" style="line-height:1.3;margin-bottom:4px;">'+escapeHtml(a.title||'-')+'</span><span class="list-desc" style="line-height:1.4;">'+escapeHtml(a.detail||'-')+'</span></div></li>'; }).join('') || '<li><div class="list-text"><span class="list-desc">No alerts.</span></div></li>'}
                   </ul>
                 </div>
-                <div>
+                <div class="card" style="box-shadow:none;border:1px solid var(--border);padding:16px;">
                   <div class="stat-label" style="margin-bottom:10px;">Recommendations</div>
-                  <ul class="clean-list">
-                    ${(insights.recommendations||[]).slice(0,3).map(function(r){ return '<li><div class="list-text"><span class="list-title">Priority '+escapeHtml(r.priority||'-')+'</span><span class="list-desc">'+escapeHtml(r.text||'-')+'</span></div></li>'; }).join('') || '<li><div class="list-text"><span class="list-desc">No recommendation.</span></div></li>'}
+                  <ul class="clean-list" style="max-height:180px;overflow-y:auto;padding-right:4px;">
+                    ${(insights.recommendations||[]).slice(0,3).map(function(r){ return '<li style="align-items:flex-start;margin-bottom:8px;"><div class="list-text"><span class="list-title" style="line-height:1.3;margin-bottom:4px;">Priority '+escapeHtml(r.priority||'-')+'</span><span class="list-desc" style="line-height:1.4;">'+escapeHtml(r.text||'-')+'</span></div></li>'; }).join('') || '<li><div class="list-text"><span class="list-desc">No recommendation.</span></div></li>'}
                   </ul>
                 </div>
               </div>
               <div class="actions" style="margin-top:16px;">
                 ${(insights.quick_actions||[]).slice(0,3).map(function(a){ return '<button class="btn btn-secondary" onclick="runEmployeeQuickAction(\''+escapeHtml(a.action_key||'')+'\')">'+escapeHtml(a.label||'Open')+'</button>'; }).join('')}
               </div>
-              <div class="card" style="box-shadow:none;background:var(--bg);margin-top:14px;">
-                <div class="team-header"><h3 style="font-size:16px;font-weight:700;">Recent Incident Timeline</h3><button class="btn btn-secondary" onclick="navTo('incident'); loadMyIncidentTimeline()">Open Full</button></div>
-                <ul class="clean-list">
+              <div class="card" style="box-shadow:none;background:var(--bg);margin-top:16px;">
+                <div class="team-header" style="flex-wrap:wrap; gap:12px; margin-bottom:12px;"><h3 style="font-size:16px;font-weight:700;">Recent Incident Timeline</h3><button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="navTo('incident'); loadMyIncidentTimeline()">Open Full</button></div>
+                <ul class="clean-list" style="max-height:220px;overflow-y:auto;padding-right:4px;">
                   ${((incidentTimeline.timeline||[]).slice(0,4).map(function(x){ return '<li><div class="list-text"><span class="list-title">'+escapeHtml(x.title||'-')+'</span><span class="list-desc">'+escapeHtml(x.detail||'-')+'</span></div><button class="btn btn-secondary" onclick="runEmployeeTimelineAction(\''+escapeHtml(x.action_route||'home')+'\')">Open</button></li>'; }).join('')) || '<li><div class="list-text"><span class="list-desc">No incidents.</span></div></li>'}
                 </ul>
               </div>
