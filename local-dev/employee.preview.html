@@ -824,16 +824,16 @@
                 <h3 style="font-size:18px;font-weight:700;">Employee Intelligence</h3>
                 ${empSeverityBadge((((insights.alerts||[])[0]||{}).severity||'info'))}
               </div>
-              <div class="card" style="box-shadow:none;background:var(--bg);margin-bottom:14px;">
-                <div class="team-header" style="flex-wrap:wrap; gap:12px; margin-bottom:8px;">
-                  <div>
-                    <div class="stat-label">Smart Reminder</div>
-                    <div style="font-weight:700;">${escapeHtml((((reminderPlan||{}).reminder||{}).label)||'Reminder')}</div>
-                    <div class="list-desc">${escapeHtml((((reminderPlan||{}).reminder||{}).detail)||'-')}</div>
+              <div class="card" style="box-shadow:none;background:var(--bg);margin-bottom:14px;overflow:visible;height:auto;">
+                <div class="team-header" style="flex-wrap:wrap; gap:12px; margin-bottom:8px; align-items:flex-start;">
+                  <div style="flex:1;min-width:180px;">
+                    <div class="stat-label" style="margin-bottom:4px;">Smart Reminder</div>
+                    <div style="font-weight:700;font-size:15px;line-height:1.4;margin-bottom:4px;">${escapeHtml((((reminderPlan||{}).reminder||{}).label)||'Reminder')}</div>
+                    <div class="list-desc" style="line-height:1.4;">${escapeHtml((((reminderPlan||{}).reminder||{}).detail)||'-')}</div>
                   </div>
-                  ${empSeverityBadge((((reminderPlan||{}).reminder||{}).urgency)||'low')}
+                  <div style="flex-shrink:0;">${empSeverityBadge((((reminderPlan||{}).reminder||{}).urgency)||'low')}</div>
                 </div>
-                <div class="actions" style="margin-top:10px;">
+                <div class="actions" style="margin-top:14px;">
                   <button class="btn btn-primary" onclick="runEmployeeQuickAction('${escapeHtml((((reminderPlan||{}).reminder||{}).action_key)||'open_attendance_history')}')">${escapeHtml((((reminderPlan||{}).reminder||{}).label)||'Open')}</button>
                 </div>
               </div>
