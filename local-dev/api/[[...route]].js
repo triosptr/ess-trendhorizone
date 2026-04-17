@@ -2534,7 +2534,7 @@ module.exports = async function handler(req, res) {
       }) || null;
       const alerts = [];
       if (approvedLeaveToday) alerts.push({ severity: 'info', code: 'ON_LEAVE', title: 'Status Hari Ini: Cuti', detail: 'Kamu sedang cuti (' + String(approvedLeaveToday.jenis_cuti || '-') + ').' });
-      else if (!todayRow) alerts.push({ severity: 'high', code: 'NO_CHECKIN', title: 'Belum Check-in Hari Ini', detail: 'Silakan lakukan check-in agar jam kerja mulai tercatat.' });
+      else if (!todayRow) alerts.push({ severity: 'high', code: 'NO_CHECKIN', title: 'Belum Check-in', detail: 'Silakan lakukan check-in agar jam kerja mulai tercatat.' });
       else if (!todayRow.jam_keluar) alerts.push({ severity: 'medium', code: 'CHECKOUT_PENDING', title: 'Belum Check-out', detail: 'Jangan lupa check-out saat jam kerja selesai.' });
       if (lateRate >= lateHigh) alerts.push({ severity: 'high', code: 'LATE_TREND', title: 'Tren Keterlambatan Tinggi', detail: 'Late rate 14 hari terakhir: ' + lateRate + '%.' });
       if (pendingLeaves >= 2) alerts.push({ severity: 'medium', code: 'LEAVE_PENDING', title: 'Pengajuan Cuti Masih Pending', detail: pendingLeaves + ' pengajuan cuti belum diproses admin.' });
@@ -2589,11 +2589,11 @@ module.exports = async function handler(req, res) {
       const lateAfter = map.LATE_AFTER_TIME || '08:30:00';
       const row = (todayAtt.data && todayAtt.data[0]) || null;
       const pendingCount = Array.isArray(pendingLeaves.data) ? pendingLeaves.data.length : 0;
-      let reminder = { action_key: 'open_attendance_history', label: 'Cek Riwayat Kehadiran', urgency: 'low', detail: 'Kondisi hari ini stabil.' };
-      if (!row || !row.jam_masuk) reminder = { action_key: 'checkin_now', label: 'Check In Sekarang', urgency: 'high', detail: 'Belum ada check-in. Batas terlambat: ' + lateAfter + '.' };
-      else if (!row.jam_keluar && String(row.break_active || '').toLowerCase() === 'true') reminder = { action_key: 'checkout_or_break', label: 'Akhiri Break / Lanjut Kerja', urgency: 'medium', detail: 'Break masih aktif. Pastikan durasi break terkontrol.' };
-      else if (!row.jam_keluar) reminder = { action_key: 'checkout_or_break', label: 'Ingat Check Out', urgency: 'medium', detail: 'Setelah jam kerja selesai, lakukan check-out.' };
-      if (pendingCount > 0) reminder = { action_key: 'open_leave_status', label: 'Review Pengajuan Cuti', urgency: 'medium', detail: pendingCount + ' pengajuan cuti masih pending.' };
+      let reminder = { action_key: 'open_attendance_history', label: 'Lihat Riwayat Kehadiran', urgency: 'low', detail: 'Kondisi stabil.' };
+      if (!row || !row.jam_masuk) reminder = { action_key: 'checkin_now', label: 'Check-in Sekarang', urgency: 'high', detail: 'Belum check-in. Batas terlambat: ' + lateAfter + '.' };
+      else if (!row.jam_keluar && String(row.break_active || '').toLowerCase() === 'true') reminder = { action_key: 'checkout_or_break', label: 'Kelola Break', urgency: 'medium', detail: 'Break masih aktif.' };
+      else if (!row.jam_keluar) reminder = { action_key: 'checkout_or_break', label: 'Belum Check-out', urgency: 'medium', detail: 'Jangan lupa check-out saat pulang.' };
+      if (pendingCount > 0) reminder = { action_key: 'open_leave_status', label: 'Status Cuti', urgency: 'medium', detail: pendingCount + ' pengajuan cuti masih pending.' };
       return json(res, 200, { ok: true, date: today, work_start_time: workStart, late_after_time: lateAfter, pending_leaves: pendingCount, reminder: reminder });
     }
 
