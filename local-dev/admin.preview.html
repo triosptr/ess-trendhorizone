@@ -149,7 +149,7 @@
     .list-text { flex: 1; display: flex; flex-direction: column; }
     .list-title { font-weight: 600; font-size: 14px; color: var(--text-main); }
     .list-desc { font-size: 13px; color: var(--text-sec); }
-    .modal-backdrop { position: fixed; inset: 0; background: rgba(17,24,39,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; backdrop-filter: blur(4px); }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(17,24,39,0.7); display: flex; align-items: center; justify-content: center; z-index: 1300; padding: 16px; backdrop-filter: blur(4px); }
     .sidebar-backdrop { position: fixed; inset: 0; background: rgba(17,24,39,0.5); z-index: 40; opacity: 0; visibility: hidden; transition: all 0.3s ease; backdrop-filter: blur(2px); }
     .sidebar-backdrop.show { opacity: 1; visibility: visible; }
     .modal-card { width: min(860px, 96vw); max-height: 92vh; overflow: auto; background: #fff; border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-lg); }
@@ -260,12 +260,16 @@
 
   <script>
     function openSidebar() {
-      document.getElementById('sidebar').classList.add('open');
+      const sidebar = document.getElementById('sidebar');
+      if (!sidebar) return;
+      sidebar.classList.add('open');
       const backdrop = document.getElementById('sidebar_backdrop');
       if (backdrop) backdrop.classList.add('show');
     }
     function closeSidebar() {
-      document.getElementById('sidebar').classList.remove('open');
+      const sidebar = document.getElementById('sidebar');
+      if (!sidebar) return;
+      sidebar.classList.remove('open');
       const backdrop = document.getElementById('sidebar_backdrop');
       if (backdrop) backdrop.classList.remove('show');
     }
@@ -291,7 +295,13 @@
       document.querySelectorAll('[data-nav-id="'+navId+'"]').forEach(function(e){ e.classList.add('active'); });
       if(window.innerWidth<=992) closeSidebar();
     }
-    if(window.innerWidth<=992) { document.getElementById('mobileToggle').style.display='block'; document.querySelector('.mobile-close').style.display='block'; }
+    function syncResponsiveHeaderControls(){
+      const mobileToggle=document.getElementById('mobileToggle');
+      if(!mobileToggle) return;
+      mobileToggle.style.display = window.innerWidth<=992 ? 'block' : 'none';
+    }
+    syncResponsiveHeaderControls();
+    window.addEventListener('resize', syncResponsiveHeaderControls);
     document.getElementById('header_date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long', day:'2-digit', month:'short'});
 
     let adminStatusTimer=null;
@@ -2186,12 +2196,13 @@
         if(!forceRefresh && reportCenterCache){ renderReportsCenterFromCache(); return; }
         setLoading('Memuat Report Center ESS...');
         const today=(new Date().toISOString().slice(0,10));
+        const kpiStart=(new Date(Date.now()-29*24*60*60*1000).toISOString().slice(0,10));
         const [empRep,attToday,leaves,paydocs,kpi]=await Promise.all([
           api('/api/admin/reports/employees?limit=500').catch(()=>({ summary:{total:0,active:0,inactive:0,employee:0,admin:0,superadmin:0}, rows:[] })),
           api('/api/admin/attendance/today?tanggal='+today).catch(()=>[]),
           api('/api/admin/leaves?limit=500').catch(()=>[]),
           api('/api/admin/master/payroll-docs?limit=300').catch(()=>[]),
-          api('/api/admin/dashboard/kpi/hr').catch(()=>({}))
+          api('/api/admin/kpi/hr?start_date='+encodeURIComponent(kpiStart)+'&end_date='+encodeURIComponent(today)).catch(()=>({}))
         ]);
         reportCenterCache={
           today:today,
