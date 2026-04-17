@@ -663,39 +663,39 @@
             </div>
             </div>
 
-            <div class="card">
-                <div class="team-header">
+            <div class="card" style="height:auto;">
+                <div class="team-header" style="flex-wrap:wrap; gap:12px;">
                     <h3 style="font-size:20px;font-weight:700;">Operations Intelligence</h3>
-                    <div class="actions">
+                    <div class="actions" style="margin-top:0;">
                         <button class="btn btn-primary" onclick="loadOperationsIntelligenceCenter()"><i class="ph ph-chart-line-up"></i> Open Operations Center</button>
                     </div>
                 </div>
                 <div class="grid-2">
-                    <div>
+                    <div style="max-height:400px;overflow-y:auto;padding-right:4px;">
                       <div class="stat-label" style="margin-bottom:10px;">Top Alerts</div>
                       <ul class="clean-list">
-                        ${alerts.length?alerts.map(function(a){ return '<li style="align-items:flex-start;"><div class="list-text"><span class="list-title">'+escapeHtml(a.title||'-')+' '+severityBadge(a.severity)+'</span><span class="list-desc">'+escapeHtml(a.detail||'-')+'</span></div><button class="btn btn-secondary" onclick="openOpsAction(\''+escapeHtml(a.action_route||'home')+'\')">'+escapeHtml(a.action_label||'Open')+'</button></li>'; }).join(''):'<li><div class="list-text"><span class="list-desc">No alerts.</span></div></li>'}
+                        ${alerts.length?alerts.map(function(a){ return '<li style="align-items:flex-start;flex-wrap:wrap;"><div class="list-text" style="flex:1;min-width:200px;"><span class="list-title" style="margin-bottom:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'+escapeHtml(a.title||'-')+' '+severityBadge(a.severity)+'</span><span class="list-desc">'+escapeHtml(a.detail||'-')+'</span></div><button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="openOpsAction(\''+escapeHtml(a.action_route||'home')+'\')">'+escapeHtml(a.action_label||'Open')+'</button></li>'; }).join(''):'<li><div class="list-text"><span class="list-desc">No alerts.</span></div></li>'}
                       </ul>
                     </div>
-                    <div>
+                    <div style="max-height:400px;overflow-y:auto;padding-right:4px;">
                       <div class="stat-label" style="margin-bottom:10px;">Recommended Actions</div>
                       <ul class="clean-list">
-                        ${recs.length?recs.map(function(r){ return '<li><div class="icon-box"><i class="ph ph-lightbulb"></i></div><div class="list-text"><span class="list-title">Priority '+escapeHtml(r.priority||'-')+'</span><span class="list-desc">'+escapeHtml(r.text||'-')+'</span></div></li>'; }).join(''):'<li><div class="list-text"><span class="list-desc">No recommendation.</span></div></li>'}
+                        ${recs.length?recs.map(function(r){ return '<li style="align-items:flex-start;"><div class="icon-box" style="flex-shrink:0;width:36px;height:36px;font-size:18px;"><i class="ph ph-lightbulb"></i></div><div class="list-text"><span class="list-title" style="margin-bottom:4px;">Priority '+escapeHtml(r.priority||'-')+'</span><span class="list-desc">'+escapeHtml(r.text||'-')+'</span></div></li>'; }).join(''):'<li><div class="list-text"><span class="list-desc">No recommendation.</span></div></li>'}
                       </ul>
                     </div>
                 </div>
             </div>
 
-            <div class="card">
-                <div class="team-header">
+            <div class="card" style="height:auto;">
+                <div class="team-header" style="flex-wrap:wrap; gap:12px; margin-bottom:16px;">
                     <h3 style="font-size:20px;font-weight:700;">Quick Actions</h3>
-                    <div class="actions">
-                        <button class="btn btn-secondary" onclick="loadLeaveManagement()"><i class="ph ph-calendar-blank"></i> Leaves</button>
-                        <button class="btn btn-secondary" onclick="loadAllEmployees()"><i class="ph ph-users"></i> Employees</button>
-                        <button class="btn btn-primary" onclick="loadKpiHrDashboard()"><i class="ph ph-chart-bar"></i> Full KPI</button>
-                        <button class="btn btn-secondary" onclick="loadEmailDeliverabilityPanel()"><i class="ph ph-envelope-simple"></i> Email Deliverability</button>
-                        <button class="btn btn-primary" onclick="exportTodayStatusPdf()"><i class="ph ph-download-simple"></i> Export PDF</button>
-                    </div>
+                </div>
+                <div class="actions" style="margin-top:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
+                    <button class="btn btn-secondary" style="justify-content:center;" onclick="loadLeaveManagement()"><i class="ph ph-calendar-blank"></i> Leaves</button>
+                    <button class="btn btn-secondary" style="justify-content:center;" onclick="loadAllEmployees()"><i class="ph ph-users"></i> Employees</button>
+                    <button class="btn btn-primary" style="justify-content:center;" onclick="loadKpiHrDashboard()"><i class="ph ph-chart-bar"></i> Full KPI</button>
+                    <button class="btn btn-secondary" style="justify-content:center;" onclick="loadEmailDeliverabilityPanel()"><i class="ph ph-envelope-simple"></i> Emails</button>
+                    <button class="btn btn-primary" style="justify-content:center;" onclick="exportTodayStatusPdf()"><i class="ph ph-download-simple"></i> Export PDF</button>
                 </div>
             </div>
 
