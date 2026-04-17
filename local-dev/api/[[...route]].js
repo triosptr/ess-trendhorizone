@@ -1436,6 +1436,7 @@ function addMinutesToHms(hmsText, minutesToAdd) {
 }
 function normalizeShiftCode(v) {
   const s = String(v || '').trim().toUpperCase();
+  if (s === 'OFF') return 'OFF';
   if (s === 'PAGI') return 'PAGI';
   if (s === 'SORE') return 'SORE';
   if (s === 'MALAM') return 'MALAM';
@@ -1444,15 +1445,23 @@ function normalizeShiftCode(v) {
 }
 function shiftRule(shiftCode) {
   const c = normalizeShiftCode(shiftCode);
+  if (c === 'OFF') return { code: 'OFF', start: '', end: '', break_minutes_default: 0, target_work_minutes: 0 };
   if (c === 'SORE') return { code: 'SORE', start: '15:00:00', end: '01:00:00', break_minutes_default: 120, target_work_minutes: 8 * 60 };
   if (c === 'MALAM') return { code: 'MALAM', start: '21:00:00', end: '07:00:00', break_minutes_default: 120, target_work_minutes: 8 * 60 };
-  if (c === 'FLX') return { code: 'FLX', start: '', end: '', break_minutes_default: 0, target_work_minutes: 5 * 60 };
+  if (c === 'FLX') return { code: 'FLX', start: '', end: '', break_minutes_default: 0, target_work_minutes: 8 * 60 };
   return { code: 'PAGI', start: '09:00:00', end: '19:00:00', break_minutes_default: 120, target_work_minutes: 8 * 60 };
 }
 function shiftLateAfterTime(shiftCode) {
   const r = shiftRule(shiftCode);
   if (!r.start) return '';
   return addMinutesToHms(r.start, 15);
+}
+function isLateCheckIn(shiftCode, jamMasuk) {
+  const code = normalizeShiftCode(shiftCode);
+  if (code === 'FLX' || code === 'OFF') return false;
+  const lateAfter = shiftLateAfterTime(code);
+  if (!lateAfter) return false;
+  return String(jamMasuk || '') > lateAfter;
 }
 function monthNameId(monthText) {
   const m = String(monthText || '').trim().match(/^(\d{4})-(\d{2})$/);
@@ -1722,12 +1731,10 @@ async function handleMeAttendanceCheckIn(req, res, user) {
   if (row && row.jam_masuk) return json(res, 400, { ok: false, message: 'Anda sudah check-in hari ini.' });
 
   const sched = await resolveEmployeeShiftForDate(user.employee_id, tanggal);
-  const shift = String(body.shift_karyawan || sched.shift_code || '').trim();
-  const shiftCode = shift === 'OFF' ? 'PAGI' : shiftRule(shift).code;
+  const shiftCode = normalizeShiftCode(sched.shift_code || 'PAGI');
   const baseCatatan = String(body.catatan || '').trim();
   const jamMasuk = String(body.jam_masuk || hms()).trim();
-  const lateAfter = shiftLateAfterTime(shiftCode);
-  const statusAuto = (shiftCode === 'FLX') ? 'Hadir' : (lateAfter && jamMasuk > lateAfter ? 'Terlambat' : 'Hadir');
+  const statusAuto = isLateCheckIn(shiftCode, jamMasuk) ? 'Terlambat' : 'Hadir';
   const employeeName = await getEmployeeDisplayName(user);
   const sourcePhotoUrl = String(body.foto_masuk_url || '').trim() || toDataUrlFromFileObject(body.photo);
   const drivePhotoUrl = await tryUploadAttendancePhotoToDrive(body.photo, { type: 'checkin', employee_id: user.employee_id, employee_name: employeeName, tanggal: tanggal, jam: jamMasuk });
@@ -1750,7 +1757,7 @@ async function handleMeAttendanceCheckIn(req, res, user) {
   const inserted = Array.isArray(ins.data) && ins.data[0] ? ins.data[0] : null;
   if (inserted && inserted.attendance_id) {
     await attendanceMetaSave(inserted.attendance_id, {
-      shift_code: shiftRule(shift).code,
+      shift_code: shiftCode,
       break_total_seconds: 0,
       break_total_minutes: 0,
       break_active_start: '',
@@ -2120,11 +2127,19 @@ module.exports = async function handler(req, res) {
 
     if (path === 'me/attendance/config' && method === 'GET') {
       const u = requireUser(req, res); if (!u) return;
-      const r = await db('GET', 'config', { select: 'key,value', key: 'in.(WORK_START_TIME,LATE_AFTER_TIME,PHOTO_FOLDER_ENABLED)' });
+      const r = await db('GET', 'config', { select: 'key,value', key: 'in.(PHOTO_FOLDER_ENABLED)' });
       if (!r.ok) return json(res, 500, { ok: false, message: 'Gagal ambil config.', error: r.error });
+      const sched = await resolveEmployeeShiftForDate(u.employee_id, ymd());
+      const shiftCode = normalizeShiftCode(sched.shift_code || 'PAGI');
+      const rule = shiftRule(shiftCode);
       const map = {};
       (r.data || []).forEach(function(x) { map[String(x.key || '')] = String(x.value || ''); });
-      return json(res, 200, { work_start_time: map.WORK_START_TIME || '08:00:00', late_after_time: map.LATE_AFTER_TIME || '08:30:00', photo_folder_enabled: String(map.PHOTO_FOLDER_ENABLED || 'true').toLowerCase() === 'true' });
+      return json(res, 200, {
+        shift_code: shiftCode,
+        work_start_time: rule.start || '',
+        late_after_time: shiftLateAfterTime(shiftCode),
+        photo_folder_enabled: String(map.PHOTO_FOLDER_ENABLED || 'true').toLowerCase() === 'true'
+      });
     }
 
     if (path === 'me/attendance/today' && method === 'GET') {
@@ -2143,7 +2158,7 @@ module.exports = async function handler(req, res) {
           const workMinutesOpen = Math.floor(workSecondsOpen / 60);
           const breakTotalSecondsOpen = Number(metaOpen.break_total_seconds || (Number(metaOpen.break_total_minutes || 0) * 60) || 0);
           const schedOpen = await resolveEmployeeShiftForDate(u.employee_id, String(openRow.tanggal || tanggal));
-          const shiftCodeOpen = schedOpen.shift_code === 'OFF' ? 'PAGI' : normalizeShiftCode(schedOpen.shift_code || 'PAGI');
+          const shiftCodeOpen = normalizeShiftCode(schedOpen.shift_code || 'PAGI');
           const progressOpen = shiftProgress(workMinutesOpen, metaOpen.shift_code || shiftCodeOpen);
           return json(res, 200, Object.assign({}, openRow, {
             status: 'Sedang Kerja',
@@ -2211,7 +2226,9 @@ module.exports = async function handler(req, res) {
       const workSeconds = effectiveWorkSeconds(row.jam_masuk, row.jam_keluar, meta, hms());
       const workMinutes = Math.floor(workSeconds / 60);
       const breakTotalSeconds = Number(meta.break_total_seconds || (Number(meta.break_total_minutes || 0) * 60) || 0);
-      const progress = shiftProgress(workMinutes, meta.shift_code || 'PAGI');
+      const schedRow = await resolveEmployeeShiftForDate(u.employee_id, String(row.tanggal || tanggal));
+      const baseShiftCode = normalizeShiftCode(schedRow.shift_code || 'PAGI');
+      const progress = shiftProgress(workMinutes, meta.shift_code || baseShiftCode);
       return json(res, 200, Object.assign({}, row, {
         work_seconds: workSeconds,
         work_minutes: workMinutes,
@@ -2261,7 +2278,10 @@ module.exports = async function handler(req, res) {
       if (row.jam_keluar) return json(res, 400, { ok: false, message: 'Sudah check-out.' });
       const meta = await attendanceMetaGet(row.attendance_id);
       if (meta.break_active_start) return json(res, 400, { ok: false, message: 'Istirahat sudah berjalan.' });
-      meta.shift_code = meta.shift_code || shiftRule('').code;
+      if (!meta.shift_code) {
+        const sched = await resolveEmployeeShiftForDate(u.employee_id, String(row.tanggal || tanggal));
+        meta.shift_code = normalizeShiftCode(sched.shift_code || 'PAGI');
+      }
       meta.break_total_seconds = Number(meta.break_total_seconds || (Number(meta.break_total_minutes || 0) * 60) || 0);
       meta.break_total_minutes = Number(meta.break_total_minutes || 0);
       meta.break_sessions = Array.isArray(meta.break_sessions) ? meta.break_sessions : [];
@@ -2586,27 +2606,31 @@ module.exports = async function handler(req, res) {
     if (path === 'me/operations-intelligence/reminder-plan' && method === 'GET') {
       const u = requireUser(req, res); if (!u) return;
       const today = ymd();
-      const [cfg, todayAtt, pendingLeaves] = await Promise.all([
-        db('GET', 'config', { select: 'key,value', key: 'in.(WORK_START_TIME,LATE_AFTER_TIME)', limit: 10 }),
+      const [todayAtt, pendingLeaves, sched] = await Promise.all([
         db('GET', 'attendance', { select: 'jam_masuk,jam_keluar,break_active,status', employee_id: 'eq.' + u.employee_id, tanggal: 'eq.' + today, order: 'created_at.desc', limit: 1 }),
-        db('GET', 'leave_requests', { select: 'leave_id', employee_id: 'eq.' + u.employee_id, status: 'eq.pending', limit: 500 })
+        db('GET', 'leave_requests', { select: 'leave_id', employee_id: 'eq.' + u.employee_id, status: 'eq.pending', limit: 500 }),
+        resolveEmployeeShiftForDate(u.employee_id, today)
       ]);
-      if (!cfg.ok || !todayAtt.ok || !pendingLeaves.ok) {
-        const err = !cfg.ok ? cfg.error : !todayAtt.ok ? todayAtt.error : pendingLeaves.error;
+      if (!todayAtt.ok || !pendingLeaves.ok) {
+        const err = !todayAtt.ok ? todayAtt.error : pendingLeaves.error;
         return json(res, 500, { ok: false, message: 'Gagal ambil reminder plan.', error: err });
       }
-      const map = {};
-      (cfg.data || []).forEach(function(x) { map[String(x.key || '')] = String(x.value || ''); });
-      const workStart = map.WORK_START_TIME || '08:00:00';
-      const lateAfter = map.LATE_AFTER_TIME || '08:30:00';
+      const shiftCode = normalizeShiftCode((sched && sched.shift_code) || 'PAGI');
+      const shift = shiftRule(shiftCode);
+      const workStart = shift.start || '';
+      const lateAfter = shiftLateAfterTime(shiftCode);
       const row = (todayAtt.data && todayAtt.data[0]) || null;
       const pendingCount = Array.isArray(pendingLeaves.data) ? pendingLeaves.data.length : 0;
       let reminder = { action_key: 'open_attendance_history', label: 'Lihat Riwayat Kehadiran', urgency: 'low', detail: 'Kondisi stabil.' };
-      if (!row || !row.jam_masuk) reminder = { action_key: 'checkin_now', label: 'Check-in Sekarang', urgency: 'high', detail: 'Belum check-in. Batas terlambat: ' + lateAfter + '.' };
+      if (!row || !row.jam_masuk) {
+        reminder = shiftCode === 'FLX'
+          ? { action_key: 'checkin_now', label: 'Check-in Sekarang', urgency: 'high', detail: 'Shift FLX: tidak ada status terlambat, pastikan total jam kerja harian tercapai.' }
+          : { action_key: 'checkin_now', label: 'Check-in Sekarang', urgency: 'high', detail: 'Belum check-in. Batas terlambat: ' + lateAfter + '.' };
+      }
       else if (!row.jam_keluar && String(row.break_active || '').toLowerCase() === 'true') reminder = { action_key: 'checkout_or_break', label: 'Kelola Break', urgency: 'medium', detail: 'Break masih aktif.' };
       else if (!row.jam_keluar) reminder = { action_key: 'checkout_or_break', label: 'Belum Check-out', urgency: 'medium', detail: 'Jangan lupa check-out saat pulang.' };
       if (pendingCount > 0) reminder = { action_key: 'open_leave_status', label: 'Status Cuti', urgency: 'medium', detail: pendingCount + ' pengajuan cuti masih pending.' };
-      return json(res, 200, { ok: true, date: today, work_start_time: workStart, late_after_time: lateAfter, pending_leaves: pendingCount, reminder: reminder });
+      return json(res, 200, { ok: true, date: today, shift_code: shiftCode, work_start_time: workStart, late_after_time: lateAfter, pending_leaves: pendingCount, reminder: reminder });
     }
 
     if (path === 'me/notifications/mark-seen' && method === 'POST') {
