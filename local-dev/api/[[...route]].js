@@ -865,6 +865,14 @@ function parseDriveFolderId(input) {
   if (/^[a-zA-Z0-9_-]{10,}$/.test(raw)) return raw;
   return '';
 }
+function toDriveDirectUrl(url) {
+  const u = String(url || '').trim();
+  if (u.includes('drive.google.com/file/d/')) {
+    const m = u.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if (m && m[1]) return 'https://drive.google.com/uc?export=view&id=' + m[1];
+  }
+  return u;
+}
 function bufferFromBase64(base64) {
   const b = String(base64 || '').trim();
   if (!b) return null;
@@ -1904,7 +1912,7 @@ module.exports = async function handler(req, res) {
       return json(res, 200, {
         ok: true,
         authenticated: true,
-        user: Object.assign({}, user, { photo_url: String(extra.photo_url || ''), is_admin: roleAdmin(user.role) }),
+        user: Object.assign({}, user, { photo_url: toDriveDirectUrl(String(extra.photo_url || '')), is_admin: roleAdmin(user.role) }),
         first_login_required: !!(cred && (cred.must_change_password === true || String(cred.first_login_required).toLowerCase() === 'true')),
         session_expires_at: String(sess.expires_at || '')
       });
@@ -1934,7 +1942,7 @@ module.exports = async function handler(req, res) {
           role: u.role || 'employee',
           divisi: '-',
           jabatan: '-',
-          photo_url: String(extra.photo_url || ''),
+          photo_url: toDriveDirectUrl(String(extra.photo_url || '')),
           first_login_completed: !!extra.first_login_completed,
           is_active: true,
           jatah_cuti: 12,
@@ -1942,7 +1950,7 @@ module.exports = async function handler(req, res) {
         });
       }
       return json(res, 200, Object.assign({}, row, {
-        photo_url: String(extra.photo_url || ''),
+        photo_url: toDriveDirectUrl(String(extra.photo_url || '')),
         first_login_completed: !!extra.first_login_completed
       }));
     }
@@ -1992,7 +2000,7 @@ module.exports = async function handler(req, res) {
       const out = await db('GET', 'employees', { select: '*', employee_id: 'eq.' + u.employee_id, limit: 1 });
       if (!out.ok) return json(res, 500, { ok: false, message: 'Profile berhasil disimpan, tapi gagal ambil data terbaru.', error: out.error });
       const row = Array.isArray(out.data) && out.data[0] ? out.data[0] : {};
-      return json(res, 200, { ok: true, message: 'Profile berhasil diperbarui.', data: Object.assign({}, row, { photo_url: String(extra.photo_url || ''), first_login_completed: !!extra.first_login_completed }) });
+      return json(res, 200, { ok: true, message: 'Profile berhasil diperbarui.', data: Object.assign({}, row, { photo_url: toDriveDirectUrl(String(extra.photo_url || '')), first_login_completed: !!extra.first_login_completed }) });
     }
 
     if (path === 'me/face/profile' && method === 'GET') {
