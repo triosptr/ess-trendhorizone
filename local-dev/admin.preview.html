@@ -585,7 +585,18 @@
           return '<tr><td style="white-space:nowrap;">'+escapeHtml(r.employee_id||'-')+'</td><td style="white-space:nowrap;">'+escapeHtml(emp.nama||'-')+'</td><td style="white-space:nowrap;">'+escapeHtml(r.jam_masuk||'-')+'</td><td style="white-space:nowrap;">'+escapeHtml(r.jam_keluar||'-')+'</td><td style="white-space:nowrap;">'+liveStatusBadge(r)+'</td></tr>';
         }).join('') || '<tr><td colspan="5">Belum ada aktivitas login/logout hari ini.</td></tr>';
         
-        const statusRows=(emps||[]).map(function(e,i){ const a=attMap[e.employee_id]||null; return '<tr class="live-emp-row" data-live-row="1" data-name="'+escapeHtml(e.nama||'').toLowerCase()+'" data-id="'+escapeHtml(e.employee_id||'').toLowerCase()+'" data-masuk="'+escapeHtml((a&&a.jam_masuk)||'')+'" data-keluar="'+escapeHtml((a&&a.jam_keluar)||'')+'" data-break-seconds="'+escapeHtml((a&&a.break_total_seconds)||0)+'" data-break-active="'+(a&&a.break_active?'1':'0')+'" data-break-start="'+escapeHtml((a&&a.break_active_start)||'')+'"><td style="white-space:nowrap;">'+escapeHtml(e.employee_id||'-')+'</td><td style="white-space:nowrap;">'+escapeHtml(e.nama||'-')+'</td><td style="white-space:nowrap;">'+liveStatusBadge(a)+'</td><td style="white-space:nowrap;">'+escapeHtml((a&&a.shift_code)||'-')+'</td><td style="white-space:nowrap;">'+escapeHtml((a&&a.jam_masuk)||'-')+'</td><td style="white-space:nowrap;">'+escapeHtml((a&&a.jam_keluar)||'-')+'</td><td data-cell="work" style="font-family:monospace;font-weight:600;color:var(--primary);white-space:nowrap;">'+escapeHtml((a&&a.work_duration_digital)||'00:00:00')+'</td><td data-cell="break" style="font-family:monospace;white-space:nowrap;">'+escapeHtml((a&&a.break_duration_digital)||'00:00:00')+'</td></tr>'; }).join('') || '<tr><td colspan="8">Tidak ada data karyawan</td></tr>';
+        const statusRows=(emps||[]).map(function(e,i){ const a=attMap[e.employee_id]||null; return '<div class="live-emp-row card" data-live-row="1" data-name="'+escapeHtml(e.nama||'').toLowerCase()+'" data-id="'+escapeHtml(e.employee_id||'').toLowerCase()+'" data-masuk="'+escapeHtml((a&&a.jam_masuk)||'')+'" data-keluar="'+escapeHtml((a&&a.jam_keluar)||'')+'" data-break-seconds="'+escapeHtml((a&&a.break_total_seconds)||0)+'" data-break-active="'+(a&&a.break_active?'1':'0')+'" data-break-start="'+escapeHtml((a&&a.break_active_start)||'')+'" style="padding:16px; margin-bottom:12px; border-radius:12px; box-shadow:none; border:1px solid var(--border);">'
+          + '<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">'
+          + '<div><div style="font-weight:700; font-size:15px; color:var(--text-main); margin-bottom:2px;">'+escapeHtml(e.nama||'-')+'</div><div style="font-size:12px; color:var(--text-sec);">'+escapeHtml(e.employee_id||'-')+'</div></div>'
+          + '<div>'+liveStatusBadge(a)+'</div>'
+          + '</div>'
+          + '<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:13px; border-top:1px solid var(--border); padding-top:12px;">'
+          + '<div><div style="color:var(--text-sec); font-size:11px; margin-bottom:2px;">SHIFT</div><div style="font-weight:600;">'+escapeHtml((a&&a.shift_code)||'-')+'</div></div>'
+          + '<div><div style="color:var(--text-sec); font-size:11px; margin-bottom:2px;">JAM KERJA</div><div data-cell="work" style="font-family:monospace; font-weight:700; color:var(--primary);">'+escapeHtml((a&&a.work_duration_digital)||'00:00:00')+'</div></div>'
+          + '<div><div style="color:var(--text-sec); font-size:11px; margin-bottom:2px;">IN - OUT</div><div style="font-weight:600;">'+escapeHtml((a&&a.jam_masuk)||'--:--')+' - '+escapeHtml((a&&a.jam_keluar)||'--:--')+'</div></div>'
+          + '<div><div style="color:var(--text-sec); font-size:11px; margin-bottom:2px;">ISTIRAHAT</div><div data-cell="break" style="font-family:monospace; font-weight:600;">'+escapeHtml((a&&a.break_duration_digital)||'00:00:00')+'</div></div>'
+          + '</div>'
+          + '</div>'; }).join('') || '<div class="report-empty">Tidak ada data karyawan</div>';
         
         const html = `
             <div class="greeting">
@@ -715,11 +726,10 @@
                         <input type="text" id="live_emp_filter" placeholder="Cari nama / ID..." oninput="filterLiveEmployeeTable(this.value)">
                     </div>
                 </div>
-                <div class="table-wrap">
-                    <table>
-                        <thead><tr><th>ID</th><th>Nama</th><th>Status Live</th><th>Shift</th><th>Masuk</th><th>Keluar</th><th>Jam Kerja</th><th>Istirahat</th></tr></thead>
-                        <tbody>${statusRows}</tbody>
-                    </table>
+                <div style="max-height: 500px; overflow-y: auto; padding-right: 4px;">
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:12px;">
+                        ${statusRows}
+                    </div>
                 </div>
             </div>
         `;
