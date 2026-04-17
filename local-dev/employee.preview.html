@@ -534,6 +534,13 @@
       localStorage.setItem('ess_employee_id',j.user.employee_id||'');
       localStorage.setItem('ess_user_role',j.user.role||'employee');
       if(j.first_login_required) localStorage.setItem('ess_force_profile_setup','1'); else localStorage.removeItem('ess_force_profile_setup');
+      
+      document.getElementById('header_name').textContent=j.user.nama||'User'; 
+      document.getElementById('header_role').textContent=j.user.jabatan||'Employee'; 
+      const av=document.getElementById('header_avatar');
+      if(j.user.photo_url){ av.textContent=''; av.style.backgroundImage='url('+j.user.photo_url+')'; av.style.backgroundSize='cover'; av.style.backgroundPosition='center'; }
+      else { av.style.backgroundImage='none'; av.textContent=String(j.user.nama||'U').charAt(0).toUpperCase(); }
+
       return true;
     }
     async function logoutSession(){
