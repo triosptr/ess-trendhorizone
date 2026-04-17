@@ -555,7 +555,12 @@
         const recs=((ops&&ops.recommendations)||[]).slice(0,3);
         
         const attMap={}; (today||[]).forEach(r=>{ if(!attMap[r.employee_id]) attMap[r.employee_id]=r; });
-        const liveStatus=function(a){ if(!a||!a.jam_masuk) return 'Belum Check In'; if(a.jam_keluar) return 'Selesai Check Out'; if(a.break_active) return 'Sedang Istirahat'; return 'Sedang Kerja'; };
+        const liveStatusBadge=function(a){
+          if(!a||!a.jam_masuk) return '<span style="display:inline-flex;align-items:center;gap:6px;background:var(--danger-bg);color:var(--danger);padding:4px 10px;border-radius:99px;font-size:12px;font-weight:600;"><span style="width:6px;height:6px;border-radius:50%;background:currentColor;animation:adminPulse 1.5s infinite;"></span> Belum Check-in</span>';
+          if(a.jam_keluar) return '<span style="display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;color:var(--text-sec);padding:4px 10px;border-radius:99px;font-size:12px;font-weight:600;">Selesai Check-out</span>';
+          if(a.break_active) return '<span style="display:inline-flex;align-items:center;gap:6px;background:var(--warning-bg);color:var(--warning);padding:4px 10px;border-radius:99px;font-size:12px;font-weight:600;"><span style="width:6px;height:6px;border-radius:50%;background:currentColor;animation:adminPulse 1.5s infinite;"></span> Sedang Istirahat</span>';
+          return '<span style="display:inline-flex;align-items:center;gap:6px;background:var(--success-bg);color:var(--success);padding:4px 10px;border-radius:99px;font-size:12px;font-weight:600;"><span style="width:6px;height:6px;border-radius:50%;background:currentColor;animation:adminPulse 1.5s infinite;"></span> Sedang Bekerja</span>';
+        };
         const activeEmployees=(emps||[]).filter(function(e){ return String(e.is_active).toLowerCase()==='true'; });
         const checkedInToday=(today||[]).filter(function(r){ return !!r.jam_masuk; }).length;
         const checkedOutToday=(today||[]).filter(function(r){ return !!r.jam_keluar; }).length;
@@ -577,10 +582,10 @@
           return tb.localeCompare(ta);
         }).slice(0,12).map(function(r){
           const emp=(emps||[]).find(function(e){ return String(e.employee_id||'')===String(r.employee_id||''); })||{};
-          return '<tr><td>'+escapeHtml(r.employee_id||'-')+'</td><td>'+escapeHtml(emp.nama||'-')+'</td><td>'+escapeHtml(r.jam_masuk||'-')+'</td><td>'+escapeHtml(r.jam_keluar||'-')+'</td><td>'+normalizeStatusBadge(r.status||liveStatus(r))+'</td></tr>';
+          return '<tr><td style="white-space:nowrap;">'+escapeHtml(r.employee_id||'-')+'</td><td style="white-space:nowrap;">'+escapeHtml(emp.nama||'-')+'</td><td style="white-space:nowrap;">'+escapeHtml(r.jam_masuk||'-')+'</td><td style="white-space:nowrap;">'+escapeHtml(r.jam_keluar||'-')+'</td><td style="white-space:nowrap;">'+liveStatusBadge(r)+'</td></tr>';
         }).join('') || '<tr><td colspan="5">Belum ada aktivitas login/logout hari ini.</td></tr>';
         
-        const statusRows=(emps||[]).map(function(e,i){ const a=attMap[e.employee_id]||null; return '<tr data-live-row="1" data-masuk="'+escapeHtml((a&&a.jam_masuk)||'')+'" data-keluar="'+escapeHtml((a&&a.jam_keluar)||'')+'" data-break-seconds="'+escapeHtml((a&&a.break_total_seconds)||0)+'" data-break-active="'+(a&&a.break_active?'1':'0')+'" data-break-start="'+escapeHtml((a&&a.break_active_start)||'')+'"><td>'+escapeHtml(e.employee_id||'-')+'</td><td>'+escapeHtml(e.nama||'-')+'</td><td>'+normalizeStatusBadge(liveStatus(a))+'</td><td>'+escapeHtml((a&&a.shift_code)||'-')+'</td><td>'+escapeHtml((a&&a.jam_masuk)||'-')+'</td><td>'+escapeHtml((a&&a.jam_keluar)||'-')+'</td><td data-cell="work" style="font-family:monospace;font-weight:600;color:var(--primary);">'+escapeHtml((a&&a.work_duration_digital)||'00:00:00')+'</td><td data-cell="break" style="font-family:monospace;">'+escapeHtml((a&&a.break_duration_digital)||'00:00:00')+'</td></tr>'; }).join('') || '<tr><td colspan="8">Tidak ada data karyawan</td></tr>';
+        const statusRows=(emps||[]).map(function(e,i){ const a=attMap[e.employee_id]||null; return '<tr class="live-emp-row" data-live-row="1" data-name="'+escapeHtml(e.nama||'').toLowerCase()+'" data-id="'+escapeHtml(e.employee_id||'').toLowerCase()+'" data-masuk="'+escapeHtml((a&&a.jam_masuk)||'')+'" data-keluar="'+escapeHtml((a&&a.jam_keluar)||'')+'" data-break-seconds="'+escapeHtml((a&&a.break_total_seconds)||0)+'" data-break-active="'+(a&&a.break_active?'1':'0')+'" data-break-start="'+escapeHtml((a&&a.break_active_start)||'')+'"><td style="white-space:nowrap;">'+escapeHtml(e.employee_id||'-')+'</td><td style="white-space:nowrap;">'+escapeHtml(e.nama||'-')+'</td><td style="white-space:nowrap;">'+liveStatusBadge(a)+'</td><td style="white-space:nowrap;">'+escapeHtml((a&&a.shift_code)||'-')+'</td><td style="white-space:nowrap;">'+escapeHtml((a&&a.jam_masuk)||'-')+'</td><td style="white-space:nowrap;">'+escapeHtml((a&&a.jam_keluar)||'-')+'</td><td data-cell="work" style="font-family:monospace;font-weight:600;color:var(--primary);white-space:nowrap;">'+escapeHtml((a&&a.work_duration_digital)||'00:00:00')+'</td><td data-cell="break" style="font-family:monospace;white-space:nowrap;">'+escapeHtml((a&&a.break_duration_digital)||'00:00:00')+'</td></tr>'; }).join('') || '<tr><td colspan="8">Tidak ada data karyawan</td></tr>';
         
         const html = `
             <div class="greeting">
@@ -686,23 +691,29 @@
                 </div>
             </div>
 
-            <div class="card" style="height:auto;">
+            <div class="card" style="height:auto;overflow:visible;">
                 <div class="team-header" style="flex-wrap:wrap; gap:12px; margin-bottom:16px;">
                     <h3 style="font-size:20px;font-weight:700;">Quick Actions</h3>
                 </div>
                 <div class="actions" style="margin-top:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
-                    <button class="btn btn-secondary" style="justify-content:center;" onclick="loadLeaveManagement()"><i class="ph ph-calendar-blank"></i> Leaves</button>
-                    <button class="btn btn-secondary" style="justify-content:center;" onclick="loadAllEmployees()"><i class="ph ph-users"></i> Employees</button>
-                    <button class="btn btn-primary" style="justify-content:center;" onclick="loadKpiHrDashboard()"><i class="ph ph-chart-bar"></i> Full KPI</button>
-                    <button class="btn btn-secondary" style="justify-content:center;" onclick="loadEmailDeliverabilityPanel()"><i class="ph ph-envelope-simple"></i> Emails</button>
-                    <button class="btn btn-primary" style="justify-content:center;" onclick="exportTodayStatusPdf()"><i class="ph ph-download-simple"></i> Export PDF</button>
+                    <button class="btn btn-secondary" style="justify-content:center;height:44px;" onclick="loadLeaveManagement()"><i class="ph ph-calendar-blank"></i> Leaves</button>
+                    <button class="btn btn-secondary" style="justify-content:center;height:44px;" onclick="loadAllEmployees()"><i class="ph ph-users"></i> Employees</button>
+                    <button class="btn btn-primary" style="justify-content:center;height:44px;" onclick="loadKpiHrDashboard()"><i class="ph ph-chart-bar"></i> Full KPI</button>
+                    <button class="btn btn-secondary" style="justify-content:center;height:44px;" onclick="loadEmailDeliverabilityPanel()"><i class="ph ph-envelope-simple"></i> Emails</button>
+                    <button class="btn btn-primary" style="justify-content:center;height:44px;" onclick="exportTodayStatusPdf()"><i class="ph ph-download-simple"></i> Export PDF</button>
                 </div>
             </div>
 
             <div class="card">
-                <div class="team-header">
-                    <h3 style="font-size:20px;font-weight:700;">Live Employee Status</h3>
-                    <div class="stat-label">${escapeHtml(todayDate)}</div>
+                <div class="team-header" style="flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+                    <div>
+                        <h3 style="font-size:20px;font-weight:700;">Live Employee Status</h3>
+                        <div class="stat-label" style="margin-top:4px;">${escapeHtml(todayDate)}</div>
+                    </div>
+                    <div class="search-bar" style="display:flex; width:min(320px, 100%);">
+                        <i class="ph ph-magnifying-glass"></i>
+                        <input type="text" id="live_emp_filter" placeholder="Cari nama / ID..." oninput="filterLiveEmployeeTable(this.value)">
+                    </div>
                 </div>
                 <div class="table-wrap">
                     <table>
@@ -724,6 +735,15 @@
         }).catch(()=>{});
 
       }catch(err){ setContent(renderError(err.message)); }
+    }
+    function filterLiveEmployeeTable(q){
+      const val=String(q||'').toLowerCase().trim();
+      document.querySelectorAll('.live-emp-row').forEach(function(r){
+        const nm=r.getAttribute('data-name')||'';
+        const id=r.getAttribute('data-id')||'';
+        if(!val || nm.includes(val) || id.includes(val)) r.style.display='';
+        else r.style.display='none';
+      });
     }
     async function adminDoCheckIn(){
       try{
