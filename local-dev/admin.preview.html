@@ -1115,7 +1115,7 @@
       const filteredLate=(hrKpiDayDetail.late_rows||[]).filter(function(r){ return !kpiLateFocusEmployee || String(r.employee_id||'')===kpiLateFocusEmployee; });
       const leaveData=(hrKpiDayDetail.leaves||[]);
       const lateCards=(filteredLate||[]).slice(0,20).map(function(r){
-        return '<div class="card report-tile report-tone-attendance"><div class="stat-label">'+escapeHtml(r.employee_id||'-')+'</div><div style="font-weight:700;color:var(--text-main);margin:4px 0 6px;">'+escapeHtml(r.nama||'-')+'</div><div class="muted">'+escapeHtml(r.divisi||'-')+' • '+escapeHtml(r.jabatan||'-')+'</div><div class="muted">Masuk: '+escapeHtml(r.jam_masuk||'-')+' | Batas: '+escapeHtml(s.late_after_time||'-')+'</div></div>';
+        return '<div class="card report-tile report-tone-attendance"><div class="stat-label">'+escapeHtml(r.employee_id||'-')+'</div><div style="font-weight:700;color:var(--text-main);margin:4px 0 6px;">'+escapeHtml(r.nama||'-')+'</div><div class="muted">'+escapeHtml(r.divisi||'-')+' • '+escapeHtml(r.jabatan||'-')+'</div><div class="muted">Masuk: '+escapeHtml(r.jam_masuk||'-')+' | Batas: '+escapeHtml(r.late_after_time||s.late_after_time||'-')+'</div></div>';
       }).join('');
       const leaveCards=(leaveData||[]).slice(0,20).map(function(r){
         return '<div class="card report-tile report-tone-leave"><div class="stat-label">'+escapeHtml(r.leave_id||'-')+'</div><div style="font-weight:700;color:var(--text-main);margin:4px 0 6px;">'+escapeHtml(r.nama||'-')+' ('+escapeHtml(r.employee_id||'-')+')</div><div class="muted">'+escapeHtml(r.divisi||'-')+'</div><div class="muted">'+escapeHtml(r.jenis_cuti||'-')+'</div><div style="margin-top:8px;">'+normalizeStatusBadge(r.status||'-')+'</div></div>';

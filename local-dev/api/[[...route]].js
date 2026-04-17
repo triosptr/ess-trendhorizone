@@ -2530,7 +2530,7 @@ module.exports = async function handler(req, res) {
       const u = requireUser(req, res); if (!u) return;
       const today = ymd();
       const startDate = dateShift(today, -13);
-      const rCfg = await db('GET', 'config', { select: 'key,value', key: 'in.(LATE_AFTER_TIME,OPS_LATE_RATE_HIGH)', limit: 10 });
+      const rCfg = await db('GET', 'config', { select: 'key,value', key: 'in.(OPS_LATE_RATE_HIGH)', limit: 10 });
       const rAtt = await db('GET', 'attendance', {
         select: 'attendance_id,employee_id,tanggal,jam_masuk,jam_keluar,status',
         employee_id: 'eq.' + u.employee_id,
@@ -2546,14 +2546,12 @@ module.exports = async function handler(req, res) {
       }
       const cfgMap = {};
       (rCfg.data || []).forEach(function(x) { cfgMap[String(x.key || '')] = String(x.value || ''); });
-      const lateAfter = cfgMap.LATE_AFTER_TIME || '08:30:00';
       const lateHigh = Number(cfgMap.OPS_LATE_RATE_HIGH || '20');
       const rows = rAtt.data || [];
       const presentCount = rows.length;
       const lateCount = rows.filter(function(r) {
         const st = String(r.status || '').toLowerCase();
-        const jm = String(r.jam_masuk || '');
-        return st === 'terlambat' || (jm && jm > lateAfter);
+        return st === 'terlambat';
       }).length;
       const ontimeCount = Math.max(0, presentCount - lateCount);
       const lateRate = presentCount > 0 ? Math.round((lateCount / presentCount) * 10000) / 100 : 0;
@@ -4485,15 +4483,13 @@ module.exports = async function handler(req, res) {
       const rAttendance = await db('GET', 'attendance', attendanceQ);
       const rLeaves = await db('GET', 'leave_requests', leaveQ);
       const rEmp = await db('GET', 'employees', { select: 'employee_id,nama,divisi,jabatan,is_active', order: 'employee_id.asc', limit: 5000 });
-      const rCfg = await db('GET', 'config', { select: 'key,value', key: 'eq.LATE_AFTER_TIME', limit: 1 });
-      if (!rAttendance.ok || !rLeaves.ok || !rEmp.ok || !rCfg.ok) {
-        const err = !rAttendance.ok ? rAttendance.error : !rLeaves.ok ? rLeaves.error : !rEmp.ok ? rEmp.error : rCfg.error;
+      if (!rAttendance.ok || !rLeaves.ok || !rEmp.ok) {
+        const err = !rAttendance.ok ? rAttendance.error : !rLeaves.ok ? rLeaves.error : rEmp.error;
         return json(res, 500, { ok: false, message: 'Gagal ambil data KPI HR.', error: err });
       }
       const attendanceRows = rAttendance.data || [];
       const leaveRows = rLeaves.data || [];
       const empRows = rEmp.data || [];
-      const lateAfter = String((rCfg.data && rCfg.data[0] && rCfg.data[0].value) || '08:30:00');
       const empMap = {};
       empRows.forEach(function(x) { empMap[String(x.employee_id || '')] = x; });
       const trendAttendance = {};
@@ -4515,8 +4511,7 @@ module.exports = async function handler(req, res) {
         if (st === 'hadir') trendAttendance[d].hadir += 1;
         if (String(r.work_mode || '').toLowerCase() === 'wfh') trendAttendance[d].wfh += 1;
         if (String(r.work_mode || '').toLowerCase() === 'office') trendAttendance[d].office += 1;
-        const jamMasuk = String(r.jam_masuk || '');
-        const isLate = st === 'terlambat' || (jamMasuk && jamMasuk > lateAfter);
+        const isLate = st === 'terlambat';
         if (isLate) {
           trendAttendance[d].terlambat += 1;
           lateCount += 1;
@@ -4599,7 +4594,7 @@ module.exports = async function handler(req, res) {
         late_records: lateCount,
         leave_requests: leaveRows.length,
         pending_leaves: leaveRows.filter(function(x) { return String(x.status || '').toLowerCase() === 'pending'; }).length,
-        late_after_time: lateAfter
+        late_after_time: 'By Shift +15m'
       };
       await auditLog(a.email, 'REPORT', 'kpi_hr', 'Generate KPI HR ' + startDate + ' s/d ' + endDate, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, {
@@ -4618,29 +4613,39 @@ module.exports = async function handler(req, res) {
       const a = requireAdmin(req, res); if (!a) return;
       const date = String(req.query.date || '').trim();
       if (!date) return json(res, 400, { ok: false, message: 'date wajib diisi (YYYY-MM-DD).' });
-      const rCfg = await db('GET', 'config', { select: 'key,value', key: 'eq.LATE_AFTER_TIME', limit: 1 });
       const rEmp = await db('GET', 'employees', { select: 'employee_id,nama,divisi,jabatan', order: 'employee_id.asc', limit: 5000 });
       const rAttendance = await db('GET', 'attendance', { select: 'attendance_id,employee_id,email,tanggal,jam_masuk,jam_keluar,status,lokasi,work_mode', tanggal: 'eq.' + date, order: 'jam_masuk.asc,created_at.asc', limit: 5000 });
       const rLeaves = await db('GET', 'leave_requests', { select: 'leave_id,employee_id,email,jenis_cuti,tanggal_mulai,tanggal_selesai,status,created_at', tanggal_mulai: 'eq.' + date, order: 'created_at.desc', limit: 5000 });
-      if (!rCfg.ok || !rEmp.ok || !rAttendance.ok || !rLeaves.ok) {
-        const err = !rCfg.ok ? rCfg.error : !rEmp.ok ? rEmp.error : !rAttendance.ok ? rAttendance.error : rLeaves.error;
+      if (!rEmp.ok || !rAttendance.ok || !rLeaves.ok) {
+        const err = !rEmp.ok ? rEmp.error : !rAttendance.ok ? rAttendance.error : rLeaves.error;
         return json(res, 500, { ok: false, message: 'Gagal ambil detail KPI harian.', error: err });
       }
-      const lateAfter = String((rCfg.data && rCfg.data[0] && rCfg.data[0].value) || '08:30:00');
       const empMap = {};
       (rEmp.data || []).forEach(function(x) { empMap[String(x.employee_id || '')] = x; });
-      const attendance = (rAttendance.data || []).map(function(r) {
+      const shiftCache = {};
+      const attendance = await Promise.all((rAttendance.data || []).map(async function(r) {
         const e = empMap[String(r.employee_id || '')] || {};
-        return Object.assign({}, r, { nama: String(e.nama || '-'), divisi: String(e.divisi || '-'), jabatan: String(e.jabatan || '-') });
-      });
+        const empId = String(r.employee_id || '');
+        if (!shiftCache[empId]) {
+          const sched = await resolveEmployeeShiftForDate(empId, date);
+          const shiftCode = normalizeShiftCode(sched.shift_code || 'PAGI');
+          shiftCache[empId] = { shift_code: shiftCode, late_after_time: shiftLateAfterTime(shiftCode) || '-' };
+        }
+        return Object.assign({}, r, {
+          nama: String(e.nama || '-'),
+          divisi: String(e.divisi || '-'),
+          jabatan: String(e.jabatan || '-'),
+          shift_code: shiftCache[empId].shift_code,
+          late_after_time: shiftCache[empId].late_after_time
+        });
+      }));
       const leaves = (rLeaves.data || []).map(function(r) {
         const e = empMap[String(r.employee_id || '')] || {};
         return Object.assign({}, r, { nama: String(e.nama || '-'), divisi: String(e.divisi || '-'), jabatan: String(e.jabatan || '-') });
       });
       const lateRows = attendance.filter(function(r) {
         const st = String(r.status || '').toLowerCase();
-        const jm = String(r.jam_masuk || '');
-        return st === 'terlambat' || (jm && jm > lateAfter);
+        return st === 'terlambat';
       }).sort(function(x, y) {
         return String(y.jam_masuk || '').localeCompare(String(x.jam_masuk || ''));
       });
@@ -4653,7 +4658,7 @@ module.exports = async function handler(req, res) {
         leaves_pending: leaves.filter(function(r) { return String(r.status || '').toLowerCase() === 'pending'; }).length,
         leaves_approved: leaves.filter(function(r) { return String(r.status || '').toLowerCase() === 'approved'; }).length,
         leaves_rejected: leaves.filter(function(r) { return String(r.status || '').toLowerCase() === 'rejected'; }).length,
-        late_after_time: lateAfter
+        late_after_time: 'By Shift +15m'
       };
       await auditLog(a.email, 'REPORT', 'kpi_hr_day', 'Open KPI harian ' + date, String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || ''));
       return json(res, 200, { ok: true, summary: summary, attendance: attendance, leaves: leaves, late_rows: lateRows });
@@ -4837,7 +4842,7 @@ module.exports = async function handler(req, res) {
       const today = ymd();
       const startDate = String(req.query.start_date || dateShift(today, -13)).trim();
       const endDate = String(req.query.end_date || today).trim();
-      const rCfg = await db('GET', 'config', { select: 'key,value', key: 'in.(LATE_AFTER_TIME,OPS_CHECKIN_GAP_HIGH,OPS_CHECKIN_GAP_CRITICAL,OPS_PENDING_LEAVES_MEDIUM,OPS_PENDING_LEAVES_CRITICAL,OPS_LATE_RATE_HIGH,OPS_DIVISION_RISK_MEDIUM)', limit: 100 });
+      const rCfg = await db('GET', 'config', { select: 'key,value', key: 'in.(OPS_CHECKIN_GAP_HIGH,OPS_CHECKIN_GAP_CRITICAL,OPS_PENDING_LEAVES_MEDIUM,OPS_PENDING_LEAVES_CRITICAL,OPS_LATE_RATE_HIGH,OPS_DIVISION_RISK_MEDIUM)', limit: 100 });
       const rEmp = await db('GET', 'employees', { select: 'employee_id,nama,email,divisi,jabatan,is_active', order: 'employee_id.asc', limit: 5000 });
       const rToday = await db('GET', 'attendance', { select: 'employee_id,jam_masuk,jam_keluar,status,tanggal', tanggal: 'eq.' + today, order: 'created_at.desc', limit: 10000 });
       const rLeavesPending = await db('GET', 'leave_requests', { select: 'leave_id,employee_id,jenis_cuti,tanggal_mulai,tanggal_selesai,status,created_at', status: 'eq.pending', order: 'created_at.desc', limit: 5000 });
@@ -4859,7 +4864,6 @@ module.exports = async function handler(req, res) {
       }
       const cfgMap = {};
       (rCfg.data || []).forEach(function(x) { cfgMap[String(x.key || '')] = String(x.value || ''); });
-      const lateAfter = cfgMap.LATE_AFTER_TIME || '08:30:00';
       const thCheckinHigh = Number(cfgMap.OPS_CHECKIN_GAP_HIGH || 10);
       const thCheckinCritical = Number(cfgMap.OPS_CHECKIN_GAP_CRITICAL || 25);
       const thPendingMedium = Number(cfgMap.OPS_PENDING_LEAVES_MEDIUM || 5);
@@ -4898,8 +4902,7 @@ module.exports = async function handler(req, res) {
       const divLate = {};
       periodRows.forEach(function(r) {
         const st = String(r.status || '').toLowerCase();
-        const jm = String(r.jam_masuk || '');
-        const isLate = st === 'terlambat' || (jm && jm > lateAfter);
+        const isLate = st === 'terlambat';
         const e = empMap[String(r.employee_id || '')] || {};
         const div = String(e.divisi || 'Tanpa Divisi');
         if (!divLate[div]) divLate[div] = { divisi: div, total: 0, late: 0, late_rate: 0 };
@@ -4940,7 +4943,7 @@ module.exports = async function handler(req, res) {
           attendance_records_period: periodRows.length,
           late_records_period: lateCountPeriod,
           late_rate_period: periodLateRate,
-          late_after_time: lateAfter
+          late_after_time: 'By Shift +15m'
         },
         not_checked_in_employees: noCheckInEmployees,
         rules: {
