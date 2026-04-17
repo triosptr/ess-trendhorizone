@@ -1491,7 +1491,7 @@
       }catch(err){ setContent(renderError(err.message)); }
     }
     function downloadEmployeeCsvTemplate(){
-      const csv='employee_id,email,nama,nik,divisi,jabatan,atasan_email,status_karyawan,tanggal_masuk,jatah_cuti,sisa_cuti,role,is_active,no_hp,alamat\nEMP_EXAMPLE_001,user@company.com,Nama Karyawan,12345678,System Admin,System Administrator,manager@company.com,Tetap,2026-01-01,12,12,employee,true,081234567890,Jl. Contoh No.1\n';
+      const csv='employee_id,email,nama,nik,divisi,jabatan,atasan_email,status_karyawan,tanggal_masuk,jatah_cuti,sisa_cuti,role,is_active,no_hp,alamat\nTGH_EXAMPLE_001,user@company.com,Nama Karyawan,12345678,System Admin,System Administrator,manager@company.com,Tetap,2026-01-01,12,12,employee,true,081234567890,Jl. Contoh No.1\n';
       const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
       const url=URL.createObjectURL(blob);
       const a=document.createElement('a');

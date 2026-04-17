@@ -670,7 +670,7 @@ function toBoolDefaultTrue(v) {
 function employeePayloadFromInput(input) {
   const b = input || {};
   return {
-    employee_id: String(b.employee_id || rid('EMP')).trim(),
+    employee_id: String(b.employee_id || rid('TGH')).trim(),
     email: String(b.email || '').trim().toLowerCase(),
     nama: String(b.nama || '').trim(),
     nik: String(b.nik || '').trim(),
@@ -766,7 +766,7 @@ async function syncDivisionPositionFromEmployees(actorEmail) {
 }
 function protectedEmployeeIds() {
   const fromEnv = String(process.env.PROTECTED_EMPLOYEE_IDS || '').split(',').map(function(x) { return String(x || '').trim(); }).filter(Boolean);
-  const defaults = ['EMP_ADMIN_001'];
+  const defaults = ['TGH_ADMIN_001'];
   return Array.from(new Set(defaults.concat(fromEnv)));
 }
 function protectedEmployeeEmails() {
