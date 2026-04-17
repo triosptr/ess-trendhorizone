@@ -658,23 +658,17 @@
             </div>
 
             <div class="card">
-                <div class="team-header">
+                <div class="team-header" style="flex-wrap:wrap; gap:12px; margin-bottom:16px;">
                     <h3 style="font-size:20px;font-weight:700;">Dashboard Absensi Login / Logout</h3>
-                    <div class="actions">
+                    <div class="actions" style="margin-top:0;">
                         <button class="btn btn-primary" onclick="loadTodayAttendance()"><i class="ph ph-clock"></i> Buka Log Hari Ini</button>
                     </div>
                 </div>
-                <div class="cards-row" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); margin-bottom:14px;">
+                <div class="cards-row" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); margin-bottom:0;">
                     <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Sudah Login</div><div class="stat-large">${escapeHtml(checkedInToday)}</div></div>
                     <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Sudah Logout</div><div class="stat-large">${escapeHtml(checkedOutToday)}</div></div>
                     <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Masih Bekerja</div><div class="stat-large" style="color:var(--primary);">${escapeHtml(stillWorkingToday)}</div></div>
                     <div class="card" style="box-shadow:none;background:var(--bg);"><div class="stat-label">Belum Login</div><div class="stat-large" style="color:var(--warning);">${escapeHtml(notCheckedInToday)}</div></div>
-                </div>
-                <div class="table-wrap">
-                    <table>
-                        <thead><tr><th>ID</th><th>Nama</th><th>Login</th><th>Logout</th><th>Status</th></tr></thead>
-                        <tbody>${loginLogoutRows}</tbody>
-                    </table>
                 </div>
             </div>
             </div>
