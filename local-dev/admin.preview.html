@@ -495,6 +495,38 @@
     function hdr(){
       return { 'Content-Type':'application/json', 'x-user-email':localStorage.getItem('ess_admin_email')||localStorage.getItem('ess_demo_admin_email')||'admin@perusahaan.com', 'x-user-role':localStorage.getItem('ess_admin_role')||'superadmin', 'x-employee-id':localStorage.getItem('ess_employee_id')||localStorage.getItem('ess_admin_employee_id')||'', 'Authorization':'Bearer '+sessionToken() };
     }
+    function adminPhotoCacheKey(employeeId){
+      return 'ess_profile_photo_admin_' + String(employeeId || '').trim();
+    }
+    function setAdminPhotoCache(employeeId, photoUrl){
+      const key = adminPhotoCacheKey(employeeId);
+      const val = String(photoUrl || '').trim();
+      if(!key) return;
+      if(val) localStorage.setItem(key, val);
+      else localStorage.removeItem(key);
+    }
+    function getAdminPhotoCache(employeeId){
+      return String(localStorage.getItem(adminPhotoCacheKey(employeeId)) || '').trim();
+    }
+    function applyAvatarToEl(el, name, photoUrl){
+      if(!el) return;
+      const url = String(photoUrl || '').trim();
+      if(url){
+        el.textContent = '';
+        el.style.backgroundImage = 'url("' + url.replace(/"/g,'\\"') + '")';
+        el.style.backgroundSize = 'cover';
+        el.style.backgroundPosition = 'center';
+        el.style.backgroundRepeat = 'no-repeat';
+        el.style.color = 'transparent';
+      }else{
+        el.style.backgroundImage = 'none';
+        el.style.backgroundSize = '';
+        el.style.backgroundPosition = '';
+        el.style.backgroundRepeat = '';
+        el.style.color = '';
+        el.textContent = String((name||'A')).charAt(0).toUpperCase();
+      }
+    }
     function base(){ const fixed='https://ess-2026-trendhorizone-id.vercel.app'; const host=String(location.hostname||'').toLowerCase(); const origin=String(location.origin||'').trim().replace(/\/+$/,''); if(host==='localhost'||host==='127.0.0.1') return localStorage.getItem('ess_api_base') || fixed; return origin || fixed; }
     async function api(path,method,body){ const r=await fetch(base()+path,{method:method||'GET',headers:hdr(),body:body?JSON.stringify(body):undefined}); const tx=await r.text(); let d=tx; try{d=JSON.parse(tx);}catch(e){} if(!r.ok) throw new Error((d&&d.message)||'Request failed'); return d; }
     function sessionToken(){ return localStorage.getItem('ess_session_token')||''; }
@@ -516,8 +548,9 @@
       document.getElementById('header_name').textContent=user.nama||'Admin';
       document.getElementById('header_role').textContent=user.role||'admin';
       const av=document.getElementById('header_avatar');
-      if(j.user.photo_url){ av.textContent=''; av.style.backgroundImage='url('+j.user.photo_url+')'; av.style.backgroundSize='cover'; av.style.backgroundPosition='center'; }
-      else { av.style.backgroundImage='none'; av.textContent=String((user.nama||'A')).charAt(0).toUpperCase(); }
+      const photoUrl = String(j.user.photo_url || '').trim();
+      if(photoUrl) setAdminPhotoCache(user.employee_id, photoUrl);
+      applyAvatarToEl(av, user.nama || 'Admin', photoUrl || getAdminPhotoCache(user.employee_id));
       return true;
     }
     async function logoutSession(){
@@ -2646,6 +2679,10 @@
     
     async function loadMyProfile(){ 
         try { setLoading(); const p=await api('/api/me/profile'); 
+        const photoFromApi = String((p&&p.photo_url) || '').trim();
+        const cachedPhoto = getAdminPhotoCache(p&&p.employee_id);
+        const resolvedPhoto = photoFromApi || cachedPhoto;
+        if(photoFromApi) setAdminPhotoCache(p&&p.employee_id, photoFromApi);
         const html = `
             <div class="card" style="max-width:800px;margin:0 auto;">
                 <div class="team-header" style="border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:24px;">
@@ -2657,7 +2694,7 @@
                 <div class="grid-2" style="gap:32px;align-items:start;">
                     <div style="display:flex;flex-direction:column;gap:16px;">
                         <div class="card" style="box-shadow:0 2px 8px rgba(0,0,0,0.05);background:#f8fafc;border:1px solid #e2e8f0;display:flex;flex-direction:column;align-items:center;text-align:center;padding:32px 24px;">
-                            <div class="avatar" id="pf_preview_avatar" style="width:120px;height:120px;font-size:48px;margin-bottom:16px;box-shadow:0 4px 12px rgba(0,0,0,0.1);${p.photo_url?'background-image:url('+escapeHtml(p.photo_url)+');background-size:cover;background-position:center;color:transparent;':''}">${(p.nama||'U').charAt(0).toUpperCase()}</div>
+                            <div class="avatar" id="pf_preview_avatar" style="width:120px;height:120px;font-size:48px;margin-bottom:16px;box-shadow:0 4px 12px rgba(0,0,0,0.1);${resolvedPhoto?'background-image:url('+escapeHtml(resolvedPhoto)+');background-size:cover;background-position:center;color:transparent;':''}">${(p.nama||'U').charAt(0).toUpperCase()}</div>
                             <h4 style="font-size:18px;font-weight:600;margin:0 0 4px;">${escapeHtml(p.nama||'-')}</h4>
                             <div style="font-size:14px;color:var(--text-sec);margin-bottom:16px;">${escapeHtml(p.jabatan||'Admin')} • ${escapeHtml(p.divisi||'Admin')}</div>
                             
@@ -2725,20 +2762,20 @@
         };
         const f=(document.getElementById('pf_photo')||{}).files;
         if(f&&f[0]) payload.photo={ base64Data: await fileToBase64(f[0]), mimeType: 'image/jpeg' };
+        let profileResp = null;
         await runWithButtonLoading('btn_save_profile_admin','Menyimpan...','<i class="ph ph-floppy-disk"></i> Simpan Profil', async function(){
-          await api('/api/me/profile','PATCH',payload);
+          profileResp = await api('/api/me/profile','PATCH',payload);
         });
         localStorage.removeItem('ess_force_profile_setup');
         
         // Refresh avatar header
       const av = document.getElementById('header_avatar');
-      if (av && payload.photo) {
-         av.style.backgroundImage = 'url(data:' + payload.photo.mimeType + ';base64,' + payload.photo.base64Data + ')';
-         av.style.backgroundSize = 'cover';
-         av.style.backgroundPosition = 'center';
-         av.style.color = 'transparent';
-         av.textContent = '';
-      }
+      const empId = localStorage.getItem('ess_employee_id') || localStorage.getItem('ess_admin_employee_id') || '';
+      const serverPhoto = String((profileResp&&profileResp.data&&profileResp.data.photo_url) || '').trim();
+      const immediatePhoto = (payload.photo && payload.photo.base64Data) ? ('data:' + payload.photo.mimeType + ';base64,' + payload.photo.base64Data) : '';
+      const finalPhoto = serverPhoto || immediatePhoto;
+      if(finalPhoto) setAdminPhotoCache(empId, finalPhoto);
+      applyAvatarToEl(av, (document.getElementById('pf_nama')||{}).value || 'Admin', finalPhoto || getAdminPhotoCache(empId));
       
       alert('Profil berhasil disimpan!');
         await loadMyProfile();

@@ -867,10 +867,14 @@ function parseDriveFolderId(input) {
 }
 function toDriveDirectUrl(url) {
   const u = String(url || '').trim();
-  if (u.includes('drive.google.com/file/d/')) {
-    const m = u.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-    if (m && m[1]) return 'https://drive.google.com/uc?export=view&id=' + m[1];
-  }
+  if (!u) return '';
+  if (u.indexOf('data:') === 0) return u;
+  const fromFilePath = u.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (fromFilePath && fromFilePath[1]) return 'https://drive.google.com/thumbnail?id=' + fromFilePath[1] + '&sz=w1200';
+  const fromThumb = u.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (u.includes('drive.google.com/thumbnail') && fromThumb && fromThumb[1]) return 'https://drive.google.com/thumbnail?id=' + fromThumb[1] + '&sz=w1200';
+  if (u.includes('drive.google.com/uc') && fromThumb && fromThumb[1]) return 'https://drive.google.com/thumbnail?id=' + fromThumb[1] + '&sz=w1200';
+  if (u.includes('drive.google.com/open') && fromThumb && fromThumb[1]) return 'https://drive.google.com/thumbnail?id=' + fromThumb[1] + '&sz=w1200';
   return u;
 }
 function bufferFromBase64(base64) {
