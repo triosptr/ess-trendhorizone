@@ -587,7 +587,10 @@
         
         const statusRows=(emps||[]).map(function(e,i){ const a=attMap[e.employee_id]||null; return '<div class="live-emp-row card" data-live-row="1" data-name="'+escapeHtml(e.nama||'').toLowerCase()+'" data-id="'+escapeHtml(e.employee_id||'').toLowerCase()+'" data-masuk="'+escapeHtml((a&&a.jam_masuk)||'')+'" data-keluar="'+escapeHtml((a&&a.jam_keluar)||'')+'" data-break-seconds="'+escapeHtml((a&&a.break_total_seconds)||0)+'" data-break-active="'+(a&&a.break_active?'1':'0')+'" data-break-start="'+escapeHtml((a&&a.break_active_start)||'')+'" style="padding:16px; margin-bottom:12px; border-radius:12px; box-shadow:none; border:1px solid var(--border);">'
           + '<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">'
+          + '<div style="display:flex; align-items:center; gap:12px;">'
+          + '<div style="width:40px; height:40px; flex-shrink:0; border-radius:50%; background:#e2e8f0; background-image:url('+escapeHtml((a&&a.foto_masuk_url)||'')+'); background-size:cover; background-position:center; display:flex; align-items:center; justify-content:center; font-weight:700; color:var(--text-sec); border:1px solid var(--border);">'+((a&&a.foto_masuk_url)?'':escapeHtml(e.nama||'U').charAt(0).toUpperCase())+'</div>'
           + '<div><div style="font-weight:700; font-size:15px; color:var(--text-main); margin-bottom:2px;">'+escapeHtml(e.nama||'-')+'</div><div style="font-size:12px; color:var(--text-sec);">'+escapeHtml(e.employee_id||'-')+'</div></div>'
+          + '</div>'
           + '<div>'+liveStatusBadge(a)+'</div>'
           + '</div>'
           + '<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:13px; border-top:1px solid var(--border); padding-top:12px;">'
