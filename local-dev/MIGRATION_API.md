@@ -2,7 +2,7 @@
 
 Base URL production:
 
-- `https://ess-2026-trendhorizone-id.vercel.app`
+- `https://ess-trendhorizone.space`
 
 Header identitas user untuk endpoint `me/*`:
 

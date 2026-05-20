@@ -35,7 +35,7 @@ module.exports = async function handler(req, res) {
     return localHandler(req, res);
   }
 
-  const canonical = String(process.env.CANONICAL_API_BASE || 'https://ess-2026-trendhorizone-id.vercel.app').replace(/\/+$/, '');
+  const canonical = String(process.env.CANONICAL_API_BASE || 'https://ess-trendhorizone.space').replace(/\/+$/, '');
   const route = routeFromReq(req);
   const qsIndex = String(req.url || '').indexOf('?');
   const rawQs = qsIndex >= 0 ? String(req.url || '').slice(qsIndex + 1) : '';

@@ -95,7 +95,7 @@
     </div>
   </div>
   <script>
-    const CANONICAL_API='https://ess-2026-trendhorizone-id.vercel.app';
+    const CANONICAL_API='https://ess-trendhorizone.space';
     async function resolveApiBase(){
       const saved=String(localStorage.getItem('ess_api_base')||'').trim().replace(/\/+$/,'');
       const origin=String(location.origin||'').trim().replace(/\/+$/,'');
@@ -103,7 +103,7 @@
       const candidates=[];
       if(origin) candidates.push(origin);
       if(saved) candidates.push(saved);
-      if(host==='localhost'||host==='127.0.0.1') candidates.push('https://ess-trendhorizone-id.vercel.app');
+      if(host==='localhost'||host==='127.0.0.1') candidates.push('https://ess-trendhorizone.space');
       candidates.push(CANONICAL_API);
       const uniq=[...new Set(candidates.filter(Boolean))];
       const healths=[];

@@ -536,7 +536,7 @@
         el.textContent = String((name||'A')).charAt(0).toUpperCase();
       }
     }
-    function base(){ const fixed='https://ess-2026-trendhorizone-id.vercel.app'; const host=String(location.hostname||'').toLowerCase(); const origin=String(location.origin||'').trim().replace(/\/+$/,''); if(host==='localhost'||host==='127.0.0.1') return localStorage.getItem('ess_api_base') || fixed; return origin || fixed; }
+    function base(){ const fixed='https://ess-trendhorizone.space'; const host=String(location.hostname||'').toLowerCase(); const origin=String(location.origin||'').trim().replace(/\/+$/,''); if(host==='localhost'||host==='127.0.0.1') return localStorage.getItem('ess_api_base') || fixed; return origin || fixed; }
     async function api(path,method,body){ const r=await fetch(base()+path,{method:method||'GET',headers:hdr(),body:body?JSON.stringify(body):undefined}); const tx=await r.text(); let d=tx; try{d=JSON.parse(tx);}catch(e){} if(!r.ok) throw new Error((d&&d.message)||'Request failed'); return d; }
     function sessionToken(){ return localStorage.getItem('ess_session_token')||''; }
     async function ensureSessionLogin(){

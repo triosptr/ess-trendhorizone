@@ -137,7 +137,7 @@ async function deliverActivationEmail(toEmail, employeeName, passwordPlain, opti
   const apiKey = String(process.env.RESEND_API_KEY || process.env.RESEND_KEY || process.env.EMAIL_RESEND_API_KEY || '').trim();
   const from = String(process.env.RESEND_FROM || 'ESS Trendhorizone <no-reply@trendhorizone.space>').trim();
   const fallbackFrom = String(process.env.RESEND_FROM_FALLBACK || 'Trendhorizone ESS <onboarding@resend.dev>').trim();
-  const appUrl = String(process.env.APP_BASE_URL || 'https://ess-trendhorizone-id.vercel.app').trim().replace(/\/+$/,'');
+  const appUrl = String(process.env.APP_BASE_URL || 'https://ess-trendhorizone.space').trim().replace(/\/+$/,'');
   let autoFrom = '';
   try {
     const host = String(new URL(appUrl).hostname || '').trim().toLowerCase();

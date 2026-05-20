@@ -2,7 +2,7 @@ const ESS_CONFIG = {
   APP_NAME: 'ESS Karyawan 2026',
   TEST_MODE: true,
   TEST_EMAIL: 'programmer1@perusahaan.com',
-  WEB_DASHBOARD_BASE_URL: 'https://ess-2026-trendhorizone-id.vercel.app',
+  WEB_DASHBOARD_BASE_URL: 'https://ess-trendhorizone.space',
 
   LEAVE_ATTACHMENT_FOLDER_ID: '1mpbIt5CEkPOVFGd1MXHSh1VnDs2hwoKy',
   MAX_ATTACHMENT_SIZE_MB: 10,
